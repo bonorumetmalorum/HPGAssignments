@@ -23,6 +23,7 @@ void TriangleApp::initVulkan()
 {
 	createInstance();
 	setupDebugMessenger();
+	pickPhysicalDevice();
 }
 
 void TriangleApp::initWindow()
@@ -42,6 +43,37 @@ void TriangleApp::mainLoop()
 	while (!glfwWindowShouldClose(window)) {
 		glfwPollEvents();
 	}
+}
+
+void TriangleApp::pickPhysicalDevice()
+{
+	//find the number of supported devices
+	uint32_t deviceCount = 0;
+	vkEnumeratePhysicalDevices(vkInstance, &deviceCount, nullptr);
+	//if there are no supported devices do not continue
+	if (deviceCount == 0) {
+		throw std::runtime_error("failed to find GPUs with Vulkan support!");
+	}
+	//store all the physical devices available
+	std::vector<VkPhysicalDevice> devices(deviceCount);
+	vkEnumeratePhysicalDevices(vkInstance, &deviceCount, devices.data());
+	for (const auto& device : devices) {
+		if (isDeviceSuitable(device)) {
+			physicalDevice = device;
+			break;
+		}
+	}
+	//if we did not find a suitable device do not proceed
+	if (physicalDevice == VK_NULL_HANDLE) {
+		throw std::runtime_error("failed to find a suitable GPU!");
+	}
+
+}
+
+bool TriangleApp::isDeviceSuitable(VkPhysicalDevice device) {
+	QueueFamilyIndices indices = findQueueFamilies(device);
+
+	return indices.isComplete();
 }
 
 void DestroyDebugUtilsMessengerEXT(VkInstance instance, VkDebugUtilsMessengerEXT debugMessenger, const VkAllocationCallbacks* pAllocator) {
@@ -78,6 +110,29 @@ std::vector<const char*> TriangleApp::getRequiredExtensions() {
 	}
 
 	return extensions;
+}
+
+QueueFamilyIndices TriangleApp::findQueueFamilies(VkPhysicalDevice device)
+{
+	QueueFamilyIndices indices;
+
+	//get queue info from physical device
+	uint32_t queueFamilyCount = 0;
+	vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, nullptr);
+	std::vector<VkQueueFamilyProperties> queueFamilies(queueFamilyCount);
+	vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, queueFamilies.data());
+	//find the index of the queue that has the VK_QUEUE_GRAPHICS_BIT set
+	int i = 0;
+	for (const auto& queueFamily : queueFamilies) {
+		if (indices.isComplete()) {
+			break;
+		}
+		if (queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT) {
+			indices.graphicsFamily = i;
+		}
+		i++;
+	}
+	return indices;
 }
 
 void TriangleApp::createInstance()

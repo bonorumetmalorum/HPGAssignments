@@ -6,8 +6,17 @@
 #include <stdexcept>
 #include <vector>
 #include <iostream>
+#include <optional>
 
-#define DEBUG
+//#define DEBUG
+
+struct QueueFamilyIndices {
+	std::optional<uint32_t> graphicsFamily;
+
+	bool isComplete() {
+		return graphicsFamily.has_value();
+	}
+};
 
 class TriangleApp
 {
@@ -23,11 +32,14 @@ private:
 	void initVulkan();
 	void initWindow();
 	void  mainLoop();
+	void pickPhysicalDevice();
+	bool isDeviceSuitable(VkPhysicalDevice device);
 	void cleanup();
 	void createInstance();
 	void populateDebugMessengerInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo);
 	void setupDebugMessenger();
 	std::vector<const char*> getRequiredExtensions();
+	QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device);
 
 	GLFWwindow * window;
 	const int WIDTH = 800;
@@ -44,7 +56,11 @@ private:
 #endif // DEBUG
 	bool checkValidationLayerSupport();
 
+	//vulkan API handle
 	VkInstance vkInstance;
+	//physical device handle
+	VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
+	//debug messenger handle
 	VkDebugUtilsMessengerEXT debugMessenger;
 
 	static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
