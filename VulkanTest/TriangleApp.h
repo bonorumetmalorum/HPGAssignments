@@ -33,6 +33,7 @@ private:
 	void initWindow();
 	void  mainLoop();
 	void pickPhysicalDevice();
+	void createLogicalDevice();
 	bool isDeviceSuitable(VkPhysicalDevice device);
 	void cleanup();
 	void createInstance();
@@ -60,6 +61,10 @@ private:
 	VkInstance vkInstance;
 	//physical device handle
 	VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
+	//logical device handle
+	VkDevice device;
+	//queue handle
+	VkQueue graphicsQueue;
 	//debug messenger handle
 	VkDebugUtilsMessengerEXT debugMessenger;
 

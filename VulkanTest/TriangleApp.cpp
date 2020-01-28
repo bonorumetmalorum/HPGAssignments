@@ -24,6 +24,7 @@ void TriangleApp::initVulkan()
 	createInstance();
 	setupDebugMessenger();
 	pickPhysicalDevice();
+	createLogicalDevice();
 }
 
 void TriangleApp::initWindow()
@@ -70,6 +71,42 @@ void TriangleApp::pickPhysicalDevice()
 
 }
 
+void TriangleApp::createLogicalDevice()
+{
+	//setup structs for describing the queues we want to create
+	QueueFamilyIndices indices = findQueueFamilies(physicalDevice);
+	VkDeviceQueueCreateInfo queueCreateInfo = {};
+	queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+	//here we only want a queue for graphics, so 1 queue with index 1
+	queueCreateInfo.queueFamilyIndex = indices.graphicsFamily.value();
+	queueCreateInfo.queueCount = 1;
+	//command priority execution, determines how commands are scheduled and this is even needed in the case of 1 queue
+	float queuePriority = 1.0f;
+	queueCreateInfo.pQueuePriorities = &queuePriority;
+
+	//now we setup the features we want to use with vulkan, but nothing much as of yet
+	VkPhysicalDeviceFeatures deviceFeatures = {};
+	//this is like before but now we are setting config up for the device we chose
+	VkDeviceCreateInfo createInfo = {};
+	createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+	createInfo.pQueueCreateInfos = &queueCreateInfo;
+	createInfo.queueCreateInfoCount = 1;
+	createInfo.pEnabledFeatures = &deviceFeatures;
+	createInfo.enabledExtensionCount = 0;
+	if (enableValidationLayers) {
+		createInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
+		createInfo.ppEnabledLayerNames = validationLayers.data();
+	}
+	else {
+		createInfo.enabledLayerCount = 0;
+	}
+	//instantiate the device now
+	if (vkCreateDevice(physicalDevice, &createInfo, nullptr, &device) != VK_SUCCESS) {
+		throw std::runtime_error("failed to create logical device!");
+	}
+	vkGetDeviceQueue(device, indices.graphicsFamily.value(), 0, &graphicsQueue);
+}
+
 bool TriangleApp::isDeviceSuitable(VkPhysicalDevice device) {
 	QueueFamilyIndices indices = findQueueFamilies(device);
 
@@ -85,6 +122,8 @@ void DestroyDebugUtilsMessengerEXT(VkInstance instance, VkDebugUtilsMessengerEXT
 
 void TriangleApp::cleanup()
 {
+	vkDestroyDevice(device, nullptr);
+
 	if (enableValidationLayers) {
 		DestroyDebugUtilsMessengerEXT(vkInstance, debugMessenger, nullptr);
 	}
