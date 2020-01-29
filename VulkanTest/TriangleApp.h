@@ -7,14 +7,16 @@
 #include <vector>
 #include <iostream>
 #include <optional>
+#include <set>
 
 //#define DEBUG
 
 struct QueueFamilyIndices {
 	std::optional<uint32_t> graphicsFamily;
+	std::optional<uint32_t> presentFamily;
 
 	bool isComplete() {
-		return graphicsFamily.has_value();
+		return graphicsFamily.has_value() && presentFamily.has_value();
 	}
 };
 
@@ -31,17 +33,21 @@ private:
 
 	void initVulkan();
 	void initWindow();
-	void  mainLoop();
 	void pickPhysicalDevice();
 	void createLogicalDevice();
 	bool isDeviceSuitable(VkPhysicalDevice device);
 	void cleanup();
 	void createInstance();
+	void createSurface();
 	void populateDebugMessengerInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo);
 	void setupDebugMessenger();
+	bool checkDeviceExtensionSupport(VkPhysicalDevice device);
+	
+	void  mainLoop();
+	
 	std::vector<const char*> getRequiredExtensions();
 	QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device);
-
+	
 	GLFWwindow * window;
 	const int WIDTH = 800;
 	const int HEIGHT = 600;
@@ -49,6 +55,10 @@ private:
 	const std::vector<const char*> validationLayers = {
 		"VK_LAYER_KHRONOS_validation"
 	};
+
+	const std::vector<const char*> deviceExtensions = {
+	VK_KHR_SWAPCHAIN_EXTENSION_NAME
+};
 
 #ifdef DEBUG
 	const bool enableValidationLayers = true;
@@ -78,5 +88,9 @@ private:
 
 		return VK_FALSE;
 	}
+
+	VkSurfaceKHR surface;
+
+	VkQueue presentationQueue;
 };
 

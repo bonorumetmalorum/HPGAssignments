@@ -8,8 +8,8 @@ TriangleApp::TriangleApp()
 
 void TriangleApp::run()
 {
-	initVulkan();
 	initWindow();
+	initVulkan();
 	mainLoop();
 	cleanup();
 }
@@ -23,6 +23,7 @@ void TriangleApp::initVulkan()
 {
 	createInstance();
 	setupDebugMessenger();
+	createSurface();
 	pickPhysicalDevice();
 	createLogicalDevice();
 }
@@ -75,22 +76,26 @@ void TriangleApp::createLogicalDevice()
 {
 	//setup structs for describing the queues we want to create
 	QueueFamilyIndices indices = findQueueFamilies(physicalDevice);
-	VkDeviceQueueCreateInfo queueCreateInfo = {};
-	queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-	//here we only want a queue for graphics, so 1 queue with index 1
-	queueCreateInfo.queueFamilyIndex = indices.graphicsFamily.value();
-	queueCreateInfo.queueCount = 1;
+	std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
+	std::set<uint32_t> uniqueQueueFamilies = { indices.graphicsFamily.value(), indices.presentFamily.value() };
 	//command priority execution, determines how commands are scheduled and this is even needed in the case of 1 queue
 	float queuePriority = 1.0f;
-	queueCreateInfo.pQueuePriorities = &queuePriority;
+	for (uint32_t queueFamily : uniqueQueueFamilies) {
+		VkDeviceQueueCreateInfo queueCreateInfo = {};
+		queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+		queueCreateInfo.queueFamilyIndex = indices.graphicsFamily.value();
+		queueCreateInfo.queueCount = 1;
+		queueCreateInfo.pQueuePriorities = &queuePriority;
+		queueCreateInfos.push_back(queueCreateInfo);
+	}
 
 	//now we setup the features we want to use with vulkan, but nothing much as of yet
 	VkPhysicalDeviceFeatures deviceFeatures = {};
 	//this is like before but now we are setting config up for the device we chose
 	VkDeviceCreateInfo createInfo = {};
 	createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-	createInfo.pQueueCreateInfos = &queueCreateInfo;
-	createInfo.queueCreateInfoCount = 1;
+	createInfo.pQueueCreateInfos = queueCreateInfos.data();
+	createInfo.queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size());
 	createInfo.pEnabledFeatures = &deviceFeatures;
 	createInfo.enabledExtensionCount = 0;
 	if (enableValidationLayers) {
@@ -105,12 +110,13 @@ void TriangleApp::createLogicalDevice()
 		throw std::runtime_error("failed to create logical device!");
 	}
 	vkGetDeviceQueue(device, indices.graphicsFamily.value(), 0, &graphicsQueue);
+	vkGetDeviceQueue(device, indices.presentFamily.value(), 0, &presentationQueue);
 }
 
 bool TriangleApp::isDeviceSuitable(VkPhysicalDevice device) {
 	QueueFamilyIndices indices = findQueueFamilies(device);
-
-	return indices.isComplete();
+	bool deviceHasExtensions = checkDeviceExtensionSupport(device);
+	return indices.isComplete() && deviceHasExtensions;
 }
 
 void DestroyDebugUtilsMessengerEXT(VkInstance instance, VkDebugUtilsMessengerEXT debugMessenger, const VkAllocationCallbacks* pAllocator) {
@@ -122,6 +128,9 @@ void DestroyDebugUtilsMessengerEXT(VkInstance instance, VkDebugUtilsMessengerEXT
 
 void TriangleApp::cleanup()
 {
+
+	vkDestroySurfaceKHR(vkInstance, surface, nullptr);
+
 	vkDestroyDevice(device, nullptr);
 
 	if (enableValidationLayers) {
@@ -163,11 +172,17 @@ QueueFamilyIndices TriangleApp::findQueueFamilies(VkPhysicalDevice device)
 	//find the index of the queue that has the VK_QUEUE_GRAPHICS_BIT set
 	int i = 0;
 	for (const auto& queueFamily : queueFamilies) {
-		if (indices.isComplete()) {
-			break;
-		}
+
 		if (queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT) {
 			indices.graphicsFamily = i;
+		}
+		VkBool32 presentSupport = false;
+		vkGetPhysicalDeviceSurfaceSupportKHR(device, i, surface, &presentSupport);
+		if (presentSupport) {
+			indices.presentFamily = i;
+		}
+		if (indices.isComplete()) {
+			break;
 		}
 		i++;
 	}
@@ -224,6 +239,21 @@ void TriangleApp::createInstance()
 	
 }
 
+void TriangleApp::createSurface()
+{
+	//very simple glfw method to make a surface to render to.
+	//this is used because the vk method requires us to fill in a struct with config data
+	//then send it over to setup the surface
+	//glfwGetRequiredExtensions was used earlier to setup the required platform specific extensions that need to be used to create the surface
+	//this method lets us continue writing platform independent code rather than having to specify for each platform the extensions and the appropriate
+	//calls to create the surface
+	VkResult result = glfwCreateWindowSurface(vkInstance, window, nullptr, &surface);
+	if (result!= VK_SUCCESS) {
+		std::cout << result << std::endl;
+		throw std::runtime_error("failed to create window surface");
+	}
+}
+
 void TriangleApp::populateDebugMessengerInfo(VkDebugUtilsMessengerCreateInfoEXT & createInfo)
 {
 	createInfo = {};
@@ -253,6 +283,26 @@ void TriangleApp::setupDebugMessenger()
 	if (CreateDebugUtilsMessengerEXT(vkInstance, &createInfo, nullptr, &debugMessenger) != VK_SUCCESS) {
 		throw std::runtime_error("failed to set up debug messenger!");
 	}
+}
+
+bool TriangleApp::checkDeviceExtensionSupport(VkPhysicalDevice device)
+{
+	//enumerate all the extensions available
+	uint32_t extensionCount;
+	vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, nullptr);
+
+	std::vector<VkExtensionProperties> availableExtensions(extensionCount);
+	vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, availableExtensions.data());
+	//convert the extensions we want to be available to strings
+	std::set<std::string> requiredExtensions(deviceExtensions.begin(), deviceExtensions.end());
+
+	//now iterate over them, crossing them off
+	for (const auto& extension : availableExtensions) {
+		requiredExtensions.erase(extension.extensionName);
+	}
+
+	//return that we either have all the extenesions we want or that we are missing some
+	return requiredExtensions.empty();
 }
 
 bool TriangleApp::checkValidationLayerSupport()
