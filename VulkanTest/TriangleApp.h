@@ -107,5 +107,8 @@ private:
 	VkQueue presentationQueue;
 
 	VkSwapchainKHR swapChain;
+	std::vector<VkImage> swapChainImages; //images (buffers) to use
+	VkFormat swapChainImageFormat;//format we have decided to use
+	VkExtent2D swapChainExtent;//resolution
 };
 
