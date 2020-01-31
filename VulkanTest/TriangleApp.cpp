@@ -26,6 +26,7 @@ void TriangleApp::initVulkan()
 	createSurface();
 	pickPhysicalDevice();
 	createLogicalDevice();
+	createSwapChain();
 }
 
 void TriangleApp::initWindow()
@@ -97,7 +98,8 @@ void TriangleApp::createLogicalDevice()
 	createInfo.pQueueCreateInfos = queueCreateInfos.data();
 	createInfo.queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size());
 	createInfo.pEnabledFeatures = &deviceFeatures;
-	createInfo.enabledExtensionCount = 0;
+	createInfo.enabledExtensionCount = static_cast<uint32_t>(deviceExtensions.size());
+	createInfo.ppEnabledExtensionNames = deviceExtensions.data();
 	if (enableValidationLayers) {
 		createInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
 		createInfo.ppEnabledLayerNames = validationLayers.data();
@@ -116,7 +118,13 @@ void TriangleApp::createLogicalDevice()
 bool TriangleApp::isDeviceSuitable(VkPhysicalDevice device) {
 	QueueFamilyIndices indices = findQueueFamilies(device);
 	bool deviceHasExtensions = checkDeviceExtensionSupport(device);
-	return indices.isComplete() && deviceHasExtensions;
+	bool swapChainAdequate = false;
+	//proceed only if the device has extensions
+	if (deviceHasExtensions) {
+		SwapChainSupportDetails swapChainSupport = querySwapChainSupport(device);
+		swapChainAdequate = !swapChainSupport.formats.empty() && !swapChainSupport.presentModes.empty();
+	}
+	return indices.isComplete() && deviceHasExtensions && swapChainAdequate;
 }
 
 void DestroyDebugUtilsMessengerEXT(VkInstance instance, VkDebugUtilsMessengerEXT debugMessenger, const VkAllocationCallbacks* pAllocator) {
@@ -128,8 +136,10 @@ void DestroyDebugUtilsMessengerEXT(VkInstance instance, VkDebugUtilsMessengerEXT
 
 void TriangleApp::cleanup()
 {
+	vkDestroySwapchainKHR(device, swapChain, nullptr);
 
 	vkDestroySurfaceKHR(vkInstance, surface, nullptr);
+
 
 	vkDestroyDevice(device, nullptr);
 
@@ -254,6 +264,66 @@ void TriangleApp::createSurface()
 	}
 }
 
+void TriangleApp::createSwapChain()
+{
+	//query what is supported by the current physical device
+	SwapChainSupportDetails swapChainSupport = querySwapChainSupport(physicalDevice);
+	//setup the surface formats (buffer properties), presentation mode (buffers) and extent (resolution of rendering)
+	VkSurfaceFormatKHR surfaceFormat = chooseSwapSurfaceFormat(swapChainSupport.formats);
+	VkPresentModeKHR presentMode = chooseSwapPresentMode(swapChainSupport.presentModes);
+	VkExtent2D extent = chooseSwapExtent(swapChainSupport.capabilities);
+
+	//setting for the minimum number of images that must be in the swap chain. +1 because we dont wait to wait and do nothing while the device does
+	//driver operations.
+	uint32_t imageCount = swapChainSupport.capabilities.minImageCount + 1;
+	//we also do not want to exceed the maximum number of images so we check what it is and set our image count to that.
+	if (swapChainSupport.capabilities.maxImageCount > 0 && imageCount > swapChainSupport.capabilities.maxImageCount) {
+		imageCount = swapChainSupport.capabilities.maxImageCount;
+	}
+
+	//BIG OL STRUCT TIME
+	VkSwapchainCreateInfoKHR createInfo = {};
+	createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR; //swap chain type :)
+	createInfo.surface = surface; //surface we are tying the swap chain to
+	createInfo.minImageCount = imageCount;
+	createInfo.imageFormat = surfaceFormat.format;
+	createInfo.imageColorSpace = surfaceFormat.colorSpace;
+	createInfo.imageExtent = extent;
+	createInfo.imageArrayLayers = 1; //number of layers each image consists of
+	createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT; //what kind of operations we will use the images for
+	//here we are rendering directly to them so we use attachment. There are other options...
+
+	//we need to tell vulkan how the images will be used by the queue families
+	//we have to queue, graphics and presentation.
+	//we modify the images using the graphics queue and then submit them for rendering via the presentation queue
+	//there are two ways to determine how images are used across different queues
+	// CONCURRENT (can be used across multiple queue families without explicit ownership) or EXCLUSIVE (one family at a time ones an image)
+	QueueFamilyIndices indices = findQueueFamilies(physicalDevice);
+	uint32_t queueFamilyIndices[] = { indices.graphicsFamily.value(), indices.presentFamily.value() };
+	//if the presentation and graphics queues are seperate then use concurrent otherwise use exclusive
+	if (indices.graphicsFamily != indices.presentFamily) {
+		createInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
+		createInfo.queueFamilyIndexCount = 2;
+		createInfo.pQueueFamilyIndices = queueFamilyIndices;
+	}
+	else {
+		createInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	}
+	
+	//specify that no transforms should be applied to images in the swap chain
+	createInfo.preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
+	//alpha channel that is used to blend this window with other windows (ignored)
+	createInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+	createInfo.presentMode = presentMode; //presentation mode
+	createInfo.clipped = VK_TRUE; //we dont care about colour of pixels that are obscured
+	createInfo.oldSwapchain = VK_NULL_HANDLE; //we need to keep a pointer to the old swap chain which might be invalidated when recreate the swap chain
+
+	if (vkCreateSwapchainKHR(device, &createInfo, nullptr, &swapChain) != VK_SUCCESS) { //access violation
+		throw std::runtime_error("failed to create swap chain!");
+	}
+
+}
+
 void TriangleApp::populateDebugMessengerInfo(VkDebugUtilsMessengerCreateInfoEXT & createInfo)
 {
 	createInfo = {};
@@ -303,6 +373,81 @@ bool TriangleApp::checkDeviceExtensionSupport(VkPhysicalDevice device)
 
 	//return that we either have all the extenesions we want or that we are missing some
 	return requiredExtensions.empty();
+}
+
+SwapChainSupportDetails TriangleApp::querySwapChainSupport(VkPhysicalDevice device)
+{
+	//we use the physical device and the window surface previously created to get information
+	//on the supported swapchain features. We have to use these two because they are core parts of the swapchain
+	SwapChainSupportDetails details;
+
+	vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, surface, &details.capabilities);
+
+	uint32_t formatCount;
+	vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &formatCount, nullptr);
+
+	if (formatCount != 0) {
+		details.formats.resize(formatCount);
+		vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &formatCount, details.formats.data());
+	}
+
+	uint32_t presentModeCount;
+	vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &presentModeCount, nullptr);
+
+	if (presentModeCount != 0) {
+		details.presentModes.resize(presentModeCount);
+		vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &presentModeCount, details.presentModes.data());
+	}
+
+	return details;
+}
+
+VkSurfaceFormatKHR TriangleApp::chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats)
+{
+	/*
+		each available format is a struct that details the properties of each surface format
+		notable properties are the colour channels and type where R8G8B8A8 is R, G, B and alpha represented as bytes
+		and colour space which can be sRGB which is what is being used below
+	*/
+	for (const auto& availableFormat : availableFormats) {
+		if (availableFormat.format == VK_FORMAT_B8G8R8A8_UNORM && availableFormat.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) {
+			return availableFormat;
+		}
+	}
+
+	return availableFormats[0];
+}
+
+VkPresentModeKHR TriangleApp::chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes)
+{
+	for (const auto& availablePresentMode : availablePresentModes) {
+		if (availablePresentMode == VK_PRESENT_MODE_MAILBOX_KHR) {
+			return availablePresentMode;
+		}
+	}
+
+	return VK_PRESENT_MODE_FIFO_KHR;
+}
+
+/*
+	resolution of the swap chain images
+	is almost always equal to the resolution of the window we are drawing to
+	some window managers allow us to differ the resolution of what we are drawing
+	by setting the currentExtent value to INT32_MAX
+*/
+VkExtent2D TriangleApp::chooseSwapExtent(const VkSurfaceCapabilitiesKHR & capabilities)
+{
+	if (capabilities.currentExtent.width != UINT32_MAX) {
+		return capabilities.currentExtent;
+	}
+	else {
+		VkExtent2D actualExtent = { WIDTH, HEIGHT };
+
+		actualExtent.width = std::max(capabilities.minImageExtent.width, std::min(capabilities.maxImageExtent.width, actualExtent.width));
+		actualExtent.height = std::max(capabilities.minImageExtent.height, std::min(capabilities.maxImageExtent.height, actualExtent.height));
+
+		return actualExtent;
+	}
 }
 
 bool TriangleApp::checkValidationLayerSupport()

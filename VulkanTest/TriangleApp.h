@@ -8,8 +8,9 @@
 #include <iostream>
 #include <optional>
 #include <set>
+#include <algorithm>
 
-//#define DEBUG
+#define DEBUG
 
 struct QueueFamilyIndices {
 	std::optional<uint32_t> graphicsFamily;
@@ -18,6 +19,13 @@ struct QueueFamilyIndices {
 	bool isComplete() {
 		return graphicsFamily.has_value() && presentFamily.has_value();
 	}
+};
+
+//struct used querying swap chain support
+struct SwapChainSupportDetails {
+	VkSurfaceCapabilitiesKHR capabilities;
+	std::vector<VkSurfaceFormatKHR> formats;
+	std::vector<VkPresentModeKHR> presentModes;
 };
 
 class TriangleApp
@@ -39,9 +47,14 @@ private:
 	void cleanup();
 	void createInstance();
 	void createSurface();
+	void createSwapChain();
 	void populateDebugMessengerInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo);
 	void setupDebugMessenger();
 	bool checkDeviceExtensionSupport(VkPhysicalDevice device);
+	SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice device);
+	VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats);
+	VkPresentModeKHR chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes);
+	VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities);
 	
 	void  mainLoop();
 	
@@ -57,8 +70,8 @@ private:
 	};
 
 	const std::vector<const char*> deviceExtensions = {
-	VK_KHR_SWAPCHAIN_EXTENSION_NAME
-};
+		VK_KHR_SWAPCHAIN_EXTENSION_NAME
+	};
 
 #ifdef DEBUG
 	const bool enableValidationLayers = true;
@@ -92,5 +105,7 @@ private:
 	VkSurfaceKHR surface;
 
 	VkQueue presentationQueue;
+
+	VkSwapchainKHR swapChain;
 };
 
