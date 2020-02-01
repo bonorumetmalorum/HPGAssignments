@@ -9,8 +9,10 @@
 #include <optional>
 #include <set>
 #include <algorithm>
+#include <fstream>
 
 #define DEBUG
+#define BLEND true
 
 struct QueueFamilyIndices {
 	std::optional<uint32_t> graphicsFamily;
@@ -56,6 +58,11 @@ private:
 	VkPresentModeKHR chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes);
 	VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities);
 	void createImageViews();
+	void createGraphicsPipeline();
+	VkShaderModule createShaderModule(const std::vector<char>& code);
+	void createRenderPass();
+
+	static std::vector<char> readFile(const std::string& filename);
 	
 	void  mainLoop();
 	
@@ -113,5 +120,9 @@ private:
 	VkExtent2D swapChainExtent;//resolution
 	//image views: how to access and how to and which part to access
 	std::vector<VkImageView> swapChainImageViews;
+
+	VkRenderPass renderPass;
+	VkPipelineLayout pipelineLayout;
+	VkPipeline graphicsPipeline;
 };
 
