@@ -42,9 +42,11 @@ void TriangleApp::initWindow()
 	glfwInit();
 	//set glfw to no API and turn off window resizing events
 	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-	glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
+	glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
 	//create the window
 	window = glfwCreateWindow(WIDTH, HEIGHT, "Vulkan", nullptr, nullptr);
+	glfwSetWindowUserPointer(window, this);
+	glfwSetFramebufferSizeCallback(window, framebufferResizeCallback);
 }
 
 void TriangleApp::mainLoop()
@@ -148,6 +150,8 @@ void DestroyDebugUtilsMessengerEXT(VkInstance instance, VkDebugUtilsMessengerEXT
 void TriangleApp::cleanup()
 {
 	
+	cleanupSwapChain();
+
 	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
 		vkDestroySemaphore(device, renderFinishedSemaphores[i], nullptr);
 		vkDestroySemaphore(device, imageAvailableSemaphores[i], nullptr);
@@ -156,36 +160,17 @@ void TriangleApp::cleanup()
 
 	vkDestroyCommandPool(device, commandPool, nullptr);
 
-	for (auto framebuffer : swapChainFramebuffers) {
-		vkDestroyFramebuffer(device, framebuffer, nullptr);
-	}
-
-	vkDestroyPipeline(device, graphicsPipeline, nullptr);
-	
-	vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
-	
-	vkDestroyRenderPass(device, renderPass, nullptr);
-
-	for (auto imageView : swapChainImageViews) {
-		vkDestroyImageView(device, imageView, nullptr);
-	}
-
-	vkDestroySwapchainKHR(device, swapChain, nullptr);
-
-	vkDestroySurfaceKHR(vkInstance, surface, nullptr);
-
-
 	vkDestroyDevice(device, nullptr);
 
 	if (enableValidationLayers) {
 		DestroyDebugUtilsMessengerEXT(vkInstance, debugMessenger, nullptr);
 	}
 
+	vkDestroySurfaceKHR(vkInstance, surface, nullptr);
 	vkDestroyInstance(vkInstance, nullptr);
-	//destroy the window
+
 	glfwDestroyWindow(window);
-	
-	//uninitialize GLFW
+
 	glfwTerminate();
 }
 
@@ -481,7 +466,11 @@ VkExtent2D TriangleApp::chooseSwapExtent(const VkSurfaceCapabilitiesKHR & capabi
 		return capabilities.currentExtent;
 	}
 	else {
-		VkExtent2D actualExtent = { WIDTH, HEIGHT };
+		//get the width and height of the window
+		int width, height;
+		glfwGetFramebufferSize(window, &width, &height);
+
+		VkExtent2D actualExtent = { static_cast<uint32_t>(width), static_cast<uint32_t>(height) };
 
 		actualExtent.width = std::max(capabilities.minImageExtent.width, std::min(capabilities.maxImageExtent.width, actualExtent.width));
 		actualExtent.height = std::max(capabilities.minImageExtent.height, std::min(capabilities.maxImageExtent.height, actualExtent.height));
@@ -930,6 +919,42 @@ void TriangleApp::createSyncObjects()
 
 }
 
+void TriangleApp::recreateSwapChain()
+{
+	//wait for device to finish what it is doing
+	vkDeviceWaitIdle(device);
+
+	cleanupSwapChain();
+
+	//start to recreate the swap chain with new parameters
+	createSwapChain();
+	createImageViews();
+	createRenderPass();
+	createGraphicsPipeline();
+	createFramebuffers();
+	createCommandBuffers();
+}
+
+void TriangleApp::cleanupSwapChain()
+{
+	for (size_t i = 0; i < swapChainFramebuffers.size(); i++) {
+		vkDestroyFramebuffer(device, swapChainFramebuffers[i], nullptr);
+	}
+
+	//do this so we dont need to allocate and new command pool, we can reuse the old one to issue new command buffers
+	vkFreeCommandBuffers(device, commandPool, static_cast<uint32_t>(commandBuffers.size()), commandBuffers.data());
+
+	vkDestroyPipeline(device, graphicsPipeline, nullptr);
+	vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
+	vkDestroyRenderPass(device, renderPass, nullptr);
+
+	for (size_t i = 0; i < swapChainImageViews.size(); i++) {
+		vkDestroyImageView(device, swapChainImageViews[i], nullptr);
+	}
+
+	vkDestroySwapchainKHR(device, swapChain, nullptr);
+}
+
 /*
 
 	Acquire an image from the swap chain
@@ -944,9 +969,19 @@ void TriangleApp::drawFrame()
 	vkWaitForFences(device, 1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
 
 	uint32_t imageIndex;
-	//logical device, swap chain, timeout (disabled in this case) to wait for image, imageavailable semaphore to signal that we can start drawing, 
+	//logical device, swap chain, timeout (disabled in this case) to wait for image, imageAvailable semaphore to signal that we can start drawing, 
 	//finally variable to hold image (used to get right command buffer)
-	vkAcquireNextImageKHR(device, swapChain, UINT64_MAX, imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
+	VkResult result = vkAcquireNextImageKHR(device, swapChain, UINT64_MAX, imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
+
+	//if the swap chain turns out to be out of date then we have to recreate the swap chain and continue in the next call
+	if (result == VK_ERROR_OUT_OF_DATE_KHR) {
+		recreateSwapChain();
+		return;
+	}
+	//if the result is either a success or suboptimal we proceed, if it is anything else something has gone wrong and we throw an error
+	else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
+		throw std::runtime_error("failed to acquire swap chain image!");
+	}
 
 	// Check if a previous frame is using this image (i.e. there is its fence to wait on)
 	if (imagesInFlight[imageIndex] != VK_NULL_HANDLE) {
@@ -994,7 +1029,16 @@ void TriangleApp::drawFrame()
 
 	presentInfo.pResults = nullptr; // Optional allows you to specify an array of VkResult values to check for every individual swap chain if presentation was successful
 
-	vkQueuePresentKHR(presentationQueue, &presentInfo); //submits the request to present an image to the swap chain
+	VkResult result1 = vkQueuePresentKHR(presentationQueue, &presentInfo); //submits the request to present an image to the swap chain
+	
+	//we have to check the same conditions here and recreate the swapchain if we need to
+	if (result1 == VK_ERROR_OUT_OF_DATE_KHR || result1 == VK_SUBOPTIMAL_KHR || framebufferResized) {
+		framebufferResized = false;
+		recreateSwapChain();
+	}
+	else if (result1 != VK_SUCCESS) {
+		throw std::runtime_error("failed to present swap chain image!");
+	}
 	
 	//increment the frame we're rendering
 	currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
@@ -1041,4 +1085,10 @@ bool TriangleApp::checkValidationLayerSupport()
 		}
 	}
 	return true;
+}
+
+void TriangleApp::framebufferResizeCallback(GLFWwindow * window, int width, int height)
+{
+	auto app = reinterpret_cast<TriangleApp*>(glfwGetWindowUserPointer(window));
+	app->framebufferResized = true;
 }

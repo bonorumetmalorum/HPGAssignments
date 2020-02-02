@@ -65,6 +65,8 @@ private:
 	void createCommandPool();
 	void createCommandBuffers();
 	void createSyncObjects();
+	void recreateSwapChain();
+	void cleanupSwapChain();
 
 	void drawFrame();
 
@@ -155,5 +157,8 @@ private:
 	std::vector<VkFence> imagesInFlight; //used to track which images are in flight
 	const int MAX_FRAMES_IN_FLIGHT = 2;
 	size_t currentFrame = 0;
+	//we use this to handle resize events explicitly
+	bool framebufferResized = false;
+	static void framebufferResizeCallback(GLFWwindow* window, int width, int height);
 };
 
