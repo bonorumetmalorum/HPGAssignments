@@ -61,6 +61,9 @@ private:
 	void createGraphicsPipeline();
 	VkShaderModule createShaderModule(const std::vector<char>& code);
 	void createRenderPass();
+	void createFramebuffers();
+	void createCommandPool();
+	void createCommandBuffers();
 
 	static std::vector<char> readFile(const std::string& filename);
 	
@@ -124,5 +127,22 @@ private:
 	VkRenderPass renderPass;
 	VkPipelineLayout pipelineLayout;
 	VkPipeline graphicsPipeline;
+	/*
+		a frame buffer wraps an attachment
+		an attachment is represented in the pipeline by an image returned by the swap chain
+		so we need to make an array of framebuffers as this is dependent on which image is returned
+		by the swap chain (double buffered or more so there might be more than one framebuffer to draw to depending on this setup)
+	*/
+	std::vector<VkFramebuffer> swapChainFramebuffers;
+	/*
+		pool of commands to execute
+		batch
+	*/
+	VkCommandPool commandPool;
+
+	/*
+		per framebuffer recording of commands
+	*/
+	std::vector<VkCommandBuffer> commandBuffers;
 };
 
