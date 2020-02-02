@@ -64,6 +64,9 @@ private:
 	void createFramebuffers();
 	void createCommandPool();
 	void createCommandBuffers();
+	void createSyncObjects();
+
+	void drawFrame();
 
 	static std::vector<char> readFile(const std::string& filename);
 	
@@ -144,5 +147,13 @@ private:
 		per framebuffer recording of commands
 	*/
 	std::vector<VkCommandBuffer> commandBuffers;
+
+	//synchronisation with render operations
+	std::vector<VkSemaphore> imageAvailableSemaphores;
+	std::vector<VkSemaphore> renderFinishedSemaphores;
+	std::vector<VkFence> inFlightFences; //used to sync CPU-GPU so we dont use inflight frames
+	std::vector<VkFence> imagesInFlight; //used to track which images are in flight
+	const int MAX_FRAMES_IN_FLIGHT = 2;
+	size_t currentFrame = 0;
 };
 

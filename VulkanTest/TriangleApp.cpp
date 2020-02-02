@@ -32,6 +32,8 @@ void TriangleApp::initVulkan()
 	createGraphicsPipeline();
 	createFramebuffers();
 	createCommandPool();
+	createCommandBuffers();
+	createSyncObjects();
 }
 
 void TriangleApp::initWindow()
@@ -50,7 +52,11 @@ void TriangleApp::mainLoop()
 	//event loop
 	while (!glfwWindowShouldClose(window)) {
 		glfwPollEvents();
+		drawFrame();
 	}
+
+	//cleaning up resources that are in use are bad (async code in use). we wait for the device to finish rendering before cleaning up
+	vkDeviceWaitIdle(device);
 }
 
 void TriangleApp::pickPhysicalDevice()
@@ -141,6 +147,13 @@ void DestroyDebugUtilsMessengerEXT(VkInstance instance, VkDebugUtilsMessengerEXT
 
 void TriangleApp::cleanup()
 {
+	
+	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+		vkDestroySemaphore(device, renderFinishedSemaphores[i], nullptr);
+		vkDestroySemaphore(device, imageAvailableSemaphores[i], nullptr);
+		vkDestroyFence(device, inFlightFences[i], nullptr);
+	}
+
 	vkDestroyCommandPool(device, commandPool, nullptr);
 
 	for (auto framebuffer : swapChainFramebuffers) {
@@ -737,12 +750,25 @@ void TriangleApp::createRenderPass()
 	renderPassInfo.subpassCount = 1;
 	renderPassInfo.pSubpasses = &subpass;
 
+	//define subpass
+	//first two fields specify the indices of the dependency and the dependent subpass
+	VkSubpassDependency dependency = {};
+	dependency.srcSubpass = VK_SUBPASS_EXTERNAL; //implicit subpass before or after the render pass 
+	dependency.dstSubpass = 0; //our subpass
+	// next two fields specify the operations to wait on and the stages in which these operations occur
+	dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+	dependency.srcAccessMask = 0;
+	//next two fields specify the operations to wait on and the stages in which these operations occur
+	dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+	dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+	
+	//setup the subpass in the renderpassinfo struct
+	renderPassInfo.dependencyCount = 1;
+	renderPassInfo.pDependencies = &dependency;
+
 	if (vkCreateRenderPass(device, &renderPassInfo, nullptr, &renderPass) != VK_SUCCESS) {
 		throw std::runtime_error("failed to create render pass!");
 	}
-
-
-
 }
 
 void TriangleApp::createFramebuffers()
@@ -856,6 +882,122 @@ void TriangleApp::createCommandBuffers()
 	}
 
 
+}
+
+/*
+	create semaphores to sync program with rendering
+*/
+void TriangleApp::createSyncObjects()
+{
+	//similar pattern to previous steps when creating semaphores
+	VkSemaphoreCreateInfo semaphoreInfo = {};
+	semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+	imageAvailableSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
+	renderFinishedSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
+
+	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+		if (vkCreateSemaphore(device, &semaphoreInfo, nullptr, &imageAvailableSemaphores[i]) != VK_SUCCESS ||
+			vkCreateSemaphore(device, &semaphoreInfo, nullptr, &renderFinishedSemaphores[i]) != VK_SUCCESS) {
+
+			throw std::runtime_error("failed to create semaphores for a frame!");
+		}
+	}
+
+	//we now also have to make fence objects to sync CPU and GPU
+	inFlightFences.resize(MAX_FRAMES_IN_FLIGHT);
+	imagesInFlight.resize(swapChainImages.size(), VK_NULL_HANDLE);
+
+	VkFenceCreateInfo fenceInfo = {};
+	fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+	fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT; //we need this so we can render on the very first pass (they are otherwise init to unsignaled and we wait for ever)
+	
+	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+		if (vkCreateFence(device, &fenceInfo, nullptr, &inFlightFences[i]) != VK_SUCCESS) {
+			throw std::runtime_error("failed to create fence for a frame!");
+		}
+	}
+
+
+	/*
+	we now have an array of semaphores, two for each image in flight, this way we do not submit more work than that which can be processed by the GPU
+	this code is now deprecated
+		if (vkCreateSemaphore(device, &semaphoreInfo, nullptr, &imageAvailableSemaphore) != VK_SUCCESS ||
+			vkCreateSemaphore(device, &semaphoreInfo, nullptr, &renderFinishedSemaphore) != VK_SUCCESS) {
+
+			throw std::runtime_error("failed to create semaphores!");
+		}
+	*/
+
+}
+
+/*
+
+	Acquire an image from the swap chain
+	Execute the command buffer with that image as attachment in the framebuffer
+	Return the image to the swap chain for presentation
+
+*/
+void TriangleApp::drawFrame()
+{
+	//before we start drawing again, we have to wait for the previous frame to finish
+	//array of fences and waits for either any or all of them to be signaled before returning
+	vkWaitForFences(device, 1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
+
+	uint32_t imageIndex;
+	//logical device, swap chain, timeout (disabled in this case) to wait for image, imageavailable semaphore to signal that we can start drawing, 
+	//finally variable to hold image (used to get right command buffer)
+	vkAcquireNextImageKHR(device, swapChain, UINT64_MAX, imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
+
+	// Check if a previous frame is using this image (i.e. there is its fence to wait on)
+	if (imagesInFlight[imageIndex] != VK_NULL_HANDLE) {
+		vkWaitForFences(device, 1, &imagesInFlight[imageIndex], VK_TRUE, UINT64_MAX);
+	}
+	// Mark the image as now being in use by this frame
+	imagesInFlight[imageIndex] = inFlightFences[currentFrame];
+
+	VkSubmitInfo submitInfo = {};
+	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+
+	VkSemaphore waitSemaphores[] = { imageAvailableSemaphores[currentFrame] };
+	VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
+	submitInfo.waitSemaphoreCount = 1;
+	submitInfo.pWaitSemaphores = waitSemaphores; //which semaphore to wait on before submitting commands
+	submitInfo.pWaitDstStageMask = waitStages; //which stages are waiting
+
+	//command buffer we are submitting
+	submitInfo.commandBufferCount = 1;
+	submitInfo.pCommandBuffers = &commandBuffers[imageIndex];
+
+	//which semaphore should we use to signal that rendering is complete
+	VkSemaphore signalSemaphores[] = { renderFinishedSemaphores[currentFrame] };
+	submitInfo.signalSemaphoreCount = 1;
+	submitInfo.pSignalSemaphores = signalSemaphores;
+
+	vkResetFences(device, 1, &inFlightFences[currentFrame]); //unlike with semaphores, we need to manually resotre the fence to the original state
+
+	//The last parameter references an optional fence that will be signaled when the command buffers finish execution (CPU-GPU sync).
+	if (vkQueueSubmit(graphicsQueue, 1, &submitInfo, inFlightFences[currentFrame]) != VK_SUCCESS) {
+		throw std::runtime_error("failed to submit draw command buffer!");
+	}
+
+
+	VkPresentInfoKHR presentInfo = {};
+	presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+	// first two parameters specify which semaphores to wait on before presentation can happen,
+	presentInfo.waitSemaphoreCount = 1;
+	presentInfo.pWaitSemaphores = signalSemaphores;
+	//next two parameters specify the swap chains to present images to and the index of the image for each swap chain
+	VkSwapchainKHR swapChains[] = { swapChain };
+	presentInfo.swapchainCount = 1;
+	presentInfo.pSwapchains = swapChains;
+	presentInfo.pImageIndices = &imageIndex;
+
+	presentInfo.pResults = nullptr; // Optional allows you to specify an array of VkResult values to check for every individual swap chain if presentation was successful
+
+	vkQueuePresentKHR(presentationQueue, &presentInfo); //submits the request to present an image to the swap chain
+	
+	//increment the frame we're rendering
+	currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
 }
 
 std::vector<char> TriangleApp::readFile(const std::string & filename)
