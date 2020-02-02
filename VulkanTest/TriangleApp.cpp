@@ -921,6 +921,16 @@ void TriangleApp::createSyncObjects()
 
 void TriangleApp::recreateSwapChain()
 {
+	//handle minimisation events
+	//we basically wait till the window is in the foreground again
+	//this can cause an error where the width and height of the window is 0 which is invalid swap chain params
+	int width = 0, height = 0;
+	glfwGetFramebufferSize(window, &width, &height);
+	while (width == 0 || height == 0) {
+		glfwGetFramebufferSize(window, &width, &height);
+		glfwWaitEvents();
+	}
+
 	//wait for device to finish what it is doing
 	vkDeviceWaitIdle(device);
 
