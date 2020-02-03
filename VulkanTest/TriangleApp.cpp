@@ -140,7 +140,7 @@ void TriangleApp::createLogicalDevice()
 bool TriangleApp::isDeviceSuitable(VkPhysicalDevice device) {
 	QueueFamilyIndices indices = findQueueFamilies(device); //get the queue families we want to use
 	bool deviceHasExtensions = checkDeviceExtensionSupport(device); //check if the device also supports the extensions we want to use
-	bool swapChainAdequate = false;
+	bool swapChainAdequate = false; //boolean flag to check if the swapchain is good
 	//proceed only if the device has extensions
 	if (deviceHasExtensions) {
 		SwapChainSupportDetails swapChainSupport = querySwapChainSupport(device);
@@ -398,26 +398,25 @@ void TriangleApp::setupDebugMessenger()
 }
 
 /*
-	
+	we check if the device has the capability to support the usage of the extensions we have specified (debugger and GLFW related extensions)
 */
 bool TriangleApp::checkDeviceExtensionSupport(VkPhysicalDevice device)
 {
 	//enumerate all the extensions available
-	uint32_t extensionCount;
-	vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, nullptr);
+	uint32_t extensionCount; //same pattern as before, setup a variable to hold the number of supported extensions
+	vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, nullptr); //get the number of supported extensions
 
-	std::vector<VkExtensionProperties> availableExtensions(extensionCount);
-	vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, availableExtensions.data());
-	//convert the extensions we want to be available to strings
-	std::set<std::string> requiredExtensions(deviceExtensions.begin(), deviceExtensions.end());
+	std::vector<VkExtensionProperties> availableExtensions(extensionCount); // resize the array such that we can allocate the informatiom related to supported extensions
+	vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, availableExtensions.data()); //get the information
+	std::set<std::string> requiredExtensions(deviceExtensions.begin(), deviceExtensions.end()); //convert the extensions we want to be available to strings
 
 	//now iterate over them, crossing them off
 	for (const auto& extension : availableExtensions) {
-		requiredExtensions.erase(extension.extensionName);
+		requiredExtensions.erase(extension.extensionName); //remove this extension from our list of wanted extensions if it is there
 	}
 
-	//return that we either have all the extenesions we want or that we are missing some
-	return requiredExtensions.empty();
+	//return that we either have all the extenesions we want (true) or that we are missing some (false)
+	return requiredExtensions.empty(); 
 }
 
 SwapChainSupportDetails TriangleApp::querySwapChainSupport(VkPhysicalDevice device)
