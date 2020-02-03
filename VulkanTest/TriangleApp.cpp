@@ -176,17 +176,17 @@ void TriangleApp::cleanup()
 
 //get info to setup extensions
 std::vector<const char*> TriangleApp::getRequiredExtensions() {
-	uint32_t glfwExtensionCount = 0;
-	const char** glfwExtensions;
-	glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
+	uint32_t glfwExtensionCount = 0; //used as out parameter to know how many extensions are needed by GLFW
+	const char** glfwExtensions; //array of extension names needed by GLFW
+	glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount); //method to get all extensions needed by GLFW
 
-	std::vector<const char*> extensions(glfwExtensions, glfwExtensions + glfwExtensionCount);
+	std::vector<const char*> extensions(glfwExtensions, glfwExtensions + glfwExtensionCount); //create an array to hold all of the required extension names
 
 	if (enableValidationLayers) {
-		extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+		extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME); //if we want debugging using the validation layer add this extension to the list
 	}
 
-	return extensions;
+	return extensions; //return the extensions
 }
 
 QueueFamilyIndices TriangleApp::findQueueFamilies(VkPhysicalDevice device)
@@ -223,48 +223,49 @@ void TriangleApp::createInstance()
 	if (enableValidationLayers && !checkValidationLayerSupport()) {
 		throw std::runtime_error("validation layers requested, but not available");
 	}
-	//creation info
+	//application info
 	VkApplicationInfo appInfo = {};
-	appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-	appInfo.pApplicationName = "Hello Triangle";
-	appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
-	appInfo.pEngineName = "No Engine";
-	appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
-	appInfo.apiVersion = VK_API_VERSION_1_0;
-	appInfo.pNext = nullptr;
+	appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO; //type of the struct
+	appInfo.pApplicationName = "Hello Triangle"; //nul-terminated string of the applications name
+	appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0); //version of the application (useful for tools and drivers to act accordingly should there be a need)
+	appInfo.pEngineName = "No Engine"; //name (string nul-terminated) of the engine middleware the application is based on
+	appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0); //version of the middleware the application is based on
+	appInfo.apiVersion = VK_API_VERSION_1_0; //version of the Vulkan API that your application is expecting to run on
+	appInfo.pNext = nullptr; //field to provide additional arguments in a linked list like fashion, useful for extending structs without having to rewrite them entirely
 
-	VkInstanceCreateInfo createInfo = {};
-	createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-	createInfo.pApplicationInfo = &appInfo;
+	//creation info
+	VkInstanceCreateInfo createInfo = {}; //contains parameters describing the new vk instance
+	createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO; //type used to validate the structure (POD rule, lose typing info, this can be used to introspect and determine type)
+	createInfo.pApplicationInfo = &appInfo; //optional structure that can be used to describe the application
 
 	//setup extensions
 	auto extensions = getRequiredExtensions();
-	createInfo.enabledExtensionCount = static_cast<uint32_t>(extensions.size());
-	createInfo.ppEnabledExtensionNames = extensions.data();
+	createInfo.enabledExtensionCount = static_cast<uint32_t>(extensions.size()); //number of extensions that will be enabled (extensions are extra functionality)
+	createInfo.ppEnabledExtensionNames = extensions.data(); //the names of all the extensions that will be enabled
 
 	//setup the validation layers if we have enabled it and setup the debugger
 	VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo;
 	if (enableValidationLayers) {
-		createInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
-		createInfo.ppEnabledLayerNames = validationLayers.data();
+		createInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size()); //number of layers that are going to be enabled
+		createInfo.ppEnabledLayerNames = validationLayers.data(); //the names of the layers that will be enabled
 
-		populateDebugMessengerInfo(debugCreateInfo);
-		createInfo.pNext = (VkDebugUtilsMessengerCreateInfoEXT*)&debugCreateInfo;
+		populateDebugMessengerInfo(debugCreateInfo); //populate the fields of the debugCreateInfo struct
+		createInfo.pNext = (VkDebugUtilsMessengerCreateInfoEXT*)&debugCreateInfo; //set the pNext pointer to the debugCreateInfo struct to indicate that there are 
+																				  //aditional parameters for use to configure the validation layers
 	}
 	else {
-		createInfo.enabledLayerCount = 0;
+		createInfo.enabledLayerCount = 0; //number of layers that are going to be enabled (none in this case because we dont want any layers
 
-		createInfo.pNext = nullptr;
+		createInfo.pNext = nullptr; //field to provide additional arguments in a linked list like fashion, useful for extending structs without having to rewrite them entirely (nothing here)
 	}
 
-	//issue instance creation call with info, and no callbacks
-	VkResult result = vkCreateInstance(&createInfo, nullptr, &vkInstance);
+	VkResult result = vkCreateInstance(&createInfo, nullptr, &vkInstance); 	//issue instance creation call with info, and no callbacks
 	
-	if (result != VK_SUCCESS) {
-		throw std::runtime_error("failed to create instance!");
+	if (result != VK_SUCCESS) { //if the instance was not created successfully
+		throw std::runtime_error("failed to create instance!"); //throw an error and stop proceeding with setup
 	}
 
-	//need to check support with GLFW
+	//need to check support with GLFW TODO
 	
 }
 
@@ -352,10 +353,10 @@ void TriangleApp::createSwapChain()
 void TriangleApp::populateDebugMessengerInfo(VkDebugUtilsMessengerCreateInfoEXT & createInfo)
 {
 	createInfo = {};
-	createInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
-	createInfo.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
-	createInfo.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
-	createInfo.pfnUserCallback = debugCallback;
+	createInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT; //type of the struct
+	createInfo.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT; //the severity of messages we wish to catch
+	createInfo.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT; //the types of messages we wish to intercept
+	createInfo.pfnUserCallback = debugCallback; //static function to print validation errors to cout
 }
 
 //this is needed to find the function vkCreateDebugMessageUtilsEXT for use. It is not automatically loaded since it is an extension function.

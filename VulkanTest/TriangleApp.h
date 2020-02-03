@@ -44,12 +44,24 @@ private:
 	void initVulkan();
 	void initWindow();
 	void pickPhysicalDevice();
-	void createLogicalDevice();
-	bool isDeviceSuitable(VkPhysicalDevice device);
-	void cleanup();
+	
+	/*
+		Create the Vulkan Instance to maintain state variables of the pipeline
+	*/
 	void createInstance();
+	void createLogicalDevice();
 	void createSurface();
 	void createSwapChain();
+	void createRenderPass();
+	void createImageViews();
+	void createGraphicsPipeline();
+	void createFramebuffers();
+	void createCommandPool();
+	void createCommandBuffers();
+	void createSyncObjects();
+
+	VkShaderModule createShaderModule(const std::vector<char>& code);
+	bool isDeviceSuitable(VkPhysicalDevice device);
 	void populateDebugMessengerInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo);
 	void setupDebugMessenger();
 	bool checkDeviceExtensionSupport(VkPhysicalDevice device);
@@ -57,16 +69,9 @@ private:
 	VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats);
 	VkPresentModeKHR chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes);
 	VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities);
-	void createImageViews();
-	void createGraphicsPipeline();
-	VkShaderModule createShaderModule(const std::vector<char>& code);
-	void createRenderPass();
-	void createFramebuffers();
-	void createCommandPool();
-	void createCommandBuffers();
-	void createSyncObjects();
 	void recreateSwapChain();
 	void cleanupSwapChain();
+	void cleanup();
 
 	void drawFrame();
 
@@ -81,6 +86,10 @@ private:
 	const int WIDTH = 800;
 	const int HEIGHT = 600;
 
+	/*
+		 Layers are used to intercept the Vulkan API and provide logging, profiling, debugging, or other additional features.
+		 Here we are using the validation layer to check and make sure that our setup is correct.
+	*/
 	const std::vector<const char*> validationLayers = {
 		"VK_LAYER_KHRONOS_validation"
 	};
@@ -97,13 +106,37 @@ private:
 	bool checkValidationLayerSupport();
 
 	//vulkan API handle
+	/*
+		The Vulkan instance is a software construct that logically separates the state of your application,
+		from other applications or libraries running within the same context of your application.
+		Other libraries in use here are GLFW for windowing and various std libs for data structures
+		The vulkan instance keeps track of the state of the GPU pipeline and any resources allocated on GPU
+		whereas GLFW keeps track of windows and event management, the two are seperate but interact with each other through the use
+		of the APIs.
+	*/
 	VkInstance vkInstance;
-	//physical device handle
+	/*
+		PHYSICAL DEVICE HANDLE
+
+		A physical device usually represents a single piece of hardware or a collection of hardware that is interconnected. 
+		There is a fixed, finite number of physical devices in any system unless that system supports reconfiguration such as hot-plug.
+		A physical device has a selection of queues available for use by the software application through a logical device.
+	*/
 	VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
-	//logical device handle
+
+	/*
+		LOGICAL DEVICE HANDLE
+
+		This is the software construct around a physical device. It represents resources associated with a particular physical device. 
+		This includes a possible subset of the available queues on the physical device. 
+		It is possible to create multiple logical devices representing a single physical device.
+		Application will spend most of its time interacting with logical device
+	*/
 	VkDevice device;
+
 	//queue handle
 	VkQueue graphicsQueue;
+
 	//debug messenger handle
 	VkDebugUtilsMessengerEXT debugMessenger;
 
