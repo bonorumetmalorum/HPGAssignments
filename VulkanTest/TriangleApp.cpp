@@ -61,22 +61,28 @@ void TriangleApp::mainLoop()
 	vkDeviceWaitIdle(device);
 }
 
+/*
+ Physical devices are normally parts of the system—a graphics card, accelerator, DSP, or other component
+ once we have an instance, we can use this method to select an appropriate physcial device
+ there are a fixed number of devices and each device has specific capabilities
+*/
 void TriangleApp::pickPhysicalDevice()
 {
 	//find the number of supported devices
 	uint32_t deviceCount = 0;
-	vkEnumeratePhysicalDevices(vkInstance, &deviceCount, nullptr);
-	//if there are no supported devices do not continue
-	if (deviceCount == 0) {
+	vkEnumeratePhysicalDevices(vkInstance, &deviceCount, nullptr);	//call this function to find all vulkan enabled devices in the system by providing the instance, 
+																	//an in/out parameter for the number of max devices supported by app / number of available supported devices
+																	//and finally an array which can hold this number of devices
+	if (deviceCount == 0) {	//if there are no supported devices do not continue
 		throw std::runtime_error("failed to find GPUs with Vulkan support!");
 	}
 	//store all the physical devices available
-	std::vector<VkPhysicalDevice> devices(deviceCount);
-	vkEnumeratePhysicalDevices(vkInstance, &deviceCount, devices.data());
-	for (const auto& device : devices) {
-		if (isDeviceSuitable(device)) {
-			physicalDevice = device;
-			break;
+	std::vector<VkPhysicalDevice> devices(deviceCount); //resize array to support the number of physical devices available
+	vkEnumeratePhysicalDevices(vkInstance, &deviceCount, devices.data()); //call again to populate the array
+	for (const auto& device : devices) { //iterate through all available vulkan enabled devices
+		if (isDeviceSuitable(device)) {  //check if the devices satisfies our requirements
+			physicalDevice = device; //we found a device that mathces our needs
+			break; //if so break since we found a device
 		}
 	}
 	//if we did not find a suitable device do not proceed
@@ -128,9 +134,12 @@ void TriangleApp::createLogicalDevice()
 	vkGetDeviceQueue(device, indices.presentFamily.value(), 0, &presentationQueue);
 }
 
+/*
+	check if the device is suitable for rendering images
+*/
 bool TriangleApp::isDeviceSuitable(VkPhysicalDevice device) {
-	QueueFamilyIndices indices = findQueueFamilies(device);
-	bool deviceHasExtensions = checkDeviceExtensionSupport(device);
+	QueueFamilyIndices indices = findQueueFamilies(device); //get the queue families we want to use
+	bool deviceHasExtensions = checkDeviceExtensionSupport(device); //check if the device also supports the extensions we want to use
 	bool swapChainAdequate = false;
 	//proceed only if the device has extensions
 	if (deviceHasExtensions) {
@@ -189,31 +198,38 @@ std::vector<const char*> TriangleApp::getRequiredExtensions() {
 	return extensions; //return the extensions
 }
 
+/*
+	Vulkan devices execute work that is submitted to queues
+	A device will have one or more queues, and each of those queue will belong one of the devices queue families
+	A queue family is a group of queues that have identical capabilities allowing them to run in parallel
+	The number of queue families, the capabilities of each family, and the number of queues belonging to each family are all properties of the physical device
+	Here we try to identify if the device has the desired queue families
+*/
 QueueFamilyIndices TriangleApp::findQueueFamilies(VkPhysicalDevice device)
 {
-	QueueFamilyIndices indices;
+	QueueFamilyIndices indices; //custom struct to hold the queue families we wish to use
 
 	//get queue info from physical device
-	uint32_t queueFamilyCount = 0;
-	vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, nullptr);
-	std::vector<VkQueueFamilyProperties> queueFamilies(queueFamilyCount);
-	vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, queueFamilies.data());
+	uint32_t queueFamilyCount = 0; //out parameter to get the number of queue families
+	vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, nullptr); // works somewhat like vkEnumeratePhysicalDevices(), returns structs describing the properties of each queue family supported by the device
+	std::vector<VkQueueFamilyProperties> queueFamilies(queueFamilyCount); //resize the array such that it can hold all the queue families on the device
+	vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, queueFamilies.data()); //get the queue families and allocate them in the array
 	//find the index of the queue that has the VK_QUEUE_GRAPHICS_BIT set
-	int i = 0;
+	//the VK_QUEUE_GRAPHICS_BIT means that the queue familty supports drawing operations such as drawing points, lines and triangles
+	int i = 0; //queue family index (the current one we are on)
 	for (const auto& queueFamily : queueFamilies) {
-
-		if (queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT) {
-			indices.graphicsFamily = i;
+		if (queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT) { //if this queue has the graphics bit set
+			indices.graphicsFamily = i; //we have found the queue we will use to submit render jobs
 		}
-		VkBool32 presentSupport = false;
-		vkGetPhysicalDeviceSurfaceSupportKHR(device, i, surface, &presentSupport);
-		if (presentSupport) {
-			indices.presentFamily = i;
+		VkBool32 presentSupport = false; //boolean flag to indicate queues support of presentation operations
+		vkGetPhysicalDeviceSurfaceSupportKHR(device, i, surface, &presentSupport); //query if the queue has presentation operations supported
+		if (presentSupport) { //if it does
+			indices.presentFamily = i; //we found the queue we will use to render frames (usually the same as the graphics queue)
 		}
-		if (indices.isComplete()) {
-			break;
+		if (indices.isComplete()) { //if we have found all the queues we want
+			break; //break early
 		}
-		i++;
+		i++; //increment to the next queue
 	}
 	return indices;
 }
@@ -381,6 +397,9 @@ void TriangleApp::setupDebugMessenger()
 	}
 }
 
+/*
+	
+*/
 bool TriangleApp::checkDeviceExtensionSupport(VkPhysicalDevice device)
 {
 	//enumerate all the extensions available
