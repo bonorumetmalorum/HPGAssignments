@@ -143,10 +143,10 @@ bool TriangleApp::isDeviceSuitable(VkPhysicalDevice device) {
 	bool swapChainAdequate = false; //boolean flag to check if the swapchain is good
 	//proceed only if the device has extensions
 	if (deviceHasExtensions) {
-		SwapChainSupportDetails swapChainSupport = querySwapChainSupport(device);
-		swapChainAdequate = !swapChainSupport.formats.empty() && !swapChainSupport.presentModes.empty();
+		SwapChainSupportDetails swapChainSupport = querySwapChainSupport(device); // get the details of the swap chain supported by the device is good for our purposes
+		swapChainAdequate = !swapChainSupport.formats.empty() && !swapChainSupport.presentModes.empty(); //check if there are formats and presentation modes for the swap chain
 	}
-	return indices.isComplete() && deviceHasExtensions && swapChainAdequate;
+	return indices.isComplete() && deviceHasExtensions && swapChainAdequate; //if the device has queues, extensions and a swap chain we can use we have found a suitable device
 }
 
 void DestroyDebugUtilsMessengerEXT(VkInstance instance, VkDebugUtilsMessengerEXT debugMessenger, const VkAllocationCallbacks* pAllocator) {
