@@ -507,8 +507,7 @@ VkExtent2D TriangleApp::chooseSwapExtent(const VkSurfaceCapabilitiesKHR & capabi
 
 void TriangleApp::createImageViews()
 {
-	//set size of image views array
-	swapChainImageViews.resize(swapChainImages.size());
+	swapChainImageViews.resize(swapChainImages.size());	//set size of image views array
 	//loop over all image views
 	for (size_t i = 0; i < swapChainImages.size(); i++) {
 		VkImageViewCreateInfo createInfo = {};
