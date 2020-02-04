@@ -306,70 +306,71 @@ void TriangleApp::createSurface()
 	}
 }
 
+/*
+	A swap chain is used to manage a set of images
+	when you create a surface aka VkSurfaceKHR handle this refers to vulkans view of a window
+	in order to render anything to the window it is necessary to create an image that can be used to store the data that will be rendered to the window
+	because these images might be tied tightly to the windowing system on the platform, we create a swap chain which will setup the images by negotiating with the windowing system
+	the swap chain will then present us with 1 or more images we can use to render to the window
+	the swap chain will manage the images in a ring or circular buffer, where we can ask it to give us the next available image, while another is being rendered to the window
+*/
 void TriangleApp::createSwapChain()
 {
-	//query what is supported by the current physical device
-	SwapChainSupportDetails swapChainSupport = querySwapChainSupport(physicalDevice);
-	//setup the surface formats (buffer properties), presentation mode (buffers) and extent (resolution of rendering)
-	VkSurfaceFormatKHR surfaceFormat = chooseSwapSurfaceFormat(swapChainSupport.formats);
+	SwapChainSupportDetails swapChainSupport = querySwapChainSupport(physicalDevice); //query what is supported by the swap chain on the physical device (we want surface capabilities, surface formats, and presentation modes) 
+	VkSurfaceFormatKHR surfaceFormat = chooseSwapSurfaceFormat(swapChainSupport.formats); //setup the surface formats (buffer properties), presentation mode (buffers) and extent (resolution of rendering)
 	VkPresentModeKHR presentMode = chooseSwapPresentMode(swapChainSupport.presentModes);
 	VkExtent2D extent = chooseSwapExtent(swapChainSupport.capabilities);
 
 	//setting for the minimum number of images that must be in the swap chain. +1 because we dont wait to wait and do nothing while the device does
 	//driver operations.
-	uint32_t imageCount = swapChainSupport.capabilities.minImageCount + 1;
+	uint32_t imageCount = swapChainSupport.capabilities.minImageCount + 1; //if this is set to 1 it means that we want to render directly to the front buffer, which is bad and not supported by all devices, 3 is recommended
 	//we also do not want to exceed the maximum number of images so we check what it is and set our image count to that.
-	if (swapChainSupport.capabilities.maxImageCount > 0 && imageCount > swapChainSupport.capabilities.maxImageCount) {
-		imageCount = swapChainSupport.capabilities.maxImageCount;
+	if (swapChainSupport.capabilities.maxImageCount > 0 && imageCount > swapChainSupport.capabilities.maxImageCount) { //in order to not exceed the maximum number of images available in the swap chain, if the max image count is less than the current image count
+		imageCount = swapChainSupport.capabilities.maxImageCount; //set the iamge count to the max supported by the swap chain
 	}
-
-	//BIG OL STRUCT TIME
+	//setup the config for the swap chain
 	VkSwapchainCreateInfoKHR createInfo = {};
-	createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR; //swap chain type :)
+	createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR; //swap chain type
 	createInfo.surface = surface; //surface we are tying the swap chain to
-	createInfo.minImageCount = imageCount;
-	createInfo.imageFormat = surfaceFormat.format;
-	createInfo.imageColorSpace = surfaceFormat.colorSpace;
-	createInfo.imageExtent = extent;
-	createInfo.imageArrayLayers = 1; //number of layers each image consists of
-	createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT; //what kind of operations we will use the images for
-	//here we are rendering directly to them so we use attachment. There are other options...
+	createInfo.minImageCount = imageCount; // the minimum number of images we need
+	createInfo.imageFormat = surfaceFormat.format; //the supported format we wish to use to render
+	createInfo.imageColorSpace = surfaceFormat.colorSpace; //the color space which will be RGB or sRGB, whichever is supported by the surface
+	createInfo.imageExtent = extent; //dimensions of the image in the swap chain
+	createInfo.imageArrayLayers = 1; //number of layers each image consists of, can be used to present a layered image to the user, or specific layers of an image
+	createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT; //how will we use the image (in addition to it being used as presentation)
 
 	//we need to tell vulkan how the images will be used by the queue families
-	//we have to queue, graphics and presentation.
+	//we have two queues, graphics and presentation.
 	//we modify the images using the graphics queue and then submit them for rendering via the presentation queue
 	//there are two ways to determine how images are used across different queues
 	// CONCURRENT (can be used across multiple queue families without explicit ownership) or EXCLUSIVE (one family at a time ones an image)
-	QueueFamilyIndices indices = findQueueFamilies(physicalDevice);
-	uint32_t queueFamilyIndices[] = { indices.graphicsFamily.value(), indices.presentFamily.value() };
+	QueueFamilyIndices indices = findQueueFamilies(physicalDevice); //get the queue families we will use
+	uint32_t queueFamilyIndices[] = { indices.graphicsFamily.value(), indices.presentFamily.value() }; //the indices of the queue families we are using
 	//if the presentation and graphics queues are seperate then use concurrent otherwise use exclusive
-	if (indices.graphicsFamily != indices.presentFamily) {
-		createInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
-		createInfo.queueFamilyIndexCount = 2;
-		createInfo.pQueueFamilyIndices = queueFamilyIndices;
+	if (indices.graphicsFamily != indices.presentFamily) { //are the queues the same?
+		createInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT; //will the image be used by only one queue or will it be shared by multiple queues, currently set to be shared
+		createInfo.queueFamilyIndexCount = 2; //we have 2 queue families being uses (graphics and presentation)
+		createInfo.pQueueFamilyIndices = queueFamilyIndices; //the array of queue family indices
 	}
 	else {
-		createInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
+		createInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE; //if the graphics and presentation queue families are the same then the images are used by only one queue family, no need for sharing
 	}
 	
-	//specify that no transforms should be applied to images in the swap chain
-	createInfo.preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
-	//alpha channel that is used to blend this window with other windows (ignored)
-	createInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-	createInfo.presentMode = presentMode; //presentation mode
-	createInfo.clipped = VK_TRUE; //we dont care about colour of pixels that are obscured
-	createInfo.oldSwapchain = VK_NULL_HANDLE; //we need to keep a pointer to the old swap chain which might be invalidated when recreate the swap chain
+	createInfo.preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR; //specify that no transforms should be applied to images in the swap chain (i.e. rotations and flipping, in this case no transformations are applied by specifying identity transform)
+	createInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR; //controls how alpha composition is handled by windowing system (for example, transparent terminals etc), this is ignored by setting it to opaque (no transperancy)
+	createInfo.presentMode = presentMode; //presentation mode controls synchronisation with the window system and rate at which images are presented to the suface - either immediate or mailbox 
+	createInfo.clipped = VK_TRUE; // used to optimize cases where not all of the surface might be visible - we dont care about colour of pixels that are obscured by other windows
+	createInfo.oldSwapchain = VK_NULL_HANDLE; //we need to keep a pointer to the old swap chain which might be invalidated when recreating the swap chain due to window resize events
 
-	if (vkCreateSwapchainKHR(device, &createInfo, nullptr, &swapChain) != VK_SUCCESS) { //access violation
-		throw std::runtime_error("failed to create swap chain!");
+	if (vkCreateSwapchainKHR(device, &createInfo, nullptr, &swapChain) != VK_SUCCESS) { //if we did not make the swap chain successfully
+		throw std::runtime_error("failed to create swap chain!"); //throw an error
 	}
 
-	vkGetSwapchainImagesKHR(device, swapChain, &imageCount, nullptr);
-	swapChainImages.resize(imageCount);
-	vkGetSwapchainImagesKHR(device, swapChain, &imageCount, swapChainImages.data());
-	swapChainImageFormat = surfaceFormat.format;
-	swapChainExtent = extent;
-
+	vkGetSwapchainImagesKHR(device, swapChain, &imageCount, nullptr); // get number of swap chain images in the swap chain object
+	swapChainImages.resize(imageCount); //resize the array to hold all the images in the swap chain
+	vkGetSwapchainImagesKHR(device, swapChain, &imageCount, swapChainImages.data()); // load the swap chain images into memory
+	swapChainImageFormat = surfaceFormat.format; //store a reference to the swap chain image format being used
+	swapChainExtent = extent; //store a reference to the size of the swap chain images
 }
 
 void TriangleApp::populateDebugMessengerInfo(VkDebugUtilsMessengerCreateInfoEXT & createInfo)
