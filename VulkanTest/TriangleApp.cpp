@@ -92,6 +92,10 @@ void TriangleApp::pickPhysicalDevice()
 
 }
 
+/*
+	after choosing a physical device(s) we need to create a logical device wrapper. A logical device represents a phyiscal device in an initialised state
+	When creating the logical device we have the choice to opt in to additional features and turn on any extensions we want to use...
+*/
 void TriangleApp::createLogicalDevice()
 {
 	//setup structs for describing the queues we want to create
@@ -99,39 +103,41 @@ void TriangleApp::createLogicalDevice()
 	std::vector<VkDeviceQueueCreateInfo> queueCreateInfos; //store the createInfo structs for the queues we want to use on the device 
 	std::set<uint32_t> uniqueQueueFamilies = { indices.graphicsFamily.value(), indices.presentFamily.value() };
 	//command priority execution, determines how commands are scheduled and this is even needed in the case of 1 queue
-	float queuePriority = 1.0f;
+	float queuePriority = 1.0f; //priority of the queues we wish to create
 	for (uint32_t queueFamily : uniqueQueueFamilies) {
 		VkDeviceQueueCreateInfo queueCreateInfo = {};
-		queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-		queueCreateInfo.queueFamilyIndex = indices.graphicsFamily.value();
-		queueCreateInfo.queueCount = 1;
-		queueCreateInfo.pQueuePriorities = &queuePriority;
-		queueCreateInfos.push_back(queueCreateInfo);
+		queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO; //createInfo struct type
+		queueCreateInfo.queueFamilyIndex = indices.graphicsFamily.value(); //the index of the queue family
+		queueCreateInfo.queueCount = 1; //the number of queues we are constructing (device must support at least this many)
+		queueCreateInfo.pQueuePriorities = &queuePriority; //optional parameter of an array containing values from 0.0 - 1.0. The higher the number the more resources a queue gets allocated and more aggressively scheduled it is
+		queueCreateInfos.push_back(queueCreateInfo); //push back the struct on to our array of queue create info structs
 	}
 
 	//now we setup the features we want to use with vulkan, but nothing much as of yet
 	VkPhysicalDeviceFeatures deviceFeatures = {};
-	//this is like before but now we are setting config up for the device we chose
+	vkGetPhysicalDeviceFeatures(physicalDevice, &deviceFeatures); //enable all the device features available by simply querying the device for what feautures it supports
+	//this is like before but now we are setting the config for the device we chose
 	VkDeviceCreateInfo createInfo = {};
-	createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-	createInfo.pQueueCreateInfos = queueCreateInfos.data();
-	createInfo.queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size());
-	createInfo.pEnabledFeatures = &deviceFeatures;
-	createInfo.enabledExtensionCount = static_cast<uint32_t>(deviceExtensions.size());
-	createInfo.ppEnabledExtensionNames = deviceExtensions.data();
-	if (enableValidationLayers) {
-		createInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
-		createInfo.ppEnabledLayerNames = validationLayers.data();
+	createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO; //type of createInfo struct
+	createInfo.queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size()); //the number of queues we wish to use
+	createInfo.pQueueCreateInfos = queueCreateInfos.data(); //the config data for the queues we wish to use
+	createInfo.pEnabledFeatures = &deviceFeatures; //features we are opting in to use
+	createInfo.enabledExtensionCount = static_cast<uint32_t>(deviceExtensions.size());//the number of enabled extensions we have
+	createInfo.ppEnabledExtensionNames = deviceExtensions.data(); //the array containing the names of all the extensions we wish to use
+	if (enableValidationLayers) { //if we want to enable layers (validation in this case)
+		createInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size()); //set the number of enabled layers we have (1 in this case)
+		createInfo.ppEnabledLayerNames = validationLayers.data(); // provide the names of the validation layers we want to enable
 	}
 	else {
-		createInfo.enabledLayerCount = 0;
+		createInfo.enabledLayerCount = 0; //set it to 0 if we dont want any validation layers
 	}
-	//instantiate the device now
-	if (vkCreateDevice(physicalDevice, &createInfo, nullptr, &device) != VK_SUCCESS) {
-		throw std::runtime_error("failed to create logical device!");
+	//instantiate the logical device now
+	if (vkCreateDevice(physicalDevice, &createInfo, nullptr, &device) != VK_SUCCESS) { //if we are not successful
+		throw std::runtime_error("failed to create logical device!"); //stop and throw an error
 	}
-	vkGetDeviceQueue(device, indices.graphicsFamily.value(), 0, &graphicsQueue);
-	vkGetDeviceQueue(device, indices.presentFamily.value(), 0, &presentationQueue);
+
+	vkGetDeviceQueue(device, indices.graphicsFamily.value(), 0, &graphicsQueue); //store a reference to the graphics queue that was created on the device
+	vkGetDeviceQueue(device, indices.presentFamily.value(), 0, &presentationQueue); //store a reference to the presentation queue that was created on the device
 }
 
 /*
