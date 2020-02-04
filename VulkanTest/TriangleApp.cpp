@@ -95,8 +95,8 @@ void TriangleApp::pickPhysicalDevice()
 void TriangleApp::createLogicalDevice()
 {
 	//setup structs for describing the queues we want to create
-	QueueFamilyIndices indices = findQueueFamilies(physicalDevice);
-	std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
+	QueueFamilyIndices indices = findQueueFamilies(physicalDevice); //get the indices of the queues we want to use
+	std::vector<VkDeviceQueueCreateInfo> queueCreateInfos; //store the createInfo structs for the queues we want to use on the device 
 	std::set<uint32_t> uniqueQueueFamilies = { indices.graphicsFamily.value(), indices.presentFamily.value() };
 	//command priority execution, determines how commands are scheduled and this is even needed in the case of 1 queue
 	float queuePriority = 1.0f;
