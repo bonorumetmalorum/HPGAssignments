@@ -81,7 +81,7 @@ void TriangleApp::pickPhysicalDevice()
 	vkEnumeratePhysicalDevices(vkInstance, &deviceCount, devices.data()); //call again to populate the array
 	for (const auto& device : devices) { //iterate through all available vulkan enabled devices
 		if (isDeviceSuitable(device)) {  //check if the devices satisfies our requirements
-			physicalDevice = device; //we found a device that mathces our needs
+			physicalDevice = device; //we found a device that matches our needs
 			break; //if so break since we found a device
 		}
 	}
@@ -415,7 +415,7 @@ bool TriangleApp::checkDeviceExtensionSupport(VkPhysicalDevice device)
 		requiredExtensions.erase(extension.extensionName); //remove this extension from our list of wanted extensions if it is there
 	}
 
-	//return that we either have all the extenesions we want (true) or that we are missing some (false)
+	//return that we either have all the extensions we want (true) or that we are missing some (false)
 	return requiredExtensions.empty(); 
 }
 
@@ -425,25 +425,25 @@ SwapChainSupportDetails TriangleApp::querySwapChainSupport(VkPhysicalDevice devi
 	//on the supported swapchain features. We have to use these two because they are core parts of the swapchain
 	SwapChainSupportDetails details;
 
-	vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, surface, &details.capabilities);
+	vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, surface, &details.capabilities); 	//get the window surface capabilities, we provide the device that we wish to check, 
+																						//the surface and then an out parameter to hold the various capabilities
+	uint32_t formatCount; // get the number of formats available
+	vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &formatCount, nullptr); // query the physical devices supported surface formats , we do this by supplying a physical device, a surface and an out parameter to store the number of supported formats
 
-	uint32_t formatCount;
-	vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &formatCount, nullptr);
-
-	if (formatCount != 0) {
-		details.formats.resize(formatCount);
-		vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &formatCount, details.formats.data());
+	if (formatCount != 0) { //if there are surface formats supported by the physical device
+		details.formats.resize(formatCount); //resize the array to hold all of them
+		vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &formatCount, details.formats.data()); // get the format names and store them in the array
 	}
 
-	uint32_t presentModeCount;
-	vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &presentModeCount, nullptr);
+	uint32_t presentModeCount; // the number of presentation modes supported by the device and surface
+	vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &presentModeCount, nullptr); //get the number of presentation modes supported
 
-	if (presentModeCount != 0) {
-		details.presentModes.resize(presentModeCount);
-		vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &presentModeCount, details.presentModes.data());
+	if (presentModeCount != 0) { //if we have presentation modes to use
+		details.presentModes.resize(presentModeCount); // resize the array to hold the names of all the presentation modes supported 
+		vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &presentModeCount, details.presentModes.data()); //get the presentation modes
 	}
 
-	return details;
+	return details; //return the swap chain details
 }
 
 VkSurfaceFormatKHR TriangleApp::chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats)
