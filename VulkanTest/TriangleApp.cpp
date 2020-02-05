@@ -732,6 +732,13 @@ VkShaderModule TriangleApp::createShaderModule(const std::vector<char>& code)
 }
 
 //specify how many color and depth buffers there will be, how many samples to use for each of them and how their contents should be handled throughout the rendering operations.
+/*
+	in a graphics pipeline we render pixels into images that will either be further processed or presented to the user
+	in very complex graphics piplines these images will be generated only after many passes
+	each pass can do something different, such as render UI, apply post-processing, ...
+	these passes are encapsulated in a renderPass object, where each part of the render pass is called a subpass
+	the render pass object will contain information about he final output image
+*/
 void TriangleApp::createRenderPass()
 {
 	VkAttachmentDescription colorAttachment = {};
