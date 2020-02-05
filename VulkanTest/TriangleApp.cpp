@@ -505,35 +505,39 @@ VkExtent2D TriangleApp::chooseSwapExtent(const VkSurfaceCapabilitiesKHR & capabi
 	}
 }
 
+/*
+	We cannot use the image resources in the swap chain directly
+	We create image views to hold additional information about the use of the image
+	We cannot, for example, directly use an image as an attachment to a framebuffer
+*/
 void TriangleApp::createImageViews()
 {
-	swapChainImageViews.resize(swapChainImages.size());	//set size of image views array
-	//loop over all image views
+	swapChainImageViews.resize(swapChainImages.size());	//set size of image views array to the size of images available in the swap chain
+	//loop over all images in the swap chain and create an image view for each one
 	for (size_t i = 0; i < swapChainImages.size(); i++) {
-		VkImageViewCreateInfo createInfo = {};
-		//type of the struct - image view
-		createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-		//the iamge
-		createInfo.image = swapChainImages[i];
-		//how the image should be interpreted
-		createInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-		createInfo.format = swapChainImageFormat;
+		VkImageViewCreateInfo createInfo = {}; //create info struct that will contain the information for setting up the image view
+		createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO; //type of the struct - image view
+		createInfo.image = swapChainImages[i]; //parent image of the view that will be created
+		createInfo.viewType = VK_IMAGE_VIEW_TYPE_2D; //type of the view that will be created - can be 1d, 2d, and 3d images, or even cube maps and cube map array images, there are also 1d and 2d array iamges
+		createInfo.format = swapChainImageFormat; //the format of the image, which will be the same as the swap chain format to ensure compatibility (this can be differnt however)
 
-		//swizzle colour channels around, can be used to achieve a monochrom effect by mapping all colours to a single channel
-		createInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
-		createInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
-		createInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
-		createInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+		//component ordering in the view may be different from that in the parent
+		//each member of the components struct will refer to the child rgba components and how it should be interpretd from the parent image
+		createInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY; //read from the corresponding channel in the parent
+		createInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY; //read from the corresponding channel in the parent
+		createInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY; //read from the corresponding channel in the parent
+		createInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY; //read from the corresponding channel in the parent
 
 		//describes what part of the image should be accessed - colour in this case, no mipmapping or multiple layers here
-		createInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-		createInfo.subresourceRange.baseMipLevel = 0;
-		createInfo.subresourceRange.levelCount = 1;
-		createInfo.subresourceRange.baseArrayLayer = 0;
-		createInfo.subresourceRange.layerCount = 1;
+		//because this image view can be a subset of the parent image, the subset is specified in the following struct (subresourceRange)
+		createInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT; //bitfield made up of the members of the VkImageAspectFlagBits specifying which aspects of the image are effected by the barrier (here we are only modifying the colour part, there are other parts, such as the stencil buffer)
+		createInfo.subresourceRange.baseMipLevel = 0; //used to create an image view that corresponds to a certain part of the parents mip map chain
+		createInfo.subresourceRange.levelCount = 1; //how many mip levels do we want to use
+		createInfo.subresourceRange.baseArrayLayer = 0; //only used when the parent image is an array image, which in our case is not (how many layers do we want to use)
+		createInfo.subresourceRange.layerCount = 1; //we only have one layer
 
-		if (vkCreateImageView(device, &createInfo, nullptr, &swapChainImageViews[i]) != VK_SUCCESS) {
-			throw std::runtime_error("failed to create image views!");
+		if (vkCreateImageView(device, &createInfo, nullptr, &swapChainImageViews[i]) != VK_SUCCESS) { //create the image view, if not successful stop
+			throw std::runtime_error("failed to create image views!"); //throw an error
 		}
 	}
 }
