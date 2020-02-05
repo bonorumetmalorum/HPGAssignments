@@ -741,58 +741,67 @@ VkShaderModule TriangleApp::createShaderModule(const std::vector<char>& code)
 */
 void TriangleApp::createRenderPass()
 {
+	/*
+		VkAttachmentDescription structures that define the attachments associated with the renderpass.
+		Each of these structures defines a single image that is to be used as an input, output, or both within one or more of the subpasses in the renderpass
+		for graphics related application there will be at least 1 of these
+	*/
 	VkAttachmentDescription colorAttachment = {};
 	colorAttachment.format = swapChainImageFormat; //match format of swapchain
 	colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT; //1 sample since we are not using any form of AA
-	colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR; //Clear the values to a constant at the start
-	colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE; //Rendered contents will be stored in memory and can be read later
-	colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE; //dont do anything with stencil buffer
-	colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE; //dont do anything with stencil buffer
+	colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR; //Clear the values to a constant at the start (what to do when render pass starts)
+	colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE; //Rendered contents will be stored in memory and can be read later (what to do when the render pass ends)
+	colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE; //dont do anything with stencil buffer (same as before but now for the depth part of the image, which we for now dont care about)
+	colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE; //dont do anything with stencil buffer (again, dont care about the depth part of the image)
 	colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; //specifies which layout the image will have before the render pass begins
 	colorAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR; // layout to automatically transition to when the render pass finishes. Images to be presented in the swap chain
 
 	//Subpasses and attachment references
 	/*
-	single render pass can consist of multiple subpasses. 
-	Subpasses are subsequent rendering operations that depend on the contents of framebuffers in previous passes, 
-	for example a sequence of post-processing effects that are applied one after another
+		single render pass can consist of multiple subpasses. 
+		Subpasses are subsequent rendering operations that depend on the contents of framebuffers in previous passes, 
+		for example a sequence of post-processing effects that are applied one after another
+	*/
+	/*
+		Each attachment reference is a simple structure containing an index into the array of attachments in attachment
+		and the image layout that the attachment is expected to be in at this subpass
 	*/
 	VkAttachmentReference colorAttachmentRef = {};
-	colorAttachmentRef.attachment = 0; //which attachment are we referring to
-	colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-	//describe subpass
+	colorAttachmentRef.attachment = 0; //which attachment are we referring to (here we only have 1 attachment at index 0)
+	colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL; //the output image the attachment is associated with
+	//describe subpass - each subpass references a number of attachments, here we only want 1 subpass.
 	VkSubpassDescription subpass = {};
-	subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-	subpass.colorAttachmentCount = 1; //number of color attachments
-	subpass.pColorAttachments = &colorAttachmentRef; //pointer into array containing the attachments (1 in this case so not an array)
+	subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS; //bind point of a pipeline object to a command buffer (specifying as a graphics pipline here, but it could be a compute pipeline)
+	subpass.colorAttachmentCount = 1; //number of color attachments (this is where output is written)
+	subpass.pColorAttachments = &colorAttachmentRef; //pointer into array containing the attachments (1 in this case so not an array, this is the output)
+	//we dont really have input attachments at the moment, since the triangle we render is defined in the shader itself
 
-	//render pass
 	//create render pass
-	VkRenderPassCreateInfo renderPassInfo = {};
-	renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-	renderPassInfo.attachmentCount = 1;
-	renderPassInfo.pAttachments = &colorAttachment;
-	renderPassInfo.subpassCount = 1;
-	renderPassInfo.pSubpasses = &subpass;
+	VkRenderPassCreateInfo renderPassInfo = {}; //render pass information
+	renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO; //type of the struct
+	renderPassInfo.attachmentCount = 1; //number of attachments
+	renderPassInfo.pAttachments = &colorAttachment; //an array containing the attachment information for the number of attachments specified (in this case 1 and its just the color attachment)
+	renderPassInfo.subpassCount = 1; // the number of subpasses
+	renderPassInfo.pSubpasses = &subpass; //the subpass creation info
 
 	//define subpass
 	//first two fields specify the indices of the dependency and the dependent subpass
 	VkSubpassDependency dependency = {};
-	dependency.srcSubpass = VK_SUBPASS_EXTERNAL; //implicit subpass before or after the render pass 
-	dependency.dstSubpass = 0; //our subpass
+	dependency.srcSubpass = VK_SUBPASS_EXTERNAL; //producer of data (in this case is external to this subpass)
+	dependency.dstSubpass = 0; //this subpass is the destination of the data (that is how the depency goes)
 	// next two fields specify the operations to wait on and the stages in which these operations occur
-	dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-	dependency.srcAccessMask = 0;
+	dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT; //which pipeline stage of the source subpass produced the data
+	dependency.srcAccessMask = 0; //how src subpass accesses the data
 	//next two fields specify the operations to wait on and the stages in which these operations occur
-	dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-	dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+	dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT; //which stages of the destination subpass will consume the data. 
+	dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT; //how dst subpass accesses the data
 	
 	//setup the subpass in the renderpassinfo struct
-	renderPassInfo.dependencyCount = 1;
-	renderPassInfo.pDependencies = &dependency;
+	renderPassInfo.dependencyCount = 1; //we have 1 dependency
+	renderPassInfo.pDependencies = &dependency; //the dependency info
 
-	if (vkCreateRenderPass(device, &renderPassInfo, nullptr, &renderPass) != VK_SUCCESS) {
-		throw std::runtime_error("failed to create render pass!");
+	if (vkCreateRenderPass(device, &renderPassInfo, nullptr, &renderPass) != VK_SUCCESS) { //make the render pass
+		throw std::runtime_error("failed to create render pass!"); //if we were not successful throw an error
 	}
 }
 
