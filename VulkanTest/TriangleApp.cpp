@@ -993,52 +993,57 @@ void TriangleApp::createSyncObjects()
 }
 
 /*
-	
+	method used to recreate the swap chain
 */
 void TriangleApp::recreateSwapChain()
 {
 	//handle minimisation events
 	//we basically wait till the window is in the foreground again
-	//this can cause an error where the width and height of the window is 0 which is invalid swap chain params
+	//this can cause an error where the width and height of the window is 0 which are invalid swap chain params
 	int width = 0, height = 0;
 	glfwGetFramebufferSize(window, &width, &height);
-	while (width == 0 || height == 0) {
-		glfwGetFramebufferSize(window, &width, &height);
-		glfwWaitEvents();
+	while (width == 0 || height == 0) { //while the buffer size is 0
+		glfwGetFramebufferSize(window, &width, &height); //get the buffer size
+		glfwWaitEvents(); //wait for more events
 	}
 
 	//wait for device to finish what it is doing
 	vkDeviceWaitIdle(device);
 
-	cleanupSwapChain();
+	cleanupSwapChain(); //destroy the old swap chain and related resources
 
 	//start to recreate the swap chain with new parameters
-	createSwapChain();
-	createImageViews();
-	createRenderPass();
-	createGraphicsPipeline();
-	createFramebuffers();
-	createCommandBuffers();
+	createSwapChain(); //create a new swap chain with the new window width and height
+	createImageViews(); //create new image views
+	createRenderPass(); //create a new render pass
+	createGraphicsPipeline(); //create a new graphics pipeline
+	createFramebuffers(); //create a new framebuffer
+	createCommandBuffers(); //create new command buffers (we recycle the command pool)
 }
 
+/*
+	destroy the swap chain and its related resources
+*/
 void TriangleApp::cleanupSwapChain()
 {
-	for (size_t i = 0; i < swapChainFramebuffers.size(); i++) {
-		vkDestroyFramebuffer(device, swapChainFramebuffers[i], nullptr);
+	for (size_t i = 0; i < swapChainFramebuffers.size(); i++) { //for all the frame buffers created to manage the images in the swap chain
+		vkDestroyFramebuffer(device, swapChainFramebuffers[i], nullptr); //destroy them
 	}
 
 	//do this so we dont need to allocate and new command pool, we can reuse the old one to issue new command buffers
-	vkFreeCommandBuffers(device, commandPool, static_cast<uint32_t>(commandBuffers.size()), commandBuffers.data());
+	//we need to provide the logical device, the pool from which we allocated the buffers and the buffers themselves
+	vkFreeCommandBuffers(device, commandPool, static_cast<uint32_t>(commandBuffers.size()), commandBuffers.data()); //free the command buffers
 
+	//destroy the pipeline by providing the logical device and the pipeline handle
 	vkDestroyPipeline(device, graphicsPipeline, nullptr);
-	vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
-	vkDestroyRenderPass(device, renderPass, nullptr);
+	vkDestroyPipelineLayout(device, pipelineLayout, nullptr); //destroy any uniforms allocated by destroying the layout, provide the logical device and the pipeline layout handle
+	vkDestroyRenderPass(device, renderPass, nullptr); //destroy the render pass by providing the logical device and the render pass handle
 
 	for (size_t i = 0; i < swapChainImageViews.size(); i++) {
-		vkDestroyImageView(device, swapChainImageViews[i], nullptr);
+		vkDestroyImageView(device, swapChainImageViews[i], nullptr); //destroy all image views by providing the logical device and swap chain image views handle
 	}
 
-	vkDestroySwapchainKHR(device, swapChain, nullptr);
+	vkDestroySwapchainKHR(device, swapChain, nullptr); //finally, destroy the swap chain by providing the logical device and the swap chain handle
 }
 
 /*
