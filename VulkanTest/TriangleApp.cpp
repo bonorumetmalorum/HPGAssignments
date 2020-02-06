@@ -992,6 +992,9 @@ void TriangleApp::createSyncObjects()
 	*/
 }
 
+/*
+	
+*/
 void TriangleApp::recreateSwapChain()
 {
 	//handle minimisation events
@@ -1149,31 +1152,37 @@ std::vector<char> TriangleApp::readFile(const std::string & filename)
 
 }
 
+/*
+	helper method to check layer support
+*/
 bool TriangleApp::checkValidationLayerSupport()
 {
-	uint32_t layerCount = 0;
+	uint32_t layerCount = 0; //variable to store the number of supported layers by the instance
 	vkEnumerateInstanceLayerProperties(&layerCount, nullptr);
 
-	std::vector<VkLayerProperties> availableLayers(layerCount);
-	vkEnumerateInstanceLayerProperties(&layerCount, availableLayers.data());
+	std::vector<VkLayerProperties> availableLayers(layerCount); //an array to store all the available alyers
+	vkEnumerateInstanceLayerProperties(&layerCount, availableLayers.data()); // store the available layers
 
-	for (const char * layerName : validationLayers) {
-		bool layerFound = false;
-		for (const auto& layerProperties : availableLayers) {
-			if (strcmp(layerName, layerProperties.layerName) == 0) {
-				layerFound = true;
-				break;
+	for (const char * layerName : validationLayers) { //for each layer we want to use
+		bool layerFound = false; //is the layer supported?
+		for (const auto& layerProperties : availableLayers) { //for all available layers in the instance
+			if (strcmp(layerName, layerProperties.layerName) == 0) { //are they the same?
+				layerFound = true; //if so, we found the layer we want to use
+				break; //stop searching
 			}
 		}
 		if (!layerFound) {
-			return false;
+			return false; //we did not find the layer
 		}
 	}
-	return true;
+	return true; //we found the layer
 }
 
+/*
+	static method to be used with GLFW to catch window resize events and execute code when it happens
+*/
 void TriangleApp::framebufferResizeCallback(GLFWwindow * window, int width, int height)
 {
-	auto app = reinterpret_cast<TriangleApp*>(glfwGetWindowUserPointer(window));
-	app->framebufferResized = true;
+	auto app = reinterpret_cast<TriangleApp*>(glfwGetWindowUserPointer(window)); //get a pointer to the app instance
+	app->framebufferResized = true; //we resized the window
 }
