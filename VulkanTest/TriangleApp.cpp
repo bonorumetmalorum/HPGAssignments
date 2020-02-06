@@ -857,67 +857,74 @@ void TriangleApp::createFramebuffers()
 }
 
 /*
-	
+	in order to submit work to a queue, we need to create a command buffer, but before we can do that
+	we need to create a command pool to manage the command buffers.
 */
 void TriangleApp::createCommandPool()
 {
-	QueueFamilyIndices queueFamilyIndices = findQueueFamilies(physicalDevice);
+	QueueFamilyIndices queueFamilyIndices = findQueueFamilies(physicalDevice); //get the queue families we wish to submit work to
 
-	VkCommandPoolCreateInfo poolInfo = {};
-	poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-	poolInfo.queueFamilyIndex = queueFamilyIndices.graphicsFamily.value();
+	VkCommandPoolCreateInfo poolInfo = {}; //command pool creation info
+	poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO; //stuct type
+	poolInfo.queueFamilyIndex = queueFamilyIndices.graphicsFamily.value(); //specifies the family of the queue to which command buffers allocated from this pool will be submitted to
 	/*
 
 	VK_COMMAND_POOL_CREATE_TRANSIENT_BIT: Hint that command buffers are rerecorded with new commands very often (may change memory allocation behavior)
 	VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT: Allow command buffers to be rerecorded individually, without this flag they all have to be reset together
 
 	*/
-	poolInfo.flags = 0; // Optional
+	poolInfo.flags = 0; // Optional - we dont have any specific requirements at this point
 
-	if (vkCreateCommandPool(device, &poolInfo, nullptr, &commandPool) != VK_SUCCESS) {
-		throw std::runtime_error("failed to create command pool!");
+	if (vkCreateCommandPool(device, &poolInfo, nullptr, &commandPool) != VK_SUCCESS) { //create the pool
+		throw std::runtime_error("failed to create command pool!"); //if we are unsuccessful throw an error
 	}
 
 }
 
+/*
+	a command buffer represents a sequence of commands that are recorded and stored in a buffer.
+	this buffer after recording will then be submitted to a queue for execution (batch execution).
+*/
 void TriangleApp::createCommandBuffers()
 {
-	commandBuffers.resize(swapChainFramebuffers.size());
-	VkCommandBufferAllocateInfo allocInfo = {};
-	allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-	allocInfo.commandPool = commandPool;
+	commandBuffers.resize(swapChainFramebuffers.size()); //create a buffer for each frame buffer
+	VkCommandBufferAllocateInfo allocInfo = {}; //command buffer allocation info
+	allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO; //struct type
+	allocInfo.commandPool = commandPool; //the command pool from which we will allocate the buffer
+	//a primary buffer can call a secondary buffer
+	//we dont need secondary command buffers
 	allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY; //specifies if the allocated command buffers are primary or secondary command buffers
-	allocInfo.commandBufferCount = (uint32_t)commandBuffers.size();
+	allocInfo.commandBufferCount = (uint32_t)commandBuffers.size(); //the number of command buffers (one for each frame buffer)
 
-	if (vkAllocateCommandBuffers(device, &allocInfo, commandBuffers.data()) != VK_SUCCESS) {
-		throw std::runtime_error("failed to allocate command buffers!");
+	if (vkAllocateCommandBuffers(device, &allocInfo, commandBuffers.data()) != VK_SUCCESS) { //create the command buffers
+		throw std::runtime_error("failed to allocate command buffers!");//throw an error if we were unsuccessful
 	}
 
-	//begin recording commands for the command buffer
-	for (size_t i = 0; i < commandBuffers.size(); i++) {
-		VkCommandBufferBeginInfo beginInfo = {};
-		beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-		beginInfo.flags = 0; // Optional specifies how we're going to use the command buffer
-		beginInfo.pInheritanceInfo = nullptr; // Optional relevant for secondary command buffers
+	//begin recording commands for the command buffer ( we want to draw a triangle )
+	for (size_t i = 0; i < commandBuffers.size(); i++) {//for all command buffers
+		VkCommandBufferBeginInfo beginInfo = {}; //information needed to tell the command buffer to begine recording
+		beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO; //struct type
+		beginInfo.flags = 0; // Optional - specifies how we're going to use the command buffer
+		beginInfo.pInheritanceInfo = nullptr; // Optional - relevant for secondary command buffers
 
 		/*If the command buffer was already recorded once, then a call to 
 		vkBeginCommandBuffer will implicitly reset it.It's not possible to append commands to a buffer at a later time.
 		*/
-		if (vkBeginCommandBuffer(commandBuffers[i], &beginInfo) != VK_SUCCESS) {
-			throw std::runtime_error("failed to begin recording command buffer!");
+		if (vkBeginCommandBuffer(commandBuffers[i], &beginInfo) != VK_SUCCESS) {// begin recording
+			throw std::runtime_error("failed to begin recording command buffer!"); //if we didnt successfully begin recording throw an error
 		}
 
-		VkRenderPassBeginInfo renderPassInfo = {};
-		renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+		VkRenderPassBeginInfo renderPassInfo = {}; //create info needed to begin a render a pass
+		renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO; //struct type
 		renderPassInfo.renderPass = renderPass; //render pass itself
-		renderPassInfo.framebuffer = swapChainFramebuffers[i]; //attachments (colour)
+		renderPassInfo.framebuffer = swapChainFramebuffers[i]; //the buffer we want to render to
 		//size of the render area
-		renderPassInfo.renderArea.offset = { 0, 0 };
-		renderPassInfo.renderArea.extent = swapChainExtent;
+		renderPassInfo.renderArea.offset = { 0, 0 }; //origin of the buffer
+		renderPassInfo.renderArea.extent = swapChainExtent; //dimensions of the buffer - matches swap chain images
 		//clear values to use for VK_ATTACHMENT_LOAD_OP_CLEAR, which we used as load operation for the color attachment
 		VkClearValue clearColor = { 0.0f, 0.0f, 0.0f, 1.0f };
-		renderPassInfo.clearValueCount = 1;
-		renderPassInfo.pClearValues = &clearColor;
+		renderPassInfo.clearValueCount = 1; //one clear value
+		renderPassInfo.pClearValues = &clearColor; //clear value
 		//begin render pass
 		//command buffer to record the command to
 		//specifies the details of the render pass we've just provided
@@ -936,7 +943,7 @@ void TriangleApp::createCommandBuffers()
 		vkCmdEndRenderPass(commandBuffers[i]);
 		//end recording commands
 		if (vkEndCommandBuffer(commandBuffers[i]) != VK_SUCCESS) {
-			throw std::runtime_error("failed to record command buffer!");
+			throw std::runtime_error("failed to record command buffer!"); //throw an error if are unable to stop recording
 		}
 	}
 
