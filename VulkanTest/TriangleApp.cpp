@@ -946,40 +946,37 @@ void TriangleApp::createCommandBuffers()
 			throw std::runtime_error("failed to record command buffer!"); //throw an error if are unable to stop recording
 		}
 	}
-
-
 }
 
 /*
-	create semaphores to sync program with rendering
+	create semaphores to sync program (host) with rendering (device)
 */
 void TriangleApp::createSyncObjects()
 {
 	//similar pattern to previous steps when creating semaphores
-	VkSemaphoreCreateInfo semaphoreInfo = {};
-	semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-	imageAvailableSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
-	renderFinishedSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
+	VkSemaphoreCreateInfo semaphoreInfo = {}; //information needed to create a semaphore
+	semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;// struct type
+	imageAvailableSemaphores.resize(MAX_FRAMES_IN_FLIGHT); //create an array to store a semaphore for each frame that is currently available for rendering
+	renderFinishedSemaphores.resize(MAX_FRAMES_IN_FLIGHT); //create an array to store a semaphore for each frame that is currently available for presenting
 
 	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
 		if (vkCreateSemaphore(device, &semaphoreInfo, nullptr, &imageAvailableSemaphores[i]) != VK_SUCCESS ||
-			vkCreateSemaphore(device, &semaphoreInfo, nullptr, &renderFinishedSemaphores[i]) != VK_SUCCESS) {
-
-			throw std::runtime_error("failed to create semaphores for a frame!");
+			vkCreateSemaphore(device, &semaphoreInfo, nullptr, &renderFinishedSemaphores[i]) != VK_SUCCESS) {//create two semaphores one for each state for each frame buffer
+			throw std::runtime_error("failed to create semaphores for a frame!"); //throw an error if either fails to be created
 		}
 	}
 
 	//we now also have to make fence objects to sync CPU and GPU
-	inFlightFences.resize(MAX_FRAMES_IN_FLIGHT);
-	imagesInFlight.resize(swapChainImages.size(), VK_NULL_HANDLE);
+	inFlightFences.resize(MAX_FRAMES_IN_FLIGHT); //resize so there is a fence for each frame
+	imagesInFlight.resize(swapChainImages.size(), VK_NULL_HANDLE); //resize so there is a fence for each image
 
-	VkFenceCreateInfo fenceInfo = {};
-	fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+	VkFenceCreateInfo fenceInfo = {}; //fence creation info
+	fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO; //struct type
 	fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT; //we need this so we can render on the very first pass (they are otherwise init to unsignaled and we wait for ever)
 	
-	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-		if (vkCreateFence(device, &fenceInfo, nullptr, &inFlightFences[i]) != VK_SUCCESS) {
-			throw std::runtime_error("failed to create fence for a frame!");
+	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) { //for each frame
+		if (vkCreateFence(device, &fenceInfo, nullptr, &inFlightFences[i]) != VK_SUCCESS) { //create a fence
+			throw std::runtime_error("failed to create fence for a frame!"); //if it is unsuccessful throw an error
 		}
 	}
 
@@ -993,7 +990,6 @@ void TriangleApp::createSyncObjects()
 			throw std::runtime_error("failed to create semaphores!");
 		}
 	*/
-
 }
 
 void TriangleApp::recreateSwapChain()
