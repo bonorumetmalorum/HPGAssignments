@@ -62,7 +62,7 @@ void TriangleApp::mainLoop()
 }
 
 /*
- Physical devices are normally parts of the system—a graphics card, accelerator, DSP, or other component
+ Physical devices are normally parts of the systemï¿½a graphics card, accelerator, DSP, or other component
  once we have an instance, we can use this method to select an appropriate physcial device
  there are a fixed number of devices and each device has specific capabilities
 */
@@ -644,7 +644,6 @@ void TriangleApp::createGraphicsPipeline()
 
 	//colour-blending
 	//configuration per framebuffer (we only have one framebuffer)
-	//TODO buff up this section!!!!
 	VkPipelineColorBlendAttachmentState colorBlendAttachment = {};
 	colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT; //the channels we are writing to
 	if (BLEND) {
@@ -664,17 +663,16 @@ void TriangleApp::createGraphicsPipeline()
 		colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO; // Optional
 		colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD; // Optional
 	}
-	//TODO
 
 	//references the array of structures for all of the framebuffers and allows you to set blend constants that you can use as blend factors in the blend calculations
-	//final stage in the graphics pipeline is the colour blend stag
+	//final stage in the graphics pipeline is the colour blend stage
 	//this is responsible for writing fragments into color attachments
 	VkPipelineColorBlendStateCreateInfo colorBlending = {};
 	colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO; //struct type
 	colorBlending.logicOpEnable = VK_FALSE; //specifies if we should perform logical operation between the output of the frag shader and the colour attachment
 	colorBlending.logicOp = VK_LOGIC_OP_COPY; // Optional - we have chosen not to do any operations so the data is written unmodified to the colour attachment from the frag shader
 	colorBlending.attachmentCount = 1; //number of attachments, we only have 1 which the colour attachment
-	colorBlending.pAttachments = &colorBlendAttachment;
+	colorBlending.pAttachments = &colorBlendAttachment; //the colour blend attachment
 	colorBlending.blendConstants[0] = 0.0f; // Optional
 	colorBlending.blendConstants[1] = 0.0f; // Optional
 	colorBlending.blendConstants[2] = 0.0f; // Optional
@@ -695,7 +693,7 @@ void TriangleApp::createGraphicsPipeline()
 	dynamicState.dynamicStateCount = 2; //the number of states we wish to make dynamic
 	dynamicState.pDynamicStates = dynamicStates; //the states
 
-	//pipeline layout - TODO check through with hamish
+	//pipeline layout - specifies uniform layout information - which we are not using here so the struct is blank, but we still need to provide it
 	VkPipelineLayoutCreateInfo pipelineLayoutInfo = {};
 	pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO; //struct type
 	pipelineLayoutInfo.setLayoutCount = 0; // Optional - because we are using the graphics pipeline we do not need special layout
@@ -824,6 +822,11 @@ void TriangleApp::createRenderPass()
 	}
 }
 
+/*
+	create a framebuffer object to represent the set of images the graphics pipeline will render to.
+	usually there are a minimum of two but in most cases there will be more, this is called a front buffer and
+	a back buffer.
+*/
 void TriangleApp::createFramebuffers()
 {
 	//make space for the framebuffers
@@ -836,23 +839,26 @@ void TriangleApp::createFramebuffers()
 		*/
 		VkImageView attachments[] = {
 			swapChainImageViews[i]
-		};
+		}; //getting the swap chain images
 
 		VkFramebufferCreateInfo framebufferInfo = {};
 		framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
 		framebufferInfo.renderPass = renderPass; //render pass we are binding framebuffer to
 		framebufferInfo.attachmentCount = 1; //number of attachments
-		framebufferInfo.pAttachments = attachments; //attachments
-		framebufferInfo.width = swapChainExtent.width;
-		framebufferInfo.height = swapChainExtent.height;
+		framebufferInfo.pAttachments = attachments; //the images that we wish to manage in the frame buffer
+		framebufferInfo.width = swapChainExtent.width; //the width of the image
+		framebufferInfo.height = swapChainExtent.height; //the height of the image
 		framebufferInfo.layers = 1; //number of layers in image array
 
-		if (vkCreateFramebuffer(device, &framebufferInfo, nullptr, &swapChainFramebuffers[i]) != VK_SUCCESS) {
-			throw std::runtime_error("failed to create framebuffer!");
+		if (vkCreateFramebuffer(device, &framebufferInfo, nullptr, &swapChainFramebuffers[i]) != VK_SUCCESS) { //create the frame buffer object
+			throw std::runtime_error("failed to create framebuffer!"); //throw an error if we are unsuccessful in creating the buffer
 		}
 	}
 }
 
+/*
+	
+*/
 void TriangleApp::createCommandPool()
 {
 	QueueFamilyIndices queueFamilyIndices = findQueueFamilies(physicalDevice);
