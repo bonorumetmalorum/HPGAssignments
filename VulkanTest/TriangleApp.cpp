@@ -1049,9 +1049,10 @@ void TriangleApp::drawFrame()
 {
 	//before we start drawing again, we have to wait for the previous frame to finish
 	//array of fences and waits for either any or all of them to be signaled before returning
+	//the last parameter is a timeout which we have disabled (so we wait forever, if the frame is never finishing) by setting it to uint64 max value
 	vkWaitForFences(device, 1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
 
-	uint32_t imageIndex;
+	uint32_t imageIndex; //variable to hold image index we will use to render to
 	//logical device, swap chain, timeout (disabled in this case) to wait for image, imageAvailable semaphore to signal that we can start drawing, 
 	//finally variable to hold image (used to get right command buffer)
 	VkResult result = vkAcquireNextImageKHR(device, swapChain, UINT64_MAX, imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
@@ -1073,58 +1074,59 @@ void TriangleApp::drawFrame()
 	// Mark the image as now being in use by this frame
 	imagesInFlight[imageIndex] = inFlightFences[currentFrame];
 
-	VkSubmitInfo submitInfo = {};
-	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+	VkSubmitInfo submitInfo = {}; //information needed to submit a queue for execution
+	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO; //struct type
 
-	VkSemaphore waitSemaphores[] = { imageAvailableSemaphores[currentFrame] };
-	VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
-	submitInfo.waitSemaphoreCount = 1;
-	submitInfo.pWaitSemaphores = waitSemaphores; //which semaphore to wait on before submitting commands
-	submitInfo.pWaitDstStageMask = waitStages; //which stages are waiting
+	VkSemaphore waitSemaphores[] = { imageAvailableSemaphores[currentFrame] }; //semaphore we have to wait on to commence exection
+	VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT }; //the stage we are waiting on to be available
+	submitInfo.waitSemaphoreCount = 1; //the number of semaphores we are waiting on
+	submitInfo.pWaitSemaphores = waitSemaphores; //the semaphore(s) we are waiting on
+	submitInfo.pWaitDstStageMask = waitStages; //which stage(s) are waiting
 
 	//command buffer we are submitting
-	submitInfo.commandBufferCount = 1;
-	submitInfo.pCommandBuffers = &commandBuffers[imageIndex];
+	submitInfo.commandBufferCount = 1; //number of command buffers we are submitting
+	submitInfo.pCommandBuffers = &commandBuffers[imageIndex]; //the command buffer(s) to submit
 
 	//which semaphore should we use to signal that rendering is complete
 	VkSemaphore signalSemaphores[] = { renderFinishedSemaphores[currentFrame] };
-	submitInfo.signalSemaphoreCount = 1;
-	submitInfo.pSignalSemaphores = signalSemaphores;
+	submitInfo.signalSemaphoreCount = 1; //the number of semaphores we should singal when complete
+	submitInfo.pSignalSemaphores = signalSemaphores; //the semaphore
 
-	vkResetFences(device, 1, &inFlightFences[currentFrame]); //unlike with semaphores, we need to manually resotre the fence to the original state
+	vkResetFences(device, 1, &inFlightFences[currentFrame]); //unlike with semaphores, we need to manually restore the fence to the original state
 
 	//The last parameter references an optional fence that will be signaled when the command buffers finish execution (CPU-GPU sync).
-	if (vkQueueSubmit(graphicsQueue, 1, &submitInfo, inFlightFences[currentFrame]) != VK_SUCCESS) {
-		throw std::runtime_error("failed to submit draw command buffer!");
+	if (vkQueueSubmit(graphicsQueue, 1, &submitInfo, inFlightFences[currentFrame]) != VK_SUCCESS) { //submit the queue
+		throw std::runtime_error("failed to submit draw command buffer!"); //throw an error if could not submit it
 	}
 
 
-	VkPresentInfoKHR presentInfo = {};
-	presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+	VkPresentInfoKHR presentInfo = {}; //information needed to present the frame buffer
+	presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR; //struct type
 	// first two parameters specify which semaphores to wait on before presentation can happen,
-	presentInfo.waitSemaphoreCount = 1;
-	presentInfo.pWaitSemaphores = signalSemaphores;
+	presentInfo.waitSemaphoreCount = 1; //the number of semaphores to wait on before presenting
+	presentInfo.pWaitSemaphores = signalSemaphores; //semaphore(s)
 	//next two parameters specify the swap chains to present images to and the index of the image for each swap chain
-	VkSwapchainKHR swapChains[] = { swapChain };
-	presentInfo.swapchainCount = 1;
-	presentInfo.pSwapchains = swapChains;
-	presentInfo.pImageIndices = &imageIndex;
+	VkSwapchainKHR swapChains[] = { swapChain }; //swap chain we are using
+	presentInfo.swapchainCount = 1; //the number of swap chains
+	presentInfo.pSwapchains = swapChains; //the swap chains
+	presentInfo.pImageIndices = &imageIndex; //the image index we are going to present
 
 	presentInfo.pResults = nullptr; // Optional allows you to specify an array of VkResult values to check for every individual swap chain if presentation was successful
 
 	VkResult result1 = vkQueuePresentKHR(presentationQueue, &presentInfo); //submits the request to present an image to the swap chain
 	
-	//we have to check the same conditions here and recreate the swapchain if we need to
+	//we have to check the same conditions here and recreate the swapchain if we need to (window management)
 	if (result1 == VK_ERROR_OUT_OF_DATE_KHR || result1 == VK_SUBOPTIMAL_KHR || framebufferResized) {
-		framebufferResized = false;
-		recreateSwapChain();
+		//if the reslut of presentation is either a out of date or suboptimal or we have a window resize event we need to recreate the swap chain
+		framebufferResized = false; //reset the window resize flag
+		recreateSwapChain(); //recreate the swap chain
 	}
-	else if (result1 != VK_SUCCESS) {
-		throw std::runtime_error("failed to present swap chain image!");
+	else if (result1 != VK_SUCCESS) { //otherwise we have not successfully presented the image
+		throw std::runtime_error("failed to present swap chain image!"); //throw an error
 	}
 	
 	//increment the frame we're rendering
-	currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
+	currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT; //increment to the next frame to render to
 }
 
 std::vector<char> TriangleApp::readFile(const std::string & filename)
