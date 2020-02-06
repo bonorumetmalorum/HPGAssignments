@@ -36,19 +36,22 @@ void TriangleApp::initVulkan()
 	createSyncObjects();
 }
 
+/*
+	create a window that we can use to present to
+*/
 void TriangleApp::initWindow()
 {
-	//init glfw
-	glfwInit();
-	//set glfw to no API and turn off window resizing events
-	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-	glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
-	//create the window
-	window = glfwCreateWindow(WIDTH, HEIGHT, "Vulkan", nullptr, nullptr);
-	glfwSetWindowUserPointer(window, this);
-	glfwSetFramebufferSizeCallback(window, framebufferResizeCallback);
+	glfwInit(); //init glfw
+	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);//set glfw to no API
+	glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);//we want the window to be resizeable
+	window = glfwCreateWindow(WIDTH, HEIGHT, "Vulkan", nullptr, nullptr);//create the window
+	glfwSetWindowUserPointer(window, this); //set the user pointer (used to determine who is controlling the window)
+	glfwSetFramebufferSizeCallback(window, framebufferResizeCallback); //setup the window resize call back function
 }
 
+/*
+	the main loop that will draw the triangle to screen and handle window events
+*/
 void TriangleApp::mainLoop()
 {
 	//event loop
@@ -162,31 +165,34 @@ void DestroyDebugUtilsMessengerEXT(VkInstance instance, VkDebugUtilsMessengerEXT
 	}
 }
 
+/*
+	destroy all resources on shutdown
+*/
 void TriangleApp::cleanup()
 {
 	
-	cleanupSwapChain();
+	cleanupSwapChain(); //frst we clean up the swap chain and all related resources
 
-	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) { //destroy all synchornisation objects
 		vkDestroySemaphore(device, renderFinishedSemaphores[i], nullptr);
 		vkDestroySemaphore(device, imageAvailableSemaphores[i], nullptr);
 		vkDestroyFence(device, inFlightFences[i], nullptr);
 	}
 
-	vkDestroyCommandPool(device, commandPool, nullptr);
+	vkDestroyCommandPool(device, commandPool, nullptr); //destroy the command pool
 
-	vkDestroyDevice(device, nullptr);
+	vkDestroyDevice(device, nullptr); //destroy the logical device
 
 	if (enableValidationLayers) {
-		DestroyDebugUtilsMessengerEXT(vkInstance, debugMessenger, nullptr);
+		DestroyDebugUtilsMessengerEXT(vkInstance, debugMessenger, nullptr); //destroy the validation layer
 	}
 
-	vkDestroySurfaceKHR(vkInstance, surface, nullptr);
-	vkDestroyInstance(vkInstance, nullptr);
+	vkDestroySurfaceKHR(vkInstance, surface, nullptr); //destroy the surface used for presentation
+	vkDestroyInstance(vkInstance, nullptr); //destroy the vulkan instance
 
-	glfwDestroyWindow(window);
+	glfwDestroyWindow(window); //destroy the window
 
-	glfwTerminate();
+	glfwTerminate(); //stop GLFW
 }
 
 //get info to setup extensions
@@ -240,6 +246,9 @@ QueueFamilyIndices TriangleApp::findQueueFamilies(VkPhysicalDevice device)
 	return indices;
 }
 
+/*
+	create a vulkan instance to store state
+*/
 void TriangleApp::createInstance()
 {
 	if (enableValidationLayers && !checkValidationLayerSupport()) {
@@ -285,12 +294,12 @@ void TriangleApp::createInstance()
 	
 	if (result != VK_SUCCESS) { //if the instance was not created successfully
 		throw std::runtime_error("failed to create instance!"); //throw an error and stop proceeding with setup
-	}
-
-	//need to check support with GLFW TODO
-	
+	}	
 }
 
+/*
+	create a surface that we can use to present rendered images to
+*/
 void TriangleApp::createSurface()
 {
 	//very simple glfw method to make a surface to render to.
@@ -373,6 +382,9 @@ void TriangleApp::createSwapChain()
 	swapChainExtent = extent; //store a reference to the size of the swap chain images
 }
 
+/*
+	helper method to setup the debug utils messenger create info
+*/
 void TriangleApp::populateDebugMessengerInfo(VkDebugUtilsMessengerCreateInfoEXT & createInfo)
 {
 	createInfo = {};
@@ -394,13 +406,16 @@ VkResult CreateDebugUtilsMessengerEXT(VkInstance instance, const VkDebugUtilsMes
 	}
 }
 
+/*
+	setup the debug messenger instance
+*/
 void TriangleApp::setupDebugMessenger()
 {
-	if (!enableValidationLayers) return;
-	VkDebugUtilsMessengerCreateInfoEXT createInfo;
-	populateDebugMessengerInfo(createInfo);
-	if (CreateDebugUtilsMessengerEXT(vkInstance, &createInfo, nullptr, &debugMessenger) != VK_SUCCESS) {
-		throw std::runtime_error("failed to set up debug messenger!");
+	if (!enableValidationLayers) return; //we dont want to debug / dont want the validation layers
+	VkDebugUtilsMessengerCreateInfoEXT createInfo; //information to create the debug messenger
+	populateDebugMessengerInfo(createInfo); //populate the info
+	if (CreateDebugUtilsMessengerEXT(vkInstance, &createInfo, nullptr, &debugMessenger) != VK_SUCCESS) { //create the instance
+		throw std::runtime_error("failed to set up debug messenger!"); //throw an error if we are unsuccessful
 	}
 }
 
@@ -426,6 +441,9 @@ bool TriangleApp::checkDeviceExtensionSupport(VkPhysicalDevice device)
 	return requiredExtensions.empty(); 
 }
 
+/*
+	helper function to check what the swap chain supports
+*/
 SwapChainSupportDetails TriangleApp::querySwapChainSupport(VkPhysicalDevice device)
 {
 	//we use the physical device and the window surface previously created to get information
@@ -453,6 +471,9 @@ SwapChainSupportDetails TriangleApp::querySwapChainSupport(VkPhysicalDevice devi
 	return details; //return the swap chain details
 }
 
+/*
+	choose an appropriate format for the swap surface
+*/
 VkSurfaceFormatKHR TriangleApp::chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats)
 {
 	/*
@@ -460,24 +481,27 @@ VkSurfaceFormatKHR TriangleApp::chooseSwapSurfaceFormat(const std::vector<VkSurf
 		notable properties are the colour channels and type where R8G8B8A8 is R, G, B and alpha represented as bytes
 		and colour space which can be sRGB which is what is being used below
 	*/
-	for (const auto& availableFormat : availableFormats) {
+	for (const auto& availableFormat : availableFormats) { //for all available formats
 		if (availableFormat.format == VK_FORMAT_B8G8R8A8_UNORM && availableFormat.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) {
-			return availableFormat;
+			return availableFormat; // return if the format satisifies RGBA and the colour space is sRGB non linear
 		}
 	}
 
-	return availableFormats[0];
+	return availableFormats[0]; //default to the first format
 }
 
+/*
+	helper function to choose the swap chain presentation mode
+*/
 VkPresentModeKHR TriangleApp::chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes)
 {
-	for (const auto& availablePresentMode : availablePresentModes) {
-		if (availablePresentMode == VK_PRESENT_MODE_MAILBOX_KHR) {
-			return availablePresentMode;
+	for (const auto& availablePresentMode : availablePresentModes) { //iterate through all presentation modes
+		if (availablePresentMode == VK_PRESENT_MODE_MAILBOX_KHR) { //choose mailbox presentation mode (determines if vk waits for the next vertical blank period to update the current image)
+			return availablePresentMode; //return this mode if it is available
 		}
 	}
 
-	return VK_PRESENT_MODE_FIFO_KHR;
+	return VK_PRESENT_MODE_FIFO_KHR; //otherwise use this one as the default
 }
 
 /*
@@ -543,7 +567,7 @@ void TriangleApp::createImageViews()
 }
 
 /*
-	
+	create the graphics pipeline
 */
 void TriangleApp::createGraphicsPipeline()
 {
@@ -735,15 +759,18 @@ void TriangleApp::createGraphicsPipeline()
 	vkDestroyShaderModule(device, vertShaderModule, nullptr); //destroy the shader modules since they have been loaded in the pipeline
 }
 
+/*
+	helper function to create a shader module given compiled shader code
+*/
 VkShaderModule TriangleApp::createShaderModule(const std::vector<char>& code)
 {
-	VkShaderModuleCreateInfo createInfo = {};
+	VkShaderModuleCreateInfo createInfo = {}; //information needed to create a shader module
 	createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO; //type of the create info is Shader module
 	createInfo.codeSize = code.size(); //the size of the buffer that holds the byte code of our shader program
 	createInfo.pCode = reinterpret_cast<const uint32_t*>(code.data()); //reinterpret cast our char array to unit32_t (needs to be alligned for int32 but it is because we used a vec
 	VkShaderModule shaderModule;
-	if (vkCreateShaderModule(device, &createInfo, nullptr, &shaderModule) != VK_SUCCESS) {
-		throw std::runtime_error("failed to create shader module!");
+	if (vkCreateShaderModule(device, &createInfo, nullptr, &shaderModule) != VK_SUCCESS) { //maake the shader module
+		throw std::runtime_error("failed to create shader module!"); //if we are unsuccessful throw an error
 	}
 	return shaderModule;
 }
@@ -1137,6 +1164,10 @@ void TriangleApp::drawFrame()
 	currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT; //increment to the next frame to render to
 }
 
+/*
+	simple method to read in files
+	used in our app to read in SPIR-V shader files
+*/
 std::vector<char> TriangleApp::readFile(const std::string & filename)
 {
 	std::ifstream file(filename, std::ios::ate | std::ios::binary);
