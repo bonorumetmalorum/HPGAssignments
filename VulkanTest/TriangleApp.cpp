@@ -65,7 +65,7 @@ void TriangleApp::mainLoop()
 }
 
 /*
- Physical devices are normally parts of the system�a graphics card, accelerator, DSP, or other component
+ Physical devices are normally parts of the system's graphics card, accelerator, DSP, or other component
  once we have an instance, we can use this method to select an appropriate physcial device
  there are a fixed number of devices and each device has specific capabilities
 */
@@ -158,6 +158,9 @@ bool TriangleApp::isDeviceSuitable(VkPhysicalDevice device) {
 	return indices.isComplete() && deviceHasExtensions && swapChainAdequate; //if the device has queues, extensions and a swap chain we can use we have found a suitable device
 }
 
+/*
+	destroy the debug utils messenger object and its state information
+*/
 void DestroyDebugUtilsMessengerEXT(VkInstance instance, VkDebugUtilsMessengerEXT debugMessenger, const VkAllocationCallbacks* pAllocator) {
 	auto func = (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(instance, "vkDestroyDebugUtilsMessengerEXT");
 	if (func != nullptr) {
