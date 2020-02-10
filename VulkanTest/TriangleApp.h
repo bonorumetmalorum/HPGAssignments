@@ -14,10 +14,16 @@
 #define DEBUG
 #define BLEND true
 
+/*
+	helper struct to hold the indices for the queues that support the graphics family and present family
+*/
 struct QueueFamilyIndices {
-	std::optional<uint32_t> graphicsFamily;
-	std::optional<uint32_t> presentFamily;
+	std::optional<uint32_t> graphicsFamily; //queue with graphics family capabilities
+	std::optional<uint32_t> presentFamily; //queue with present family capabilities
 
+	/*
+		helper method to see if we have found a queue for both of these capabilities
+	*/
 	bool isComplete() {
 		return graphicsFamily.has_value() && presentFamily.has_value();
 	}
@@ -25,9 +31,9 @@ struct QueueFamilyIndices {
 
 //struct used querying swap chain support
 struct SwapChainSupportDetails {
-	VkSurfaceCapabilitiesKHR capabilities;
-	std::vector<VkSurfaceFormatKHR> formats;
-	std::vector<VkPresentModeKHR> presentModes;
+	VkSurfaceCapabilitiesKHR capabilities; //limits of the swapchain
+	std::vector<VkSurfaceFormatKHR> formats; //supported surface formats (i.e. color and color space)
+	std::vector<VkPresentModeKHR> presentModes; //how frames are presented to the surface
 };
 
 class TriangleApp

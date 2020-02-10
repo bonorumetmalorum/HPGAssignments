@@ -6,6 +6,9 @@ TriangleApp::TriangleApp()
 {
 }
 
+/*
+	main loop
+*/
 void TriangleApp::run()
 {
 	initWindow();
@@ -14,26 +17,28 @@ void TriangleApp::run()
 	cleanup();
 }
 
-
 TriangleApp::~TriangleApp()
 {
 }
 
+/*
+	initialise vulkan
+*/
 void TriangleApp::initVulkan()
 {
-	createInstance();
-	setupDebugMessenger();
-	createSurface();
-	pickPhysicalDevice();
-	createLogicalDevice();
-	createSwapChain();
-	createImageViews();
-	createRenderPass();
-	createGraphicsPipeline();
-	createFramebuffers();
-	createCommandPool();
-	createCommandBuffers();
-	createSyncObjects();
+	createInstance(); //create an instance to store vulkan related state
+	setupDebugMessenger();//setup the debug messenger to hold state for the debug extension layer
+	createSurface(); //create a surface we can render images to
+	pickPhysicalDevice(); //pick a physical device we will use for our graphics pipeline
+	createLogicalDevice(); //create a logical device wrapper with the necessary resources around the physical device
+	createSwapChain(); //create a swapchain that we can use to render images to the surface
+	createImageViews(); //create the image views that will hold additional info about the images in the swap swapchain
+	createRenderPass(); //create a render pass that specifies all the stages of the render
+	createGraphicsPipeline(); //create a graphics pipeline to process drawing commands and render to the surface
+	createFramebuffers(); //create a framebuffer to represent the set of images the graphics pipeline will render to
+	createCommandPool(); //create a command pool to manage allocation of command buffers
+	createCommandBuffers(); //create the command buffer from the pool with the appropriate commands
+	createSyncObjects(); //create synchronisation primitives to control rendering
 }
 
 /*
@@ -71,8 +76,7 @@ void TriangleApp::mainLoop()
 */
 void TriangleApp::pickPhysicalDevice()
 {
-	//find the number of supported devices
-	uint32_t deviceCount = 0;
+	uint32_t deviceCount = 0;//find the number of supported devices
 	vkEnumeratePhysicalDevices(vkInstance, &deviceCount, nullptr);	//call this function to find all vulkan enabled devices in the system by providing the instance, 
 																	//an in/out parameter for the number of max devices supported by app / number of available supported devices
 																	//and finally an array which can hold this number of devices
