@@ -653,9 +653,10 @@ void TriangleApp::createGraphicsPipeline()
 	rasterizer.frontFace = VK_FRONT_FACE_CLOCKWISE; //how to iterate over vertices (determines which faces are front and back) can be CC or C
 	//the following parameters can be used to fix issues with z-fighting by allowing fragments to be offset in depth
 	rasterizer.depthBiasEnable = VK_FALSE; // can be modified based on slope but we dont want that here so it is disabled
-	rasterizer.depthBiasConstantFactor = 0.0f; // Optional
-	rasterizer.depthBiasClamp = 0.0f; // Optional
-	rasterizer.depthBiasSlopeFactor = 0.0f; // Optional
+	rasterizer.depthBiasConstantFactor = 0.0f; // Optional - depth bias equation
+	rasterizer.depthBiasClamp = 0.0f; // Optional - puts an upper bound on the depth bias equation output if positive and non zero and lower bound if non zero and negative
+	rasterizer.depthBiasSlopeFactor = 0.0f; // Optional - param in depth bias equation
+	//depth bias is calculated by finding m which is steepest descent in z direction and then multiplying it by depthBiasSlopeFactor and depthBiasConstantFactor
 
 	//multisampling
 	/*
@@ -666,33 +667,33 @@ void TriangleApp::createGraphicsPipeline()
 	multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO; //struct type
 	multisampling.sampleShadingEnable = VK_FALSE; //disable MS on the shading
 	multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT; //use 1 sample
-	multisampling.minSampleShading = 1.0f; // Optional
-	multisampling.pSampleMask = nullptr; // Optional
-	multisampling.alphaToCoverageEnable = VK_FALSE; // Optional
-	multisampling.alphaToOneEnable = VK_FALSE; // Optional
+	multisampling.minSampleShading = 1.0f; // Optional - minimum number of times the shader will be run per pixel (value is between 0 - 1, 1 means each pixel will receive its own data by another inovcation of the frag shader)
+	multisampling.pSampleMask = nullptr; // Optional - used to update only a subset of the samples produced (bitmas)
+	multisampling.alphaToCoverageEnable = VK_FALSE; // Optional - use the alpha channel to store coverage values which will be used for easy transperancy
+	multisampling.alphaToOneEnable = VK_FALSE; // Optional - what do we do with actual alpha values, set the alpha to one as if the fragment shader has not produced an alpha value
 
 	//depth stencil testing not being used so its create info is omitted
 
-	//colour-blending
-	//configuration per framebuffer (we only have one framebuffer)
+	//colour-blending specification
+	//configuration per colour attachment (we only have one colour attachment)
 	VkPipelineColorBlendAttachmentState colorBlendAttachment = {};
 	colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT; //the channels we are writing to
 	if (BLEND) {
 		colorBlendAttachment.blendEnable = VK_TRUE; //if we want to blend the colours
-		colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA; 
-		colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
-		colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;
-		colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-		colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
-		colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;
+		colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA; //use the source image alpha channel to determine how much of src colours we use
+		colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA; //use the destination image alpha channel to determine how much of dst colours we use
+		colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD; //add the two colours together
+		colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE; //use the source images alpha
+		colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO; //dont use the destination images alpha
+		colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD; //add the alphas together to determine final alpha of new image
 	}else{
 		colorBlendAttachment.blendEnable = VK_FALSE; //do we blend, not in this case,  we simply overwrite the contents of the buffer the parameters below are ignored
 		colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_ONE; // Optional - we treat the src as opaque and replace everything in the dst
-		colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO; // Optional - replaced
-		colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD; // Optional - we add the colours
-		colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE; // Optional
-		colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO; // Optional
-		colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD; // Optional
+		colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO; // Optional - we are not using any amount of the destination images colour
+		colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD; // Optional - we add the colours (essentially replacing them)
+		colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE; // Optional - use all of the source images alpha value
+		colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO; // Optional - dont use any of the destination images alpha
+		colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD; // Optional - add the alphas together to determine final alpha value
 	}
 
 	//references the array of structures for all of the framebuffers and allows you to set blend constants that you can use as blend factors in the blend calculations
@@ -704,10 +705,11 @@ void TriangleApp::createGraphicsPipeline()
 	colorBlending.logicOp = VK_LOGIC_OP_COPY; // Optional - we have chosen not to do any operations so the data is written unmodified to the colour attachment from the frag shader
 	colorBlending.attachmentCount = 1; //number of attachments, we only have 1 which the colour attachment
 	colorBlending.pAttachments = &colorBlendAttachment; //the colour blend attachment
-	colorBlending.blendConstants[0] = 0.0f; // Optional
-	colorBlending.blendConstants[1] = 0.0f; // Optional
-	colorBlending.blendConstants[2] = 0.0f; // Optional
-	colorBlending.blendConstants[3] = 0.0f; // Optional
+	//4 constants used for RGBA blending depending on blend factor
+	colorBlending.blendConstants[0] = 0.0f; // Optional - R
+	colorBlending.blendConstants[1] = 0.0f; // Optional - G
+	colorBlending.blendConstants[2] = 0.0f; // Optional - B
+	colorBlending.blendConstants[3] = 0.0f; // Optional - A
 
 	//dynamic state - what parameters can we change at runtime (can be nullptr if we dont have any)
 	VkDynamicState dynamicStates[] = {
