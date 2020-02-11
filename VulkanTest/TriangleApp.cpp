@@ -638,7 +638,7 @@ void TriangleApp::createGraphicsPipeline()
 	viewportState.pViewports = &viewport; //the viewport(s)
 	viewportState.scissorCount = 1; //the number of scissors we want to use
 	viewportState.pScissors = &scissor; //the scissor(s)
-
+	
 	//setup rasterization stage
 	/*
 		important stage that converts primitives into fragments that are going to be shaded by the fragment shader
@@ -727,10 +727,10 @@ void TriangleApp::createGraphicsPipeline()
 	//pipeline layout - specifies uniform layout information - which we are not using here so the struct is blank, but we still need to provide it
 	VkPipelineLayoutCreateInfo pipelineLayoutInfo = {};
 	pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO; //struct type
-	pipelineLayoutInfo.setLayoutCount = 0; // Optional - because we are using the graphics pipeline we do not need special layout
-	pipelineLayoutInfo.pSetLayouts = nullptr; // Optional - "
-	pipelineLayoutInfo.pushConstantRangeCount = 0; // Optional - a push constant is uniform variable in a shader and is used similarly, but it is vulkan owned and managed (number of push constant ranges)
-	pipelineLayoutInfo.pPushConstantRanges = nullptr; // Optional - the push constant ranges
+	pipelineLayoutInfo.setLayoutCount = 0; // Optional - number of different uniform layouts
+	pipelineLayoutInfo.pSetLayouts = nullptr; // Optional - the uniform layouts
+	pipelineLayoutInfo.pushConstantRangeCount = 0; // Optional - a push constant is uniform variable in a shader and is used similarly, but it is vulkan owned and managed, it is set through the command buffer (number of push constant ranges)
+	pipelineLayoutInfo.pPushConstantRanges = nullptr; // Optional - the push constant ranges that specify what stage of the pipeline will access the uniform and it also specifies the start offset and size of the uniform
 
 	if (vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS) { //create the pipeline layout
 		throw std::runtime_error("failed to create pipeline layout!"); //throw an error if it was unsuccessful
@@ -750,7 +750,7 @@ void TriangleApp::createGraphicsPipeline()
 	pipelineInfo.pDepthStencilState = nullptr; // Optional - we dont use this
 	pipelineInfo.pColorBlendState = &colorBlending; //colour blending stage
 	pipelineInfo.pDynamicState = nullptr; // Optional - we dont use this either
-	pipelineInfo.layout = pipelineLayout; // pipeline layout, we are not using anything special TODO
+	pipelineInfo.layout = pipelineLayout; // pipeline layout, we are not using any uniforms and other constants in our pipeline
 	pipelineInfo.renderPass = renderPass; // the render passes associating operations and images
 	pipelineInfo.subpass = 0; // no subpasses
 	pipelineInfo.basePipelineHandle = VK_NULL_HANDLE; // Optional
@@ -799,11 +799,11 @@ void TriangleApp::createRenderPass()
 	*/
 	VkAttachmentDescription colorAttachment = {};
 	colorAttachment.format = swapChainImageFormat; //match format of swapchain
-	colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT; //1 sample since we are not using any form of AA
-	colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR; //Clear the values to a constant at the start (what to do when render pass starts)
+	colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT; //1 sample since we are not using any form of Anti Aliasing (AA)
+	colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR; //Clear the values to a constant at the start (what should we do when the render pass starts)
 	colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE; //Rendered contents will be stored in memory and can be read later (what to do when the render pass ends)
 	colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE; //dont do anything with stencil buffer (same as before but now for the depth part of the image, which we for now dont care about)
-	colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE; //dont do anything with stencil buffer (again, dont care about the depth part of the image)
+	colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE; //dont do anything with stencil buffer (again, dont care about this part of the image)
 	colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; //specifies which layout the image will have before the render pass begins
 	colorAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR; // layout to automatically transition to when the render pass finishes. Images to be presented in the swap chain
 
@@ -814,7 +814,7 @@ void TriangleApp::createRenderPass()
 		for example a sequence of post-processing effects that are applied one after another
 	*/
 	/*
-		Each attachment reference is a simple structure containing an index into the array of attachments in attachment
+		Each attachment reference is a simple structure containing an index into the array of attachments,
 		and the image layout that the attachment is expected to be in at this subpass
 	*/
 	VkAttachmentReference colorAttachmentRef = {};
