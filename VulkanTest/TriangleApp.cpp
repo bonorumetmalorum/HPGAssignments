@@ -334,11 +334,10 @@ void TriangleApp::createSwapChain()
 {
 	SwapChainSupportDetails swapChainSupport = querySwapChainSupport(physicalDevice); //query what is supported by the swap chain on the physical device (we want surface capabilities, surface formats, and presentation modes) 
 	VkSurfaceFormatKHR surfaceFormat = chooseSwapSurfaceFormat(swapChainSupport.formats); //setup the surface formats (buffer properties), presentation mode (buffers) and extent (resolution of rendering)
-	VkPresentModeKHR presentMode = chooseSwapPresentMode(swapChainSupport.presentModes);
-	VkExtent2D extent = chooseSwapExtent(swapChainSupport.capabilities);
+	VkPresentModeKHR presentMode = chooseSwapPresentMode(swapChainSupport.presentModes); //which kind of presentation mode do we want to use (MAIL_BOX etc...)
+	VkExtent2D extent = chooseSwapExtent(swapChainSupport.capabilities); //choose an appropriate swapchain extent
 
-	//setting for the minimum number of images that must be in the swap chain. +1 because we dont wait to wait and do nothing while the device does
-	//driver operations.
+	//setting for the minimum number of images that must be in the swap chain. +1 because we dont want to wait and do nothing while the device does driver operations.
 	uint32_t imageCount = swapChainSupport.capabilities.minImageCount + 1; //if this is set to 1 it means that we want to render directly to the front buffer, which is bad and not supported by all devices, 3 is recommended
 	//we also do not want to exceed the maximum number of images so we check what it is and set our image count to that.
 	if (swapChainSupport.capabilities.maxImageCount > 0 && imageCount > swapChainSupport.capabilities.maxImageCount) { //in order to not exceed the maximum number of images available in the swap chain, if the max image count is less than the current image count
@@ -349,7 +348,7 @@ void TriangleApp::createSwapChain()
 	createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR; //swap chain type
 	createInfo.surface = surface; //surface we are tying the swap chain to
 	createInfo.minImageCount = imageCount; // the minimum number of images we need
-	createInfo.imageFormat = surfaceFormat.format; //the supported format we wish to use to render
+	createInfo.imageFormat = surfaceFormat.format; //the supported format (in memory representation of pixels) we wish to use to render
 	createInfo.imageColorSpace = surfaceFormat.colorSpace; //the color space which will be RGB or sRGB, whichever is supported by the surface
 	createInfo.imageExtent = extent; //dimensions of the image in the swap chain
 	createInfo.imageArrayLayers = 1; //number of layers each image consists of, can be used to present a layered image to the user, or specific layers of an image
@@ -436,8 +435,10 @@ bool TriangleApp::checkDeviceExtensionSupport(VkPhysicalDevice device)
 	vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, nullptr); //get the number of supported extensions
 
 	std::vector<VkExtensionProperties> availableExtensions(extensionCount); // resize the array such that we can allocate the informatiom related to supported extensions
-	vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, availableExtensions.data()); //get the information
-	std::set<std::string> requiredExtensions(deviceExtensions.begin(), deviceExtensions.end()); //convert the extensions we want to be available to strings
+	//get the information by providing the physical device, null layer name, the number of extensions and an array to store the layer names in
+	vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, availableExtensions.data()); 
+	//convert the extensions we want to be available to strings
+	std::set<std::string> requiredExtensions(deviceExtensions.begin(), deviceExtensions.end());
 
 	//now iterate over them, crossing them off
 	for (const auto& extension : availableExtensions) {
@@ -503,12 +504,13 @@ VkSurfaceFormatKHR TriangleApp::chooseSwapSurfaceFormat(const std::vector<VkSurf
 VkPresentModeKHR TriangleApp::chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes)
 {
 	for (const auto& availablePresentMode : availablePresentModes) { //iterate through all presentation modes
-		if (availablePresentMode == VK_PRESENT_MODE_MAILBOX_KHR) { //choose mailbox presentation mode (determines if vk waits for the next vertical blank period to update the current image)
+		if (availablePresentMode == VK_PRESENT_MODE_MAILBOX_KHR) { 
+			//when an image is ready to be shown, it is marked as pending, and when the vertical blank is finished it is then show. However, if a new image is ready to be shown before this, the pending image is discarded and updated with this new one
 			return availablePresentMode; //return this mode if it is available
 		}
 	}
 
-	return VK_PRESENT_MODE_FIFO_KHR; //otherwise use this one as the default
+	return VK_PRESENT_MODE_FIFO_KHR; //otherwise use this one as the default (queue data structuer where images are shown at regular intervals, after the vertical blank)
 }
 
 /*
@@ -519,27 +521,29 @@ VkPresentModeKHR TriangleApp::chooseSwapPresentMode(const std::vector<VkPresentM
 */
 VkExtent2D TriangleApp::chooseSwapExtent(const VkSurfaceCapabilitiesKHR & capabilities)
 {
-	if (capabilities.currentExtent.width != UINT32_MAX) {
-		return capabilities.currentExtent;
+	if (capabilities.currentExtent.width != UINT32_MAX) { //if the current width of the window is not equal to the max value (the window manager is allowing us to define the extents)
+		return capabilities.currentExtent; //return the surfaces current extent width and height
 	}
-	else {
+	else { //we shall choose an apropriate value for the swapchain extent
 		//get the width and height of the window
-		int width, height;
-		glfwGetFramebufferSize(window, &width, &height);
+		int width, height; //width and height
+		glfwGetFramebufferSize(window, &width, &height); //get the framebuffer width and height
 
-		VkExtent2D actualExtent = { static_cast<uint32_t>(width), static_cast<uint32_t>(height) };
+		VkExtent2D actualExtent = { static_cast<uint32_t>(width), static_cast<uint32_t>(height) }; //create the extent struct to hold the width and height values
 
+		//here we clamp the values of the width and height between the minimum and maximum extents allowed by the implementation
 		actualExtent.width = std::max(capabilities.minImageExtent.width, std::min(capabilities.maxImageExtent.width, actualExtent.width));
 		actualExtent.height = std::max(capabilities.minImageExtent.height, std::min(capabilities.maxImageExtent.height, actualExtent.height));
 
-		return actualExtent;
+		return actualExtent; //return the extents
 	}
 }
 
 /*
 	We cannot use the image resources in the swap chain directly
-	We create image views to hold additional information about the use of the image
 	We cannot, for example, directly use an image as an attachment to a framebuffer
+	We create image views to hold additional information about the use of the image and use these as attachment to our Framebuffer
+	An image view is a collection of properties and a reference to a parent image
 */
 void TriangleApp::createImageViews()
 {
@@ -666,7 +670,7 @@ void TriangleApp::createGraphicsPipeline()
 	VkPipelineMultisampleStateCreateInfo multisampling = {};
 	multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO; //struct type
 	multisampling.sampleShadingEnable = VK_FALSE; //disable MS on the shading
-	multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT; //use 1 sample
+	multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT; //number of samples to use, use 1 sample in this case
 	multisampling.minSampleShading = 1.0f; // Optional - minimum number of times the shader will be run per pixel (value is between 0 - 1, 1 means each pixel will receive its own data by another inovcation of the frag shader)
 	multisampling.pSampleMask = nullptr; // Optional - used to update only a subset of the samples produced (bitmas)
 	multisampling.alphaToCoverageEnable = VK_FALSE; // Optional - use the alpha channel to store coverage values which will be used for easy transperancy
@@ -749,17 +753,18 @@ void TriangleApp::createGraphicsPipeline()
 	pipelineInfo.pViewportState = &viewportState; //view port state
 	pipelineInfo.pRasterizationState = &rasterizer; //rasterizer stage
 	pipelineInfo.pMultisampleState = &multisampling; //MS stage
-	pipelineInfo.pDepthStencilState = nullptr; // Optional - we dont use this
+	pipelineInfo.pDepthStencilState = nullptr; // Optional - depth stencil stage, we dont use this
 	pipelineInfo.pColorBlendState = &colorBlending; //colour blending stage
-	pipelineInfo.pDynamicState = nullptr; // Optional - we dont use this either
+	pipelineInfo.pDynamicState = nullptr; // Optional - the state which are treating as dynamic, we dont use this either
 	pipelineInfo.layout = pipelineLayout; // pipeline layout, we are not using any uniforms and other constants in our pipeline
 	pipelineInfo.renderPass = renderPass; // the render passes associating operations and images
-	pipelineInfo.subpass = 0; // no subpasses
-	pipelineInfo.basePipelineHandle = VK_NULL_HANDLE; // Optional
-	pipelineInfo.basePipelineIndex = -1; // Optional
+	pipelineInfo.subpass = 0; // we are not using any subpasses
+	pipelineInfo.basePipelineHandle = VK_NULL_HANDLE; // Optional - vulkan allows you to derive from another pipeline
+	pipelineInfo.basePipelineIndex = -1; // Optional - no base pipeline so init to -1 as per spec
 
-	//more parameters are used here as multiple gps can be created in one go
+	//more parameters are used here as multiple graphics pipelines can be created in one go by providing a list of create info structs
 	//second param is a cache which can be used to reuse data relevant to pipeline creation across multiple class
+	//the third param is the count of create info structs, in our case we only have one and only one pipeline is created
 	if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &graphicsPipeline) != VK_SUCCESS) { //make the graphics pipeline
 		throw std::runtime_error("failed to create graphics pipeline!"); //throw an error if it was unsuccessful
 	}
@@ -776,18 +781,19 @@ VkShaderModule TriangleApp::createShaderModule(const std::vector<char>& code)
 	VkShaderModuleCreateInfo createInfo = {}; //information needed to create a shader module
 	createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO; //type of the create info is Shader module
 	createInfo.codeSize = code.size(); //the size of the buffer that holds the byte code of our shader program
-	createInfo.pCode = reinterpret_cast<const uint32_t*>(code.data()); //reinterpret cast our char array to unit32_t (needs to be alligned for int32 but it is because we used a vec
-	VkShaderModule shaderModule;
+	createInfo.pCode = reinterpret_cast<const uint32_t*>(code.data()); //reinterpret cast our char array to unit32_t (needs to be aligned for int32 but it is because we used a vec)
+	VkShaderModule shaderModule; //out param
+	//in order to make the shader module we need the logical device, the setup information (compiled code), (no allocator callback) and finally an out param to hold the created shader
 	if (vkCreateShaderModule(device, &createInfo, nullptr, &shaderModule) != VK_SUCCESS) { //maake the shader module
 		throw std::runtime_error("failed to create shader module!"); //if we are unsuccessful throw an error
 	}
-	return shaderModule;
+	return shaderModule; //return the shader module
 }
 
 //specify how many color and depth buffers there will be, how many samples to use for each of them and how their contents should be handled throughout the rendering operations.
 /*
 	in a graphics pipeline we render pixels into images that will either be further processed or presented to the user
-	in very complex graphics piplines these images will be generated only after many passes
+	in very complex graphics pipelines these images will be generated only after many passes
 	each pass can do something different, such as render UI, apply post-processing, ...
 	these passes are encapsulated in a renderPass object, where each part of the render pass is called a subpass
 	the render pass object will contain information about he final output image
@@ -799,13 +805,13 @@ void TriangleApp::createRenderPass()
 		Each of these structures defines a single image that is to be used as an input, output, or both within one or more of the subpasses in the renderpass
 		for graphics related application there will be at least 1 of these
 	*/
-	VkAttachmentDescription colorAttachment = {};
-	colorAttachment.format = swapChainImageFormat; //match format of swapchain
+	VkAttachmentDescription colorAttachment = {}; //attachment information
+	colorAttachment.format = swapChainImageFormat; //match the format of the swapchain
 	colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT; //1 sample since we are not using any form of Anti Aliasing (AA)
 	colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR; //Clear the values to a constant at the start (what should we do when the render pass starts)
 	colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE; //Rendered contents will be stored in memory and can be read later (what to do when the render pass ends)
-	colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE; //dont do anything with stencil buffer (same as before but now for the depth part of the image, which we for now dont care about)
-	colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE; //dont do anything with stencil buffer (again, dont care about this part of the image)
+	colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE; //don't do anything with stencil buffer (same as before but now for the depth part of the image, which we for now dont care about)
+	colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE; //don't do anything with stencil buffer (again, don't care about this part of the image)
 	colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; //specifies which layout the image will have before the render pass begins
 	colorAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR; // layout to automatically transition to when the render pass finishes. Images to be presented in the swap chain
 
@@ -824,10 +830,10 @@ void TriangleApp::createRenderPass()
 	colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL; //the output image the attachment is associated with
 	//describe subpass - each subpass references a number of attachments, here we only want 1 subpass.
 	VkSubpassDescription subpass = {};
-	subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS; //bind point of a pipeline object to a command buffer (specifying as a graphics pipline here, but it could be a compute pipeline)
+	subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS; //bind point of a pipeline object to a command buffer (specifying as a graphics pipeline here, but it could be a compute pipeline)
 	subpass.colorAttachmentCount = 1; //number of color attachments (this is where output is written)
 	subpass.pColorAttachments = &colorAttachmentRef; //pointer into array containing the attachments (1 in this case so not an array, this is the output)
-	//we dont really have input attachments at the moment, since the triangle we render is defined in the shader itself
+	//we don't really have input attachments at the moment, since the triangle we render is defined in the shader itself
 
 	//create render pass
 	VkRenderPassCreateInfo renderPassInfo = {}; //render pass information
@@ -841,13 +847,13 @@ void TriangleApp::createRenderPass()
 	//first two fields specify the indices of the dependency and the dependent subpass
 	VkSubpassDependency dependency = {};
 	dependency.srcSubpass = VK_SUBPASS_EXTERNAL; //producer of data (in this case is external to this subpass)
-	dependency.dstSubpass = 0; //this subpass is the destination of the data (that is how the depency goes)
+	dependency.dstSubpass = 0; //this subpass is the destination of the data (that is how the dependency goes)
 	// next two fields specify the operations to wait on and the stages in which these operations occur
 	dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT; //which pipeline stage of the source subpass produced the data
-	dependency.srcAccessMask = 0; //how src subpass accesses the data
+	dependency.srcAccessMask = 0; //how source subpass accesses the data
 	//next two fields specify the operations to wait on and the stages in which these operations occur
 	dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT; //which stages of the destination subpass will consume the data. 
-	dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT; //how dst subpass accesses the data
+	dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT; //how destination subpass accesses the data
 	
 	//setup the subpass in the renderpassinfo struct
 	renderPassInfo.dependencyCount = 1; //we have 1 dependency
@@ -877,8 +883,8 @@ void TriangleApp::createFramebuffers()
 			swapChainImageViews[i]
 		}; //getting the swap chain images
 
-		VkFramebufferCreateInfo framebufferInfo = {};
-		framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+		VkFramebufferCreateInfo framebufferInfo = {}; //struct to hold framebuffer creation info
+		framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO; //struct type
 		framebufferInfo.renderPass = renderPass; //render pass we are binding framebuffer to
 		framebufferInfo.attachmentCount = 1; //number of attachments
 		framebufferInfo.pAttachments = attachments; //the images that we wish to manage in the frame buffer
@@ -901,15 +907,15 @@ void TriangleApp::createCommandPool()
 	QueueFamilyIndices queueFamilyIndices = findQueueFamilies(physicalDevice); //get the queue families we wish to submit work to
 
 	VkCommandPoolCreateInfo poolInfo = {}; //command pool creation info
-	poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO; //stuct type
+	poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO; //struct type
 	poolInfo.queueFamilyIndex = queueFamilyIndices.graphicsFamily.value(); //specifies the family of the queue to which command buffers allocated from this pool will be submitted to
 	/*
-
+	flags:
 	VK_COMMAND_POOL_CREATE_TRANSIENT_BIT: Hint that command buffers are rerecorded with new commands very often (may change memory allocation behavior)
 	VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT: Allow command buffers to be rerecorded individually, without this flag they all have to be reset together
 
 	*/
-	poolInfo.flags = 0; // Optional - we dont have any specific requirements at this point
+	poolInfo.flags = 0; // Optional - we don't have any specific requirements at this point
 
 	if (vkCreateCommandPool(device, &poolInfo, nullptr, &commandPool) != VK_SUCCESS) { //create the pool
 		throw std::runtime_error("failed to create command pool!"); //if we are unsuccessful throw an error
@@ -927,8 +933,8 @@ void TriangleApp::createCommandBuffers()
 	VkCommandBufferAllocateInfo allocInfo = {}; //command buffer allocation info
 	allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO; //struct type
 	allocInfo.commandPool = commandPool; //the command pool from which we will allocate the buffer
-	//a primary buffer can call a secondary buffer
-	//we dont need secondary command buffers
+	//a primary buffer can call a secondary buffer, allows 2-deep function calls for example
+	//we don't need secondary command buffers
 	allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY; //specifies if the allocated command buffers are primary or secondary command buffers
 	allocInfo.commandBufferCount = (uint32_t)commandBuffers.size(); //the number of command buffers (one for each frame buffer)
 
@@ -938,16 +944,17 @@ void TriangleApp::createCommandBuffers()
 
 	//begin recording commands for the command buffer ( we want to draw a triangle )
 	for (size_t i = 0; i < commandBuffers.size(); i++) {//for all command buffers
-		VkCommandBufferBeginInfo beginInfo = {}; //information needed to tell the command buffer to begine recording
+		VkCommandBufferBeginInfo beginInfo = {}; //information needed to tell the command buffer to begin recording
 		beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO; //struct type
 		beginInfo.flags = 0; // Optional - specifies how we're going to use the command buffer
 		beginInfo.pInheritanceInfo = nullptr; // Optional - relevant for secondary command buffers
 
-		/*If the command buffer was already recorded once, then a call to 
-		vkBeginCommandBuffer will implicitly reset it.It's not possible to append commands to a buffer at a later time.
+		/*
+			If the command buffer was already recorded once, then a call to vkBeginCommandBuffer will implicitly reset it.
+			It's not possible to append commands to a buffer at a later time.
 		*/
 		if (vkBeginCommandBuffer(commandBuffers[i], &beginInfo) != VK_SUCCESS) {// begin recording
-			throw std::runtime_error("failed to begin recording command buffer!"); //if we didnt successfully begin recording throw an error
+			throw std::runtime_error("failed to begin recording command buffer!"); //if we didn't successfully begin recording throw an error
 		}
 
 		VkRenderPassBeginInfo renderPassInfo = {}; //create info needed to begin a render a pass
@@ -964,7 +971,7 @@ void TriangleApp::createCommandBuffers()
 		//begin render pass
 		//command buffer to record the command to
 		//specifies the details of the render pass we've just provided
-		//controls how the drawing commands within the render pass will be provided (execute in primary or secondary cmd buffer)
+		//controls how the drawing commands within the render pass will be provided (execute in primary or secondary command buffer)
 		vkCmdBeginRenderPass(commandBuffers[i], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 		//bind graphics pipeline
 		vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
@@ -1004,11 +1011,11 @@ void TriangleApp::createSyncObjects()
 
 	//we now also have to make fence objects to sync CPU and GPU
 	inFlightFences.resize(MAX_FRAMES_IN_FLIGHT); //resize so there is a fence for each frame
-	imagesInFlight.resize(swapChainImages.size(), VK_NULL_HANDLE); //resize so there is a fence for each image
+	imagesInFlight.resize(swapChainImages.size(), VK_NULL_HANDLE); //resize so there is a fence for each image and init each element to NULL
 
 	VkFenceCreateInfo fenceInfo = {}; //fence creation info
 	fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO; //struct type
-	fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT; //we need this so we can render on the very first pass (they are otherwise init to unsignaled and we wait for ever)
+	fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT; //we need this so we can render on the very first pass (they are otherwise initialized to a not signaled state and we wait for ever)
 	
 	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) { //for each frame
 		if (vkCreateFence(device, &fenceInfo, nullptr, &inFlightFences[i]) != VK_SUCCESS) { //create a fence
@@ -1030,10 +1037,11 @@ void TriangleApp::createSyncObjects()
 
 /*
 	method used to recreate the swap chain
+	this is used whenever the window is resized
 */
 void TriangleApp::recreateSwapChain()
 {
-	//handle minimisation events
+	//handle minimization events
 	//we basically wait till the window is in the foreground again
 	//this can cause an error where the width and height of the window is 0 which are invalid swap chain params
 	int width = 0, height = 0;
@@ -1066,7 +1074,7 @@ void TriangleApp::cleanupSwapChain()
 		vkDestroyFramebuffer(device, swapChainFramebuffers[i], nullptr); //destroy them
 	}
 
-	//do this so we dont need to allocate and new command pool, we can reuse the old one to issue new command buffers
+	//do this so we don't need to allocate and new command pool, we can reuse the old one to issue new command buffers
 	//we need to provide the logical device, the pool from which we allocated the buffers and the buffers themselves
 	vkFreeCommandBuffers(device, commandPool, static_cast<uint32_t>(commandBuffers.size()), commandBuffers.data()); //free the command buffers
 
@@ -1083,22 +1091,22 @@ void TriangleApp::cleanupSwapChain()
 }
 
 /*
-
+	draw triangles
 	Acquire an image from the swap chain
 	Execute the command buffer with that image as attachment in the framebuffer
 	Return the image to the swap chain for presentation
-
 */
 void TriangleApp::drawFrame()
 {
 	//before we start drawing again, we have to wait for the previous frame to finish
-	//array of fences and waits for either any or all of them to be signaled before returning
+	//vkWaitForFences takes an array of fences and waits for either any, or all of them to be signaled before returning
 	//the last parameter is a timeout which we have disabled (so we wait forever, if the frame is never finishing) by setting it to uint64 max value
 	vkWaitForFences(device, 1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
 
 	uint32_t imageIndex; //variable to hold image index we will use to render to
+
 	//logical device, swap chain, timeout (disabled in this case) to wait for image, imageAvailable semaphore to signal that we can start drawing, 
-	//finally variable to hold image (used to get right command buffer)
+	//finally variable to hold image (used to get right command buffer to submit)
 	VkResult result = vkAcquireNextImageKHR(device, swapChain, UINT64_MAX, imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
 
 	//if the swap chain turns out to be out of date then we have to recreate the swap chain and continue in the next call
@@ -1106,7 +1114,8 @@ void TriangleApp::drawFrame()
 		recreateSwapChain();
 		return;
 	}
-	//if the result is either a success or suboptimal we proceed, if it is anything else something has gone wrong and we throw an error
+
+	//if the result is either a success or suboptimal value we proceed, if it is anything else, something has gone wrong and we throw an error
 	else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
 		throw std::runtime_error("failed to acquire swap chain image!");
 	}
@@ -1121,7 +1130,7 @@ void TriangleApp::drawFrame()
 	VkSubmitInfo submitInfo = {}; //information needed to submit a queue for execution
 	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO; //struct type
 
-	VkSemaphore waitSemaphores[] = { imageAvailableSemaphores[currentFrame] }; //semaphore we have to wait on to commence exection
+	VkSemaphore waitSemaphores[] = { imageAvailableSemaphores[currentFrame] }; //semaphore we have to wait on to commence execution
 	VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT }; //the stage we are waiting on to be available
 	submitInfo.waitSemaphoreCount = 1; //the number of semaphores we are waiting on
 	submitInfo.pWaitSemaphores = waitSemaphores; //the semaphore(s) we are waiting on
@@ -1129,22 +1138,23 @@ void TriangleApp::drawFrame()
 
 	//command buffer we are submitting
 	submitInfo.commandBufferCount = 1; //number of command buffers we are submitting
-	submitInfo.pCommandBuffers = &commandBuffers[imageIndex]; //the command buffer(s) to submit
+	submitInfo.pCommandBuffers = &commandBuffers[imageIndex]; //the command buffer(s) to submit, use imageIndex from earlier to find the right one
 
 	//which semaphore should we use to signal that rendering is complete
 	VkSemaphore signalSemaphores[] = { renderFinishedSemaphores[currentFrame] };
-	submitInfo.signalSemaphoreCount = 1; //the number of semaphores we should singal when complete
+	submitInfo.signalSemaphoreCount = 1; //the number of semaphores we should signal when complete
 	submitInfo.pSignalSemaphores = signalSemaphores; //the semaphore
 
 	vkResetFences(device, 1, &inFlightFences[currentFrame]); //unlike with semaphores, we need to manually restore the fence to the original state
 
+	//the graphics queue that will receive the  work to execute, the submit info which describes the work.
 	//The last parameter references an optional fence that will be signaled when the command buffers finish execution (CPU-GPU sync).
 	if (vkQueueSubmit(graphicsQueue, 1, &submitInfo, inFlightFences[currentFrame]) != VK_SUCCESS) { //submit the queue
 		throw std::runtime_error("failed to submit draw command buffer!"); //throw an error if could not submit it
 	}
 
 
-	VkPresentInfoKHR presentInfo = {}; //information needed to present the frame buffer
+	VkPresentInfoKHR presentInfo = {}; //information needed to present the framebuffer
 	presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR; //struct type
 	// first two parameters specify which semaphores to wait on before presentation can happen,
 	presentInfo.waitSemaphoreCount = 1; //the number of semaphores to wait on before presenting
@@ -1161,7 +1171,7 @@ void TriangleApp::drawFrame()
 	
 	//we have to check the same conditions here and recreate the swapchain if we need to (window management)
 	if (result1 == VK_ERROR_OUT_OF_DATE_KHR || result1 == VK_SUBOPTIMAL_KHR || framebufferResized) {
-		//if the reslut of presentation is either a out of date or suboptimal or we have a window resize event we need to recreate the swap chain
+		//if the result of presentation is either a out of date or suboptimal or we have a window resize event we need to recreate the swap chain
 		framebufferResized = false; //reset the window resize flag
 		recreateSwapChain(); //recreate the swap chain
 	}
@@ -1170,7 +1180,7 @@ void TriangleApp::drawFrame()
 	}
 	
 	//increment the frame we're rendering
-	currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT; //increment to the next frame to render to
+	currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT; //increment to the next frame to render to (circular as we are using the modulo)
 }
 
 /*
@@ -1203,10 +1213,10 @@ std::vector<char> TriangleApp::readFile(const std::string & filename)
 bool TriangleApp::checkValidationLayerSupport()
 {
 	uint32_t layerCount = 0; //variable to store the number of supported layers by the instance
-	vkEnumerateInstanceLayerProperties(&layerCount, nullptr);
+	vkEnumerateInstanceLayerProperties(&layerCount, nullptr); //get the number of supported layers by passing nullptr as the the out param
 
-	std::vector<VkLayerProperties> availableLayers(layerCount); //an array to store all the available alyers
-	vkEnumerateInstanceLayerProperties(&layerCount, availableLayers.data()); // store the available layers
+	std::vector<VkLayerProperties> availableLayers(layerCount); //an array to store all the available layers
+	vkEnumerateInstanceLayerProperties(&layerCount, availableLayers.data()); // store the available layers by passing an out parameter
 
 	for (const char * layerName : validationLayers) { //for each layer we want to use
 		bool layerFound = false; //is the layer supported?
