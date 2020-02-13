@@ -161,7 +161,7 @@ private:
 
 	VkQueue presentationQueue;
 
-	VkSwapchainKHR swapChain;
+	VkSwapchainKHR swapChain; //handle to the swapchain
 	std::vector<VkImage> swapChainImages; //images (buffers) to use
 	VkFormat swapChainImageFormat;//format we have decided to use
 	VkExtent2D swapChainExtent;//resolution
@@ -189,14 +189,14 @@ private:
 	*/
 	std::vector<VkCommandBuffer> commandBuffers;
 
-	//synchronisation with render operations
-	std::vector<VkSemaphore> imageAvailableSemaphores;
-	std::vector<VkSemaphore> renderFinishedSemaphores;
-	std::vector<VkFence> inFlightFences; //used to sync CPU-GPU so we dont use inflight frames
+	//synchronization with render operations
+	std::vector<VkSemaphore> imageAvailableSemaphores; //is the image available to render to? we use this to make sure we do not render to a frame that is being presented
+	std::vector<VkSemaphore> renderFinishedSemaphores; //is the rendering finished? we use this to make sure that we do not render to an image that is already being rendered to
+	std::vector<VkFence> inFlightFences; //used to sync CPU-GPU so we don't use in-flight frames
 	std::vector<VkFence> imagesInFlight; //used to track which images are in flight
-	const int MAX_FRAMES_IN_FLIGHT = 2;
-	size_t currentFrame = 0;
-	//we use this to handle resize events explicitly
+	const int MAX_FRAMES_IN_FLIGHT = 2; //number of frames that can be processed concurrently
+	size_t currentFrame = 0; //variable to hold which frame we are currently rendering, it is circular so ranges between 0 - 1 (since we only have 2 frames to switch between)
+	//we use this to handle resize events explicitly - whenever the window is resized this flag is set and then reset when the event is handled
 	bool framebufferResized = false;
 	static void framebufferResizeCallback(GLFWwindow* window, int width, int height);
 };

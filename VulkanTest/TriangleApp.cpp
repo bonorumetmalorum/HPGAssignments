@@ -32,13 +32,13 @@ void TriangleApp::initVulkan()
 	pickPhysicalDevice(); //pick a physical device we will use for our graphics pipeline
 	createLogicalDevice(); //create a logical device wrapper with the necessary resources around the physical device
 	createSwapChain(); //create a swapchain that we can use to render images to the surface
-	createImageViews(); //create the image views that will hold additional info about the images in the swap swapchain
+	createImageViews(); //create the image views that will hold additional info about the images in the swapchain
 	createRenderPass(); //create a render pass that specifies all the stages of the render
 	createGraphicsPipeline(); //create a graphics pipeline to process drawing commands and render to the surface
 	createFramebuffers(); //create a framebuffer to represent the set of images the graphics pipeline will render to
 	createCommandPool(); //create a command pool to manage allocation of command buffers
 	createCommandBuffers(); //create the command buffer from the pool with the appropriate commands
-	createSyncObjects(); //create synchronisation primitives to control rendering
+	createSyncObjects(); //create synchronization primitives to control rendering
 }
 
 /*
@@ -70,9 +70,9 @@ void TriangleApp::mainLoop()
 }
 
 /*
- Physical devices are normally parts of the system's graphics card, accelerator, DSP, or other component
- once we have an instance, we can use this method to select an appropriate physcial device
- there are a fixed number of devices and each device has specific capabilities
+	 Physical devices are normally parts of the system's graphics card, accelerator, DSP, or other component
+	 once we have an instance, we can use this method to select an appropriate physical device
+	 there are a fixed number of devices and each device has specific capabilities
 */
 void TriangleApp::pickPhysicalDevice()
 {
@@ -263,7 +263,7 @@ void TriangleApp::createInstance()
 	}
 	//application info
 	VkApplicationInfo appInfo = {};
-	appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO; //type of the struct
+	appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO; //type of the struct - all if not most structs in vulkan need this field to do type introspection at runtime, furthermore, this is a good paradigm to use because of the POD loophole
 	appInfo.pApplicationName = "Hello Triangle"; //nul-terminated string of the applications name
 	appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0); //version of the application (useful for tools and drivers to act accordingly should there be a need)
 	appInfo.pEngineName = "No Engine"; //name (string nul-terminated) of the engine middleware the application is based on
@@ -361,7 +361,7 @@ void TriangleApp::createSwapChain()
 	// CONCURRENT (can be used across multiple queue families without explicit ownership) or EXCLUSIVE (one family at a time ones an image)
 	QueueFamilyIndices indices = findQueueFamilies(physicalDevice); //get the queue families we will use
 	uint32_t queueFamilyIndices[] = { indices.graphicsFamily.value(), indices.presentFamily.value() }; //the indices of the queue families we are using
-	//if the presentation and graphics queues are seperate then use concurrent otherwise use exclusive
+	//if the presentation and graphics queues are separate then use concurrent otherwise use exclusive
 	if (indices.graphicsFamily != indices.presentFamily) { //are the queues the same?
 		createInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT; //will the image be used by only one queue or will it be shared by multiple queues, currently set to be shared
 		createInfo.queueFamilyIndexCount = 2; //we have 2 queue families being uses (graphics and presentation)
@@ -417,10 +417,10 @@ VkResult CreateDebugUtilsMessengerEXT(VkInstance instance, const VkDebugUtilsMes
 */
 void TriangleApp::setupDebugMessenger()
 {
-	if (!enableValidationLayers) return; //we dont want to debug / dont want the validation layers
+	if (!enableValidationLayers) return; //we dont want to debug / dont want the validation layers return and dont do any of the following setup
 	VkDebugUtilsMessengerCreateInfoEXT createInfo; //information to create the debug messenger
-	populateDebugMessengerInfo(createInfo); //populate the info
-	if (CreateDebugUtilsMessengerEXT(vkInstance, &createInfo, nullptr, &debugMessenger) != VK_SUCCESS) { //create the instance
+	populateDebugMessengerInfo(createInfo); //populate the info with the correct setup information
+	if (CreateDebugUtilsMessengerEXT(vkInstance, &createInfo, nullptr, &debugMessenger) != VK_SUCCESS) { //create the instance by providing the vkInstance handle, create info struct containing setup parameters, null allocation call back and finally a variable to hold the instance handle
 		throw std::runtime_error("failed to set up debug messenger!"); //throw an error if we are unsuccessful
 	}
 }
@@ -500,6 +500,7 @@ VkSurfaceFormatKHR TriangleApp::chooseSwapSurfaceFormat(const std::vector<VkSurf
 
 /*
 	helper function to choose the swap chain presentation mode
+	The swapchain presentation mode determines how the windowing system is synchronized with images that are being presented to the surface
 */
 VkPresentModeKHR TriangleApp::chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes)
 {
@@ -510,7 +511,7 @@ VkPresentModeKHR TriangleApp::chooseSwapPresentMode(const std::vector<VkPresentM
 		}
 	}
 
-	return VK_PRESENT_MODE_FIFO_KHR; //otherwise use this one as the default (queue data structuer where images are shown at regular intervals, after the vertical blank)
+	return VK_PRESENT_MODE_FIFO_KHR; //otherwise use this one as the default (queue data structure where images are shown at regular intervals, after the vertical blank)
 }
 
 /*
@@ -558,10 +559,10 @@ void TriangleApp::createImageViews()
 
 		//component ordering in the view may be different from that in the parent
 		//each member of the components struct will refer to the child rgba components and how it should be interpreted from the parent image
-		createInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY; //read from the corresponding channel in the parent
-		createInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY; //read from the corresponding channel in the parent
-		createInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY; //read from the corresponding channel in the parent
-		createInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY; //read from the corresponding channel in the parent
+		createInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY; //read from the corresponding channel in the parent - because we are using the identity swizzle
+		createInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY; //read from the corresponding channel in the parent - because we are using the identity swizzle
+		createInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY; //read from the corresponding channel in the parent - because we are using the identity swizzle
+		createInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY; //read from the corresponding channel in the parent - because we are using the identity swizzle
 
 		//describes what part of the image should be accessed - colour in this case, no mipmapping or multiple layers here
 		//because this image view can be a subset of the parent image, the subset is specified in the following struct (subresourceRange)
@@ -571,7 +572,7 @@ void TriangleApp::createImageViews()
 		createInfo.subresourceRange.baseArrayLayer = 0; //only used when the parent image is an array image, which in our case is not (how many layers do we want to use)
 		createInfo.subresourceRange.layerCount = 1; //we only have one layer
 
-		if (vkCreateImageView(device, &createInfo, nullptr, &swapChainImageViews[i]) != VK_SUCCESS) { //create the image view, if not successful stop
+		if (vkCreateImageView(device, &createInfo, nullptr, &swapChainImageViews[i]) != VK_SUCCESS) { //create the image view by passing the logical device, create info setup struct, null allocation callbacks and the out parameter to hold the swapchain views, if not successful stop
 			throw std::runtime_error("failed to create image views!"); //throw an error
 		}
 	}
@@ -579,6 +580,12 @@ void TriangleApp::createImageViews()
 
 /*
 	create the graphics pipeline
+	In Vulkan, a shader module is a collection of shader programs
+	In order to make use of the shader programs they must be a part of a pipeline
+	In Vulkan there are two kinds of pipelines, Compute and Graphics
+	Here we are creating a graphics pipeline to make use of the shader programs
+	The graphics pipeline can be viewed as an assembly line where commands to execute come in the front and colourful pixels are displayed at the end
+	The graphics pipeline is highly customizable and so in this method we go about setting it up
 */
 void TriangleApp::createGraphicsPipeline()
 {
@@ -738,8 +745,8 @@ void TriangleApp::createGraphicsPipeline()
 	pipelineLayoutInfo.pushConstantRangeCount = 0; // Optional - a push constant is uniform variable in a shader and is used similarly, but it is vulkan owned and managed, it is set through the command buffer (number of push constant ranges)
 	pipelineLayoutInfo.pPushConstantRanges = nullptr; // Optional - the push constant ranges that specify what stage of the pipeline will access the uniform and it also specifies the start offset and size of the uniform
 
-	if (vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS) { //create the pipeline layout
-		throw std::runtime_error("failed to create pipeline layout!"); //throw an error if it was unsuccessful
+	if (vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS) { //create the pipeline layout by passing the logical device, the pipeline layout information, nullptr allocation callbacks and finally an out parameter to hold a handle to the pipeline layout, if not successful
+		throw std::runtime_error("failed to create pipeline layout!"); //throw an error
 	}
 
 	//create graphics pipeline
@@ -901,6 +908,7 @@ void TriangleApp::createFramebuffers()
 /*
 	in order to submit work to a queue, we need to create a command buffer, but before we can do that
 	we need to create a command pool to manage the command buffers.
+	command pools are used to manage the memory that is used to store buffers and command buffers
 */
 void TriangleApp::createCommandPool()
 {
@@ -926,6 +934,7 @@ void TriangleApp::createCommandPool()
 /*
 	a command buffer represents a sequence of commands that are recorded and stored in a buffer.
 	this buffer after recording will then be submitted to a queue for execution (batch execution).
+	the command buffer is allocated from a command pool. So we need to have setup a command pool before we can allocate command buffers
 */
 void TriangleApp::createCommandBuffers()
 {
@@ -938,7 +947,7 @@ void TriangleApp::createCommandBuffers()
 	allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY; //specifies if the allocated command buffers are primary or secondary command buffers
 	allocInfo.commandBufferCount = (uint32_t)commandBuffers.size(); //the number of command buffers (one for each frame buffer)
 
-	if (vkAllocateCommandBuffers(device, &allocInfo, commandBuffers.data()) != VK_SUCCESS) { //create the command buffers
+	if (vkAllocateCommandBuffers(device, &allocInfo, commandBuffers.data()) != VK_SUCCESS) { //create the command buffers by providing the logical device, the allocation information and the out parameter to store the handles to the buffers
 		throw std::runtime_error("failed to allocate command buffers!");//throw an error if we were unsuccessful
 	}
 
@@ -973,7 +982,8 @@ void TriangleApp::createCommandBuffers()
 		//specifies the details of the render pass we've just provided
 		//controls how the drawing commands within the render pass will be provided (execute in primary or secondary command buffer)
 		vkCmdBeginRenderPass(commandBuffers[i], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
-		//bind graphics pipeline
+		//bind graphics pipeline - we supply the command buffer we wish to feed to the pipeline, where we want to bind, our pipeline is a graphics pipeline
+		//so we bind it to the VK_PIPELINE_BIND_POINT_GRAPHICS and finally we provide the pipeline handle.
 		vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
 		/*		
 			vkCmdDraw:
@@ -994,9 +1004,23 @@ void TriangleApp::createCommandBuffers()
 
 /*
 	create semaphores to sync program (host) with rendering (device)
+	In vulkan there are three different kinds of synchronization primitives
+	we have the Fence
+		this is a medium-weight synchronization primitive that is used with commands that interact with the operating system
+		this can be used to wait for the presentation full frame to the user, for example.
+	we have Events
+		these represent fine grained synchronization between operations occurring within the pipeline
+	we have Semaphores
+		these represent flags that can be atomically set and reset by the physical device, this means that the semaphore is viewed the same way
+		across all queues
+		they are used to control ownership of resources across different queues on a physical device, essentially synchronizing work happening on different queues that would be
+		operating asynchronously
 */
 void TriangleApp::createSyncObjects()
 {
+	//we want to make semaphores for signaling that an image has been acquired for rendering
+	//and another to signal that rendering has finished and presentation can happen
+		//we need to do this because presentation cannot occur if rendering has not completed
 	//similar pattern to previous steps when creating semaphores
 	VkSemaphoreCreateInfo semaphoreInfo = {}; //information needed to create a semaphore
 	semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;// struct type
@@ -1004,6 +1028,7 @@ void TriangleApp::createSyncObjects()
 	renderFinishedSemaphores.resize(MAX_FRAMES_IN_FLIGHT); //create an array to store a semaphore for each frame that is currently available for presenting
 
 	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+		//semaphores are created by providing the logical device, the semaphore setup information, null allocation callback function, and the out parameter to store the handle
 		if (vkCreateSemaphore(device, &semaphoreInfo, nullptr, &imageAvailableSemaphores[i]) != VK_SUCCESS ||
 			vkCreateSemaphore(device, &semaphoreInfo, nullptr, &renderFinishedSemaphores[i]) != VK_SUCCESS) {//create two semaphores one for each state for each frame buffer
 			throw std::runtime_error("failed to create semaphores for a frame!"); //throw an error if either fails to be created
@@ -1011,15 +1036,23 @@ void TriangleApp::createSyncObjects()
 	}
 
 	//we now also have to make fence objects to sync CPU and GPU
+	//we need to create fences so that we limit the number of frames that are being processes, so we do not over submit work to the queues
+	//this solves a problem with rapidly growing memory usage due to the over-submitting of work
 	inFlightFences.resize(MAX_FRAMES_IN_FLIGHT); //resize so there is a fence for each frame
+	/*
+		this variable below is used to keep track of which image is being used by an in-flight frame, 
+		this is done so that we avoid rendering to an in-flight image when MAX_FRAMES_INFLIGHT is 
+		higher than the number of available swap chain images or if vkAcquireNextImageKHR returns images out of order
+	*/
 	imagesInFlight.resize(swapChainImages.size(), VK_NULL_HANDLE); //resize so there is a fence for each image and init each element to NULL
+
 
 	VkFenceCreateInfo fenceInfo = {}; //fence creation info
 	fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO; //struct type
-	fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT; //we need this so we can render on the very first pass (they are otherwise initialized to a not signaled state and we wait for ever)
+	fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT; //we need this to be set to signaled so we can render on the very first pass (they are otherwise initialized to a not signaled state and we wait for ever)
 	
 	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) { //for each frame
-		if (vkCreateFence(device, &fenceInfo, nullptr, &inFlightFences[i]) != VK_SUCCESS) { //create a fence
+		if (vkCreateFence(device, &fenceInfo, nullptr, &inFlightFences[i]) != VK_SUCCESS) { //create a fence by providing the logical device, fence setup information, null allocation callback function and the out parameter to store the handle to the fence
 			throw std::runtime_error("failed to create fence for a frame!"); //if it is unsuccessful throw an error
 		}
 	}
@@ -1102,7 +1135,7 @@ void TriangleApp::drawFrame()
 	//before we start drawing again, we have to wait for the previous frame to finish
 	//vkWaitForFences takes an array of fences and waits for either any, or all of them to be signaled before returning
 	//the last parameter is a timeout which we have disabled (so we wait forever, if the frame is never finishing) by setting it to uint64 max value
-	vkWaitForFences(device, 1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
+	vkWaitForFences(device, 1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX); //provide a logical device, the number of frames to wait on and the array of frames, a boolean if we want to wait on all of the fences
 
 	uint32_t imageIndex; //variable to hold image index we will use to render to
 
@@ -1144,11 +1177,11 @@ void TriangleApp::drawFrame()
 	//which semaphore should we use to signal that rendering is complete
 	VkSemaphore signalSemaphores[] = { renderFinishedSemaphores[currentFrame] };
 	submitInfo.signalSemaphoreCount = 1; //the number of semaphores we should signal when complete
-	submitInfo.pSignalSemaphores = signalSemaphores; //the semaphore
+	submitInfo.pSignalSemaphores = signalSemaphores; //the semaphore we will use to signal that rendering is complete
 
 	vkResetFences(device, 1, &inFlightFences[currentFrame]); //unlike with semaphores, we need to manually restore the fence to the original state
 
-	//the graphics queue that will receive the  work to execute, the submit info which describes the work.
+	//the graphics queue that will receive the  work to execute, the submit info which describes the work, the number of submissions (we can make multiple submissions in one go).
 	//The last parameter references an optional fence that will be signaled when the command buffers finish execution (CPU-GPU sync).
 	if (vkQueueSubmit(graphicsQueue, 1, &submitInfo, inFlightFences[currentFrame]) != VK_SUCCESS) { //submit the queue
 		throw std::runtime_error("failed to submit draw command buffer!"); //throw an error if could not submit it
@@ -1158,13 +1191,13 @@ void TriangleApp::drawFrame()
 	VkPresentInfoKHR presentInfo = {}; //information needed to present the framebuffer
 	presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR; //struct type
 	// first two parameters specify which semaphores to wait on before presentation can happen,
-	presentInfo.waitSemaphoreCount = 1; //the number of semaphores to wait on before presenting
-	presentInfo.pWaitSemaphores = signalSemaphores; //semaphore(s)
+	presentInfo.waitSemaphoreCount = 1; //the number of semaphores to wait on before presenting - this is so that we present a fully rendered image and not anything else
+	presentInfo.pWaitSemaphores = signalSemaphores; //semaphore(s) - the semaphores we are going to wait on
 	//next two parameters specify the swap chains to present images to and the index of the image for each swap chain
-	VkSwapchainKHR swapChains[] = { swapChain }; //swap chain we are using
-	presentInfo.swapchainCount = 1; //the number of swap chains
-	presentInfo.pSwapchains = swapChains; //the swap chains
-	presentInfo.pImageIndices = &imageIndex; //the image index we are going to present
+	VkSwapchainKHR swapChains[] = { swapChain }; //swap chain we are using to present the images
+	presentInfo.swapchainCount = 1; //the number of swap chains - in this case we only have one swap chain which we are using to present
+	presentInfo.pSwapchains = swapChains; //the swap chains that will do the presenting
+	presentInfo.pImageIndices = &imageIndex; //the image index we are going to present 
 
 	presentInfo.pResults = nullptr; // Optional allows you to specify an array of VkResult values to check for every individual swap chain if presentation was successful
 
@@ -1210,6 +1243,7 @@ std::vector<char> TriangleApp::readFile(const std::string & filename)
 
 /*
 	helper method to check layer support
+	In this method we check if the instance supports the validation layer
 */
 bool TriangleApp::checkValidationLayerSupport()
 {
