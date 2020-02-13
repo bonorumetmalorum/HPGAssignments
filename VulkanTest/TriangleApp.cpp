@@ -22,7 +22,7 @@ TriangleApp::~TriangleApp()
 }
 
 /*
-	initialise vulkan
+	initialize vulkan
 */
 void TriangleApp::initVulkan()
 {
@@ -48,7 +48,7 @@ void TriangleApp::initWindow()
 {
 	glfwInit(); //init glfw
 	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);//set glfw to no API
-	glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);//we want the window to be resizeable
+	glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);//we want the window to be resize-able
 	window = glfwCreateWindow(WIDTH, HEIGHT, "Vulkan", nullptr, nullptr);//create the window
 	glfwSetWindowUserPointer(window, this); //set the user pointer (used to determine who is controlling the window)
 	glfwSetFramebufferSizeCallback(window, framebufferResizeCallback); //setup the window resize call back function
@@ -100,7 +100,7 @@ void TriangleApp::pickPhysicalDevice()
 }
 
 /*
-	after choosing a physical device(s) we need to create a logical device wrapper. A logical device represents a phyiscal device in an initialised state
+	after choosing a physical device(s) we need to create a logical device wrapper. A logical device represents a physical device in an initialized state
 	When creating the logical device we have the choice to opt in to additional features and turn on any extensions we want to use...
 */
 void TriangleApp::createLogicalDevice()
@@ -122,7 +122,7 @@ void TriangleApp::createLogicalDevice()
 
 	//now we setup the features we want to use with vulkan, but nothing much as of yet
 	VkPhysicalDeviceFeatures deviceFeatures = {};
-	vkGetPhysicalDeviceFeatures(physicalDevice, &deviceFeatures); //enable all the device features available by simply querying the device for what feautures it supports
+	vkGetPhysicalDeviceFeatures(physicalDevice, &deviceFeatures); //enable all the device features available by simply querying the device for what features it supports
 	//this is like before but now we are setting the config for the device we chose
 	VkDeviceCreateInfo createInfo = {};
 	createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO; //type of createInfo struct
@@ -136,7 +136,7 @@ void TriangleApp::createLogicalDevice()
 		createInfo.ppEnabledLayerNames = validationLayers.data(); // provide the names of the validation layers we want to enable
 	}
 	else {
-		createInfo.enabledLayerCount = 0; //set it to 0 if we dont want any validation layers
+		createInfo.enabledLayerCount = 0; //set it to 0 if we don't want any validation layers
 	}
 	//instantiate the logical device now
 	if (vkCreateDevice(physicalDevice, &createInfo, nullptr, &device) != VK_SUCCESS) { //if we are not successful
@@ -178,9 +178,9 @@ void DestroyDebugUtilsMessengerEXT(VkInstance instance, VkDebugUtilsMessengerEXT
 void TriangleApp::cleanup()
 {
 	
-	cleanupSwapChain(); //frst we clean up the swap chain and all related resources
+	cleanupSwapChain(); //first we clean up the swap chain and all related resources
 
-	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) { //destroy all synchornisation objects
+	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) { //destroy all synchronization objects
 		vkDestroySemaphore(device, renderFinishedSemaphores[i], nullptr);
 		vkDestroySemaphore(device, imageAvailableSemaphores[i], nullptr);
 		vkDestroyFence(device, inFlightFences[i], nullptr);
@@ -234,7 +234,7 @@ QueueFamilyIndices TriangleApp::findQueueFamilies(VkPhysicalDevice device)
 	std::vector<VkQueueFamilyProperties> queueFamilies(queueFamilyCount); //resize the array such that it can hold all the queue families on the device
 	vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, queueFamilies.data()); //get the queue families and allocate them in the array
 	//find the index of the queue that has the VK_QUEUE_GRAPHICS_BIT set
-	//the VK_QUEUE_GRAPHICS_BIT means that the queue familty supports drawing operations such as drawing points, lines and triangles
+	//the VK_QUEUE_GRAPHICS_BIT means that the queue family supports drawing operations such as drawing points, lines and triangles
 	int i = 0; //queue family index (the current one we are on)
 	for (const auto& queueFamily : queueFamilies) {
 		if (queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT) { //if this queue has the graphics bit set
@@ -289,10 +289,10 @@ void TriangleApp::createInstance()
 
 		populateDebugMessengerInfo(debugCreateInfo); //populate the fields of the debugCreateInfo struct
 		createInfo.pNext = (VkDebugUtilsMessengerCreateInfoEXT*)&debugCreateInfo; //set the pNext pointer to the debugCreateInfo struct to indicate that there are 
-																				  //aditional parameters for use to configure the validation layers
+																				  //additional parameters for use to configure the validation layers
 	}
 	else {
-		createInfo.enabledLayerCount = 0; //number of layers that are going to be enabled (none in this case because we dont want any layers
+		createInfo.enabledLayerCount = 0; //number of layers that are going to be enabled (none in this case because we don't want any layers
 
 		createInfo.pNext = nullptr; //field to provide additional arguments in a linked list like fashion, useful for extending structs without having to rewrite them entirely (nothing here)
 	}
@@ -337,11 +337,11 @@ void TriangleApp::createSwapChain()
 	VkPresentModeKHR presentMode = chooseSwapPresentMode(swapChainSupport.presentModes); //which kind of presentation mode do we want to use (MAIL_BOX etc...)
 	VkExtent2D extent = chooseSwapExtent(swapChainSupport.capabilities); //choose an appropriate swapchain extent
 
-	//setting for the minimum number of images that must be in the swap chain. +1 because we dont want to wait and do nothing while the device does driver operations.
+	//setting for the minimum number of images that must be in the swap chain. +1 because we don't want to wait and do nothing while the device does driver operations.
 	uint32_t imageCount = swapChainSupport.capabilities.minImageCount + 1; //if this is set to 1 it means that we want to render directly to the front buffer, which is bad and not supported by all devices, 3 is recommended
 	//we also do not want to exceed the maximum number of images so we check what it is and set our image count to that.
 	if (swapChainSupport.capabilities.maxImageCount > 0 && imageCount > swapChainSupport.capabilities.maxImageCount) { //in order to not exceed the maximum number of images available in the swap chain, if the max image count is less than the current image count
-		imageCount = swapChainSupport.capabilities.maxImageCount; //set the iamge count to the max supported by the swap chain
+		imageCount = swapChainSupport.capabilities.maxImageCount; //set the image count to the max supported by the swap chain
 	}
 	//setup the config for the swap chain
 	VkSwapchainCreateInfoKHR createInfo = {};
@@ -372,7 +372,7 @@ void TriangleApp::createSwapChain()
 	}
 	
 	createInfo.preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR; //specify that no transforms should be applied to images in the swap chain (i.e. rotations and flipping, in this case no transformations are applied by specifying identity transform)
-	createInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR; //controls how alpha composition is handled by windowing system (for example, transparent terminals etc), this is ignored by setting it to opaque (no transperancy)
+	createInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR; //controls how alpha composition is handled by windowing system (for example, transparent terminals etc), this is ignored by setting it to opaque (no transparency)
 	createInfo.presentMode = presentMode; //presentation mode controls synchronization with the window system and rate at which images are presented to the surface - either immediate or mailbox 
 	createInfo.clipped = VK_TRUE; // used to optimize cases where not all of the surface might be visible - we don't care about colour of pixels that are obscured by other windows
 	createInfo.oldSwapchain = VK_NULL_HANDLE; //we need to keep a pointer to the old swap chain which might be invalidated when recreating the swap chain due to window resize events
@@ -417,7 +417,7 @@ VkResult CreateDebugUtilsMessengerEXT(VkInstance instance, const VkDebugUtilsMes
 */
 void TriangleApp::setupDebugMessenger()
 {
-	if (!enableValidationLayers) return; //we dont want to debug / dont want the validation layers return and dont do any of the following setup
+	if (!enableValidationLayers) return; //we don't want to debug / don't want the validation layers return and don't do any of the following setup
 	VkDebugUtilsMessengerCreateInfoEXT createInfo; //information to create the debug messenger
 	populateDebugMessengerInfo(createInfo); //populate the info with the correct setup information
 	if (CreateDebugUtilsMessengerEXT(vkInstance, &createInfo, nullptr, &debugMessenger) != VK_SUCCESS) { //create the instance by providing the vkInstance handle, create info struct containing setup parameters, null allocation call back and finally a variable to hold the instance handle
@@ -434,7 +434,7 @@ bool TriangleApp::checkDeviceExtensionSupport(VkPhysicalDevice device)
 	uint32_t extensionCount; //same pattern as before, setup a variable to hold the number of supported extensions
 	vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, nullptr); //get the number of supported extensions
 
-	std::vector<VkExtensionProperties> availableExtensions(extensionCount); // resize the array such that we can allocate the informatiom related to supported extensions
+	std::vector<VkExtensionProperties> availableExtensions(extensionCount); // resize the array such that we can allocate the information related to supported extensions
 	//get the information by providing the physical device, null layer name, the number of extensions and an array to store the layer names in
 	vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, availableExtensions.data()); 
 	//convert the extensions we want to be available to strings
@@ -491,7 +491,7 @@ VkSurfaceFormatKHR TriangleApp::chooseSwapSurfaceFormat(const std::vector<VkSurf
 	*/
 	for (const auto& availableFormat : availableFormats) { //for all available formats
 		if (availableFormat.format == VK_FORMAT_B8G8R8A8_UNORM && availableFormat.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) {
-			return availableFormat; // return if the format satisifies RGBA and the colour space is sRGB non linear
+			return availableFormat; // return if the format satisfies RGBA and the colour space is sRGB non linear
 		}
 	}
 
@@ -525,7 +525,7 @@ VkExtent2D TriangleApp::chooseSwapExtent(const VkSurfaceCapabilitiesKHR & capabi
 	if (capabilities.currentExtent.width != UINT32_MAX) { //if the current width of the window is not equal to the max value (the window manager is allowing us to define the extents)
 		return capabilities.currentExtent; //return the surfaces current extent width and height
 	}
-	else { //we shall choose an apropriate value for the swapchain extent
+	else { //we shall choose an appropriate value for the swapchain extent
 		//get the width and height of the window
 		int width, height; //width and height
 		glfwGetFramebufferSize(window, &width, &height); //get the framebuffer width and height
@@ -554,8 +554,8 @@ void TriangleApp::createImageViews()
 		VkImageViewCreateInfo createInfo = {}; //create info struct that will contain the information for setting up the image view
 		createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO; //type of the struct - image view
 		createInfo.image = swapChainImages[i]; //parent image of the view that will be created
-		createInfo.viewType = VK_IMAGE_VIEW_TYPE_2D; //type of the view that will be created - can be 1d, 2d, and 3d images, or even cube maps and cube map array images, there are also 1d and 2d array iamges
-		createInfo.format = swapChainImageFormat; //the format of the image, which will be the same as the swap chain format to ensure compatibility (this can be differnt however)
+		createInfo.viewType = VK_IMAGE_VIEW_TYPE_2D; //type of the view that will be created - can be 1d, 2d, and 3d images, or even cube maps and cube map array images, there are also 1d and 2d array images
+		createInfo.format = swapChainImageFormat; //the format of the image, which will be the same as the swap chain format to ensure compatibility (this can be different however)
 
 		//component ordering in the view may be different from that in the parent
 		//each member of the components struct will refer to the child rgba components and how it should be interpreted from the parent image
@@ -601,7 +601,7 @@ void TriangleApp::createGraphicsPipeline()
 	VkPipelineShaderStageCreateInfo vertShaderStageInfo = {};
 	vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO; //type of struct
 	vertShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT; //pipeline stage we are assigning the module to
-	vertShaderStageInfo.module = vertShaderModule; //shader module contaning the code 
+	vertShaderStageInfo.module = vertShaderModule; //shader module containing the code 
 	vertShaderStageInfo.pName = "main"; //entry point to shader program
 
 	//same thing but now for the fragment shader
@@ -626,7 +626,7 @@ void TriangleApp::createGraphicsPipeline()
 	VkPipelineInputAssemblyStateCreateInfo inputAssembly = {};
 	inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO; //type of the struct
 	inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST; //type of the primitive that vertices will be grouped into, in this case a triangle
-	inputAssembly.primitiveRestartEnable = VK_FALSE; //used to allow strips and fan primitives topologies to be cut and restarted (use for optimising draw calls) - we dont need this
+	inputAssembly.primitiveRestartEnable = VK_FALSE; //used to allow strips and fan primitives topologies to be cut and restarted (use for optimizing draw calls) - we don't need this
 
 	//define the viewport (area to which we will render)
 	VkViewport viewport = {};
@@ -634,8 +634,8 @@ void TriangleApp::createGraphicsPipeline()
 	viewport.y = 0.0f; //origin
 	viewport.width = (float)swapChainExtent.width; //max width (here we are matching the swap chain width)
 	viewport.height = (float)swapChainExtent.height; //max height (here we are matching the swap chain height)
-	viewport.minDepth = 0.0f; //frame buffer depth values - we dont really use them at the moment
-	viewport.maxDepth = 1.0f; //frame buffer depth values - we dont really use them at the moment
+	viewport.minDepth = 0.0f; //frame buffer depth values - we don't really use them at the moment
+	viewport.maxDepth = 1.0f; //frame buffer depth values - we don't really use them at the moment
 
 	//filter that discards pixels, we want to draw the entire image so we have a scissor angle to cover it entirely
 	VkRect2D scissor = {}; //VkRect2D is a type that defines a rectangle in vulkan, it can be used for other things as well
@@ -656,14 +656,14 @@ void TriangleApp::createGraphicsPipeline()
 	*/
 	VkPipelineRasterizationStateCreateInfo rasterizer = {};
 	rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO; 
-	rasterizer.depthClampEnable = VK_FALSE; //fragments beyond the near and far plane are culled - (not needed here, this way we dont need to process these fragments)
+	rasterizer.depthClampEnable = VK_FALSE; //fragments beyond the near and far plane are culled - (not needed here, this way we don't need to process these fragments)
 	rasterizer.rasterizerDiscardEnable = VK_FALSE; //when this is enabled the rasterizer will not run
 	rasterizer.polygonMode = VK_POLYGON_MODE_FILL; //turns triangles into points or lines - in this case triangles are solid, filled in
 	rasterizer.lineWidth = 1.0f; //thickness of lines
 	rasterizer.cullMode = VK_CULL_MODE_BACK_BIT; //which faces should we cull (here we choose to cull back faces, we could also do both)
 	rasterizer.frontFace = VK_FRONT_FACE_CLOCKWISE; //how to iterate over vertices (determines which faces are front and back) can be CC or C
 	//the following parameters can be used to fix issues with z-fighting by allowing fragments to be offset in depth
-	rasterizer.depthBiasEnable = VK_FALSE; // can be modified based on slope but we dont want that here so it is disabled
+	rasterizer.depthBiasEnable = VK_FALSE; // can be modified based on slope but we don't want that here so it is disabled
 	rasterizer.depthBiasConstantFactor = 0.0f; // Optional - depth bias equation
 	rasterizer.depthBiasClamp = 0.0f; // Optional - puts an upper bound on the depth bias equation output if positive and non zero and lower bound if non zero and negative
 	rasterizer.depthBiasSlopeFactor = 0.0f; // Optional - param in depth bias equation
@@ -678,9 +678,9 @@ void TriangleApp::createGraphicsPipeline()
 	multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO; //struct type
 	multisampling.sampleShadingEnable = VK_FALSE; //disable MS on the shading
 	multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT; //number of samples to use, use 1 sample in this case
-	multisampling.minSampleShading = 1.0f; // Optional - minimum number of times the shader will be run per pixel (value is between 0 - 1, 1 means each pixel will receive its own data by another inovcation of the frag shader)
-	multisampling.pSampleMask = nullptr; // Optional - used to update only a subset of the samples produced (bitmas)
-	multisampling.alphaToCoverageEnable = VK_FALSE; // Optional - use the alpha channel to store coverage values which will be used for easy transperancy
+	multisampling.minSampleShading = 1.0f; // Optional - minimum number of times the shader will be run per pixel (value is between 0 - 1, 1 means each pixel will receive its own data by another invocation of the frag shader)
+	multisampling.pSampleMask = nullptr; // Optional - used to update only a subset of the samples produced (bitmaps)
+	multisampling.alphaToCoverageEnable = VK_FALSE; // Optional - use the alpha channel to store coverage values which will be used for easy transparency
 	multisampling.alphaToOneEnable = VK_FALSE; // Optional - what do we do with actual alpha values, set the alpha to one as if the fragment shader has not produced an alpha value
 
 	//depth stencil testing not being used so its create info is omitted
@@ -695,7 +695,7 @@ void TriangleApp::createGraphicsPipeline()
 		colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA; //use the destination image alpha channel to determine how much of dst colours we use
 		colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD; //add the two colours together
 		colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE; //use the source images alpha
-		colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO; //dont use the destination images alpha
+		colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO; //don't use the destination images alpha
 		colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD; //add the alphas together to determine final alpha of new image
 	}else{
 		colorBlendAttachment.blendEnable = VK_FALSE; //do we blend, not in this case,  we simply overwrite the contents of the buffer the parameters below are ignored
@@ -703,7 +703,7 @@ void TriangleApp::createGraphicsPipeline()
 		colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO; // Optional - we are not using any amount of the destination images colour
 		colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD; // Optional - we add the colours (essentially replacing them)
 		colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE; // Optional - use all of the source images alpha value
-		colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO; // Optional - dont use any of the destination images alpha
+		colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO; // Optional - don't use any of the destination images alpha
 		colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD; // Optional - add the alphas together to determine final alpha value
 	}
 
@@ -722,7 +722,7 @@ void TriangleApp::createGraphicsPipeline()
 	colorBlending.blendConstants[2] = 0.0f; // Optional - B
 	colorBlending.blendConstants[3] = 0.0f; // Optional - A
 
-	//dynamic state - what parameters can we change at runtime (can be nullptr if we dont have any)
+	//dynamic state - what parameters can we change at runtime (can be nullptr if we don't have any)
 	VkDynamicState dynamicStates[] = {
 		VK_DYNAMIC_STATE_VIEWPORT, //we would like to change the viewport dimensions
 		VK_DYNAMIC_STATE_LINE_WIDTH //we would also like to change the line width on the fly
@@ -760,9 +760,9 @@ void TriangleApp::createGraphicsPipeline()
 	pipelineInfo.pViewportState = &viewportState; //view port state
 	pipelineInfo.pRasterizationState = &rasterizer; //rasterizer stage
 	pipelineInfo.pMultisampleState = &multisampling; //MS stage
-	pipelineInfo.pDepthStencilState = nullptr; // Optional - depth stencil stage, we dont use this
+	pipelineInfo.pDepthStencilState = nullptr; // Optional - depth stencil stage, we don't use this
 	pipelineInfo.pColorBlendState = &colorBlending; //colour blending stage
-	pipelineInfo.pDynamicState = nullptr; // Optional - the state which are treating as dynamic, we dont use this either
+	pipelineInfo.pDynamicState = nullptr; // Optional - the state which are treating as dynamic, we don't use this either
 	pipelineInfo.layout = pipelineLayout; // pipeline layout, we are not using any uniforms and other constants in our pipeline
 	pipelineInfo.renderPass = renderPass; // the render passes associating operations and images
 	pipelineInfo.subpass = 0; // we are not using any subpasses
@@ -791,7 +791,7 @@ VkShaderModule TriangleApp::createShaderModule(const std::vector<char>& code)
 	createInfo.pCode = reinterpret_cast<const uint32_t*>(code.data()); //reinterpret cast our char array to unit32_t (needs to be aligned for int32 but it is because we used a vec)
 	VkShaderModule shaderModule; //out param
 	//in order to make the shader module we need the logical device, the setup information (compiled code), (no allocator callback) and finally an out param to hold the created shader
-	if (vkCreateShaderModule(device, &createInfo, nullptr, &shaderModule) != VK_SUCCESS) { //maake the shader module
+	if (vkCreateShaderModule(device, &createInfo, nullptr, &shaderModule) != VK_SUCCESS) { //make the shader module
 		throw std::runtime_error("failed to create shader module!"); //if we are unsuccessful throw an error
 	}
 	return shaderModule; //return the shader module
@@ -817,7 +817,7 @@ void TriangleApp::createRenderPass()
 	colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT; //1 sample since we are not using any form of Anti Aliasing (AA)
 	colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR; //Clear the values to a constant at the start (what should we do when the render pass starts)
 	colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE; //Rendered contents will be stored in memory and can be read later (what to do when the render pass ends)
-	colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE; //don't do anything with stencil buffer (same as before but now for the depth part of the image, which we for now dont care about)
+	colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE; //don't do anything with stencil buffer (same as before but now for the depth part of the image, which we for now don't care about)
 	colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE; //don't do anything with stencil buffer (again, don't care about this part of the image)
 	colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; //specifies which layout the image will have before the render pass begins
 	colorAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR; // layout to automatically transition to when the render pass finishes. Images to be presented in the swap chain
@@ -1248,7 +1248,7 @@ std::vector<char> TriangleApp::readFile(const std::string & filename)
 bool TriangleApp::checkValidationLayerSupport()
 {
 	uint32_t layerCount = 0; //variable to store the number of supported layers by the instance
-	vkEnumerateInstanceLayerProperties(&layerCount, nullptr); //get the number of supported layers by passing nullptr as the the out param
+	vkEnumerateInstanceLayerProperties(&layerCount, nullptr); //get the number of supported layers by passing nullptr as the out param
 
 	std::vector<VkLayerProperties> availableLayers(layerCount); //an array to store all the available layers
 	vkEnumerateInstanceLayerProperties(&layerCount, availableLayers.data()); // store the available layers by passing an out parameter
