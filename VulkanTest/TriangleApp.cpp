@@ -221,7 +221,7 @@ std::vector<const char*> TriangleApp::getRequiredExtensions() {
 	Vulkan devices execute work that is submitted to queues
 	A device will have one or more queues, and each of those queue will belong one of the devices queue families
 	A queue family is a group of queues that have identical capabilities allowing them to run in parallel
-	The number of queue families, the capabilities of each family, and the number of queues belonging to each family are all properties of the physical device
+	A physical device will have a certain number of queue families where each family has specific capabilities and have a certain number of queues available to process commands
 	Here we try to identify if the device has the desired queue families
 */
 QueueFamilyIndices TriangleApp::findQueueFamilies(VkPhysicalDevice device)
@@ -373,8 +373,8 @@ void TriangleApp::createSwapChain()
 	
 	createInfo.preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR; //specify that no transforms should be applied to images in the swap chain (i.e. rotations and flipping, in this case no transformations are applied by specifying identity transform)
 	createInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR; //controls how alpha composition is handled by windowing system (for example, transparent terminals etc), this is ignored by setting it to opaque (no transperancy)
-	createInfo.presentMode = presentMode; //presentation mode controls synchronisation with the window system and rate at which images are presented to the suface - either immediate or mailbox 
-	createInfo.clipped = VK_TRUE; // used to optimize cases where not all of the surface might be visible - we dont care about colour of pixels that are obscured by other windows
+	createInfo.presentMode = presentMode; //presentation mode controls synchronization with the window system and rate at which images are presented to the surface - either immediate or mailbox 
+	createInfo.clipped = VK_TRUE; // used to optimize cases where not all of the surface might be visible - we don't care about colour of pixels that are obscured by other windows
 	createInfo.oldSwapchain = VK_NULL_HANDLE; //we need to keep a pointer to the old swap chain which might be invalidated when recreating the swap chain due to window resize events
 
 	if (vkCreateSwapchainKHR(device, &createInfo, nullptr, &swapChain) != VK_SUCCESS) { //if we did not make the swap chain successfully
@@ -557,7 +557,7 @@ void TriangleApp::createImageViews()
 		createInfo.format = swapChainImageFormat; //the format of the image, which will be the same as the swap chain format to ensure compatibility (this can be differnt however)
 
 		//component ordering in the view may be different from that in the parent
-		//each member of the components struct will refer to the child rgba components and how it should be interpretd from the parent image
+		//each member of the components struct will refer to the child rgba components and how it should be interpreted from the parent image
 		createInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY; //read from the corresponding channel in the parent
 		createInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY; //read from the corresponding channel in the parent
 		createInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY; //read from the corresponding channel in the parent
@@ -802,8 +802,8 @@ void TriangleApp::createRenderPass()
 {
 	/*
 		VkAttachmentDescription structures that define the attachments associated with the renderpass.
-		Each of these structures defines a single image that is to be used as an input, output, or both within one or more of the subpasses in the renderpass
-		for graphics related application there will be at least 1 of these
+		Each will structure define a single image (attachment) that will be used as an input, output, or both in one or more subpasses comprising this renderpass
+		for graphics related application there will be at least 1 of these and in this case there will also only be one subpass
 	*/
 	VkAttachmentDescription colorAttachment = {}; //attachment information
 	colorAttachment.format = swapChainImageFormat; //match the format of the swapchain
@@ -822,8 +822,8 @@ void TriangleApp::createRenderPass()
 		for example a sequence of post-processing effects that are applied one after another
 	*/
 	/*
-		Each attachment reference is a simple structure containing an index into the array of attachments,
-		and the image layout that the attachment is expected to be in at this subpass
+		An attachment reference is a structure containing an index into the array of attachments,
+		and what kind of image layout that the attachment is expected to be in at this subpass
 	*/
 	VkAttachmentReference colorAttachmentRef = {};
 	colorAttachmentRef.attachment = 0; //which attachment are we referring to (here we only have 1 attachment at index 0)
@@ -976,10 +976,11 @@ void TriangleApp::createCommandBuffers()
 		//bind graphics pipeline
 		vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
 		/*		
-		vertexCount: Even though we don't have a vertex buffer, we technically still have 3 vertices to draw.
-		instanceCount: Used for instanced rendering, use 1 if you're not doing that.
-		firstVertex: Used as an offset into the vertex buffer, defines the lowest value of gl_VertexIndex.
-		firstInstance: Used as an offset for instanced rendering, defines the lowest value of gl_InstanceIndex.
+			vkCmdDraw:
+				vertexCount: Even though we don't have a vertex buffer, we technically still have 3 vertices to draw.
+				instanceCount: Used for instanced rendering, use 1 if you're not doing that.
+				firstVertex: Used as an offset into the vertex buffer, defines the lowest value of gl_VertexIndex.
+				firstInstance: Used as an offset for instanced rendering, defines the lowest value of gl_InstanceIndex.
 		*/
 		vkCmdDraw(commandBuffers[i], 3, 1, 0, 0);
 		//end render pass
