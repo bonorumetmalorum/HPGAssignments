@@ -5,10 +5,10 @@
 
 #include <iostream>
 
-#include "TriangleApp.h"
+#include "Renderer.h"
 
 int main() {
-	TriangleApp app;
+	Renderer app;
 	try {
 		app.run();
 	}

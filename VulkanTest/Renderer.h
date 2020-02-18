@@ -10,6 +10,10 @@
 #include <set>
 #include <algorithm>
 #include <fstream>
+#include "Mesh.h"
+#include <glm/vec2.hpp>
+#include <glm/vec3.hpp>
+#include <array>
 
 #define DEBUG
 #define BLEND true
@@ -36,14 +40,16 @@ struct SwapChainSupportDetails {
 	std::vector<VkPresentModeKHR> presentModes; //how frames are presented to the surface
 };
 
-class TriangleApp
+class Renderer
 {
 
 public:
 
-	TriangleApp();
+	Renderer();
+	~Renderer();
+	
 	void run();
-	~TriangleApp();
+	void renderMesh(Mesh mesh);
 
 private:
 
@@ -188,6 +194,43 @@ private:
 		per framebuffer recording of commands
 	*/
 	std::vector<VkCommandBuffer> commandBuffers;
+
+	/*
+		vertex buffer stuff
+	*/
+	//struct to hold a vertex
+	struct Vertex {
+		glm::vec2 position;
+		glm::vec3 color;
+
+		static VkVertexInputBindingDescription getBindingDescription() {
+			VkVertexInputBindingDescription desc = {};
+			desc.binding = 0; //which layout is this in reference to, layout location 0 is what we are binding to
+			desc.inputRate = VK_VERTEX_INPUT_RATE_VERTEX; //load after each vertex (can also be instance, but we wont use that)
+			desc.stride = sizeof(Vertex);
+			return desc;
+		}
+
+		static std::array<VkVertexInputAttributeDescription, 2> getAttributeDescriptions() {
+			std::array<VkVertexInputAttributeDescription, 2> attributeDescriptions = {};
+			attributeDescriptions[0].binding = 0;//which binding the vertex data comes from
+			attributeDescriptions[0].location = 0;//the location directive input of the vertex shader
+			attributeDescriptions[0].format = VK_FORMAT_R32G32_SFLOAT; //type of the data attribute
+			attributeDescriptions[0].offset = offsetof(Vertex, position); //offset, where to start reading (offset of position within struct, this is important because of potential compiler mangle)
+
+			attributeDescriptions[1].binding = 0; //which binding does the data come from
+			attributeDescriptions[1].location = 1; //refrence to a layout location within shader
+			attributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT; //the format of the data
+			attributeDescriptions[1].offset = offsetof(Vertex, color); //where in struct to read data for color
+			return attributeDescriptions;
+		}
+	};
+	//vertices
+	const std::vector<Vertex> vertices = {
+		{{0.0f, -0.5f}, {1.0f, 0.0f, 0.0f}},
+		{{0.5f, 0.5f}, {0.0f, 1.0f, 0.0f}},
+		{{-0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}}
+	};
 
 	//synchronization with render operations
 	std::vector<VkSemaphore> imageAvailableSemaphores; //is the image available to render to? we use this to make sure we do not render to a frame that is being presented

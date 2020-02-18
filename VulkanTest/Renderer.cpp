@@ -1,15 +1,15 @@
-#include "TriangleApp.h"
+#include "Renderer.h"
 
 
 
-TriangleApp::TriangleApp()
+Renderer::Renderer()
 {
 }
 
 /*
 	main loop
 */
-void TriangleApp::run()
+void Renderer::run()
 {
 	initWindow();
 	initVulkan();
@@ -17,14 +17,19 @@ void TriangleApp::run()
 	cleanup();
 }
 
-TriangleApp::~TriangleApp()
+void Renderer::renderMesh(Mesh mesh)
+{
+	//TODO
+}
+
+Renderer::~Renderer()
 {
 }
 
 /*
 	initialize vulkan
 */
-void TriangleApp::initVulkan()
+void Renderer::initVulkan()
 {
 	createInstance(); //create an instance to store vulkan related state
 	setupDebugMessenger();//setup the debug messenger to hold state for the debug extension layer
@@ -44,7 +49,7 @@ void TriangleApp::initVulkan()
 /*
 	create a window that we can use to present to
 */
-void TriangleApp::initWindow()
+void Renderer::initWindow()
 {
 	glfwInit(); //init glfw
 	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);//set glfw to no API
@@ -57,7 +62,7 @@ void TriangleApp::initWindow()
 /*
 	the main loop that will draw the triangle to screen and handle window events
 */
-void TriangleApp::mainLoop()
+void Renderer::mainLoop()
 {
 	//event loop
 	while (!glfwWindowShouldClose(window)) {
@@ -74,7 +79,7 @@ void TriangleApp::mainLoop()
 	 once we have an instance, we can use this method to select an appropriate physical device
 	 there are a fixed number of devices and each device has specific capabilities
 */
-void TriangleApp::pickPhysicalDevice()
+void Renderer::pickPhysicalDevice()
 {
 	uint32_t deviceCount = 0;//find the number of supported devices
 	vkEnumeratePhysicalDevices(vkInstance, &deviceCount, nullptr);	//call this function to find all vulkan enabled devices in the system by providing the instance, 
@@ -103,7 +108,7 @@ void TriangleApp::pickPhysicalDevice()
 	after choosing a physical device(s) we need to create a logical device wrapper. A logical device represents a physical device in an initialized state
 	When creating the logical device we have the choice to opt in to additional features and turn on any extensions we want to use...
 */
-void TriangleApp::createLogicalDevice()
+void Renderer::createLogicalDevice()
 {
 	//setup structs for describing the queues we want to create
 	QueueFamilyIndices indices = findQueueFamilies(physicalDevice); //get the indices of the queues we want to use
@@ -150,7 +155,7 @@ void TriangleApp::createLogicalDevice()
 /*
 	check if the device is suitable for rendering images
 */
-bool TriangleApp::isDeviceSuitable(VkPhysicalDevice device) {
+bool Renderer::isDeviceSuitable(VkPhysicalDevice device) {
 	QueueFamilyIndices indices = findQueueFamilies(device); //get the queue families we want to use
 	bool deviceHasExtensions = checkDeviceExtensionSupport(device); //check if the device also supports the extensions we want to use
 	bool swapChainAdequate = false; //boolean flag to check if the swapchain is good
@@ -175,7 +180,7 @@ void DestroyDebugUtilsMessengerEXT(VkInstance instance, VkDebugUtilsMessengerEXT
 /*
 	destroy all resources on shutdown
 */
-void TriangleApp::cleanup()
+void Renderer::cleanup()
 {
 	
 	cleanupSwapChain(); //first we clean up the swap chain and all related resources
@@ -203,7 +208,7 @@ void TriangleApp::cleanup()
 }
 
 //get info to setup extensions
-std::vector<const char*> TriangleApp::getRequiredExtensions() {
+std::vector<const char*> Renderer::getRequiredExtensions() {
 	uint32_t glfwExtensionCount = 0; //used as out parameter to know how many extensions are needed by GLFW
 	const char** glfwExtensions; //array of extension names needed by GLFW
 	glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount); //method to get all extensions needed by GLFW
@@ -224,7 +229,7 @@ std::vector<const char*> TriangleApp::getRequiredExtensions() {
 	A physical device will have a certain number of queue families where each family has specific capabilities and have a certain number of queues available to process commands
 	Here we try to identify if the device has the desired queue families
 */
-QueueFamilyIndices TriangleApp::findQueueFamilies(VkPhysicalDevice device)
+QueueFamilyIndices Renderer::findQueueFamilies(VkPhysicalDevice device)
 {
 	QueueFamilyIndices indices; //custom struct to hold the queue families we wish to use
 
@@ -256,7 +261,7 @@ QueueFamilyIndices TriangleApp::findQueueFamilies(VkPhysicalDevice device)
 /*
 	create a vulkan instance to store state
 */
-void TriangleApp::createInstance()
+void Renderer::createInstance()
 {
 	if (enableValidationLayers && !checkValidationLayerSupport()) {
 		throw std::runtime_error("validation layers requested, but not available");
@@ -307,7 +312,7 @@ void TriangleApp::createInstance()
 /*
 	create a surface that we can use to present rendered images to
 */
-void TriangleApp::createSurface()
+void Renderer::createSurface()
 {
 	//very simple glfw method to make a surface to render to.
 	//this is used because the vk method requires us to fill in a struct with config data
@@ -330,7 +335,7 @@ void TriangleApp::createSurface()
 	the swap chain will then present us with 1 or more images we can use to render to the window
 	the swap chain will manage the images in a ring or circular buffer, where we can ask it to give us the next available image, while another is being rendered to the window
 */
-void TriangleApp::createSwapChain()
+void Renderer::createSwapChain()
 {
 	SwapChainSupportDetails swapChainSupport = querySwapChainSupport(physicalDevice); //query what is supported by the swap chain on the physical device (we want surface capabilities, surface formats, and presentation modes) 
 	VkSurfaceFormatKHR surfaceFormat = chooseSwapSurfaceFormat(swapChainSupport.formats); //setup the surface formats (buffer properties), presentation mode (buffers) and extent (resolution of rendering)
@@ -391,7 +396,7 @@ void TriangleApp::createSwapChain()
 /*
 	helper method to setup the debug utils messenger create info
 */
-void TriangleApp::populateDebugMessengerInfo(VkDebugUtilsMessengerCreateInfoEXT & createInfo)
+void Renderer::populateDebugMessengerInfo(VkDebugUtilsMessengerCreateInfoEXT & createInfo)
 {
 	createInfo = {};
 	createInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT; //type of the struct
@@ -415,7 +420,7 @@ VkResult CreateDebugUtilsMessengerEXT(VkInstance instance, const VkDebugUtilsMes
 /*
 	setup the debug messenger instance
 */
-void TriangleApp::setupDebugMessenger()
+void Renderer::setupDebugMessenger()
 {
 	if (!enableValidationLayers) return; //we don't want to debug / don't want the validation layers return and don't do any of the following setup
 	VkDebugUtilsMessengerCreateInfoEXT createInfo; //information to create the debug messenger
@@ -428,7 +433,7 @@ void TriangleApp::setupDebugMessenger()
 /*
 	we check if the device has the capability to support the usage of the extensions we have specified (debugger and GLFW related extensions)
 */
-bool TriangleApp::checkDeviceExtensionSupport(VkPhysicalDevice device)
+bool Renderer::checkDeviceExtensionSupport(VkPhysicalDevice device)
 {
 	//enumerate all the extensions available
 	uint32_t extensionCount; //same pattern as before, setup a variable to hold the number of supported extensions
@@ -452,7 +457,7 @@ bool TriangleApp::checkDeviceExtensionSupport(VkPhysicalDevice device)
 /*
 	helper function to check what the swap chain supports
 */
-SwapChainSupportDetails TriangleApp::querySwapChainSupport(VkPhysicalDevice device)
+SwapChainSupportDetails Renderer::querySwapChainSupport(VkPhysicalDevice device)
 {
 	//we use the physical device and the window surface previously created to get information
 	//on the supported swapchain features. We have to use these two because they are core parts of the swapchain
@@ -482,7 +487,7 @@ SwapChainSupportDetails TriangleApp::querySwapChainSupport(VkPhysicalDevice devi
 /*
 	choose an appropriate format for the swap surface
 */
-VkSurfaceFormatKHR TriangleApp::chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats)
+VkSurfaceFormatKHR Renderer::chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats)
 {
 	/*
 		each available format is a struct that details the properties of each surface format
@@ -502,7 +507,7 @@ VkSurfaceFormatKHR TriangleApp::chooseSwapSurfaceFormat(const std::vector<VkSurf
 	helper function to choose the swap chain presentation mode
 	The swapchain presentation mode determines how the windowing system is synchronized with images that are being presented to the surface
 */
-VkPresentModeKHR TriangleApp::chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes)
+VkPresentModeKHR Renderer::chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes)
 {
 	for (const auto& availablePresentMode : availablePresentModes) { //iterate through all presentation modes
 		if (availablePresentMode == VK_PRESENT_MODE_MAILBOX_KHR) { 
@@ -520,7 +525,7 @@ VkPresentModeKHR TriangleApp::chooseSwapPresentMode(const std::vector<VkPresentM
 	some window managers allow us to differ the resolution of what we are drawing
 	by setting the currentExtent value to INT32_MAX
 */
-VkExtent2D TriangleApp::chooseSwapExtent(const VkSurfaceCapabilitiesKHR & capabilities)
+VkExtent2D Renderer::chooseSwapExtent(const VkSurfaceCapabilitiesKHR & capabilities)
 {
 	if (capabilities.currentExtent.width != UINT32_MAX) { //if the current width of the window is not equal to the max value (the window manager is allowing us to define the extents)
 		return capabilities.currentExtent; //return the surfaces current extent width and height
@@ -546,7 +551,7 @@ VkExtent2D TriangleApp::chooseSwapExtent(const VkSurfaceCapabilitiesKHR & capabi
 	We create image views to hold additional information about the use of the image and use these as attachment to our Framebuffer
 	An image view is a collection of properties and a reference to a parent image
 */
-void TriangleApp::createImageViews()
+void Renderer::createImageViews()
 {
 	swapChainImageViews.resize(swapChainImages.size());	//set size of image views array to the size of images available in the swap chain
 	//loop over all images in the swap chain and create an image view for each one
@@ -587,7 +592,7 @@ void TriangleApp::createImageViews()
 	The graphics pipeline can be viewed as an assembly line where commands to execute come in the front and colourful pixels are displayed at the end
 	The graphics pipeline is highly customizable and so in this method we go about setting it up
 */
-void TriangleApp::createGraphicsPipeline()
+void Renderer::createGraphicsPipeline()
 {
 	//read in shader programs in binary format (pre compiled)
 	auto vertShaderCode = readFile("../shaders/vert.spv");
@@ -615,12 +620,14 @@ void TriangleApp::createGraphicsPipeline()
 
 	//describing the configuration of the newly created pipeline vertex input state -  
 	//what we are doing here is describing the layout of geometric data in memory and then having Vulkan fetch it and then feed it to the shader
+	auto bindingDescription = Vertex::getBindingDescription(); //get the binding description
+	auto attributeDescriptions = Vertex::getAttributeDescriptions(); //get the attribute description
 	VkPipelineVertexInputStateCreateInfo vertexInputInfo = {};
 	vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO; //type of struct
-	vertexInputInfo.vertexBindingDescriptionCount = 0; // number of vertex bindings used by the pipeline
-	vertexInputInfo.pVertexBindingDescriptions = nullptr; // Optional - we are not binding any vertex information
-	vertexInputInfo.vertexAttributeDescriptionCount = 0; //type of the attributes passed to the vertex shader, which binding to load them from and at which offset
-	vertexInputInfo.pVertexAttributeDescriptions = nullptr; // also not binding any attributes for the vertices
+	vertexInputInfo.vertexBindingDescriptionCount = 1; // number of vertex bindings used by the pipeline
+	vertexInputInfo.pVertexBindingDescriptions = &bindingDescription; // Optional - we are not binding any vertex information
+	vertexInputInfo.vertexAttributeDescriptionCount = 1; //type of the attributes passed to the vertex shader, which binding to load them from and at which offset
+	vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions.data(); // also not binding any attributes for the vertices
 
 	//this stage will take vertex input data and groups them into primitives ready for processing
 	VkPipelineInputAssemblyStateCreateInfo inputAssembly = {};
@@ -783,7 +790,7 @@ void TriangleApp::createGraphicsPipeline()
 /*
 	helper function to create a shader module given compiled shader code
 */
-VkShaderModule TriangleApp::createShaderModule(const std::vector<char>& code)
+VkShaderModule Renderer::createShaderModule(const std::vector<char>& code)
 {
 	VkShaderModuleCreateInfo createInfo = {}; //information needed to create a shader module
 	createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO; //type of the create info is Shader module
@@ -805,7 +812,7 @@ VkShaderModule TriangleApp::createShaderModule(const std::vector<char>& code)
 	these passes are encapsulated in a renderPass object, where each part of the render pass is called a subpass
 	the render pass object will contain information about he final output image
 */
-void TriangleApp::createRenderPass()
+void Renderer::createRenderPass()
 {
 	/*
 		VkAttachmentDescription structures that define the attachments associated with the renderpass.
@@ -876,7 +883,7 @@ void TriangleApp::createRenderPass()
 	usually there are a minimum of two but in most cases there will be more, this is called a front buffer and
 	a back buffer.
 */
-void TriangleApp::createFramebuffers()
+void Renderer::createFramebuffers()
 {
 	//make space for the framebuffers
 	swapChainFramebuffers.resize(swapChainImageViews.size());
@@ -910,7 +917,7 @@ void TriangleApp::createFramebuffers()
 	we need to create a command pool to manage the command buffers.
 	command pools are used to manage the memory that is used to store buffers and command buffers
 */
-void TriangleApp::createCommandPool()
+void Renderer::createCommandPool()
 {
 	QueueFamilyIndices queueFamilyIndices = findQueueFamilies(physicalDevice); //get the queue families we wish to submit work to
 
@@ -936,7 +943,7 @@ void TriangleApp::createCommandPool()
 	this buffer after recording will then be submitted to a queue for execution (batch execution).
 	the command buffer is allocated from a command pool. So we need to have setup a command pool before we can allocate command buffers
 */
-void TriangleApp::createCommandBuffers()
+void Renderer::createCommandBuffers()
 {
 	commandBuffers.resize(swapChainFramebuffers.size()); //create a buffer for each frame buffer
 	VkCommandBufferAllocateInfo allocInfo = {}; //command buffer allocation info
@@ -1016,7 +1023,7 @@ void TriangleApp::createCommandBuffers()
 		they are used to control ownership of resources across different queues on a physical device, essentially synchronizing work happening on different queues that would be
 		operating asynchronously
 */
-void TriangleApp::createSyncObjects()
+void Renderer::createSyncObjects()
 {
 	//we want to make semaphores for signaling that an image has been acquired for rendering
 	//and another to signal that rendering has finished and presentation can happen
@@ -1073,7 +1080,7 @@ void TriangleApp::createSyncObjects()
 	method used to recreate the swap chain
 	this is used whenever the window is resized
 */
-void TriangleApp::recreateSwapChain()
+void Renderer::recreateSwapChain()
 {
 	//handle minimization events
 	//we basically wait till the window is in the foreground again
@@ -1102,7 +1109,7 @@ void TriangleApp::recreateSwapChain()
 /*
 	destroy the swap chain and its related resources
 */
-void TriangleApp::cleanupSwapChain()
+void Renderer::cleanupSwapChain()
 {
 	for (size_t i = 0; i < swapChainFramebuffers.size(); i++) { //for all the frame buffers created to manage the images in the swap chain
 		vkDestroyFramebuffer(device, swapChainFramebuffers[i], nullptr); //destroy them
@@ -1130,7 +1137,7 @@ void TriangleApp::cleanupSwapChain()
 	Execute the command buffer with that image as attachment in the framebuffer
 	Return the image to the swap chain for presentation
 */
-void TriangleApp::drawFrame()
+void Renderer::drawFrame()
 {
 	//before we start drawing again, we have to wait for the previous frame to finish
 	//vkWaitForFences takes an array of fences and waits for either any, or all of them to be signaled before returning
@@ -1221,7 +1228,7 @@ void TriangleApp::drawFrame()
 	simple method to read in files
 	used in our app to read in SPIR-V shader files
 */
-std::vector<char> TriangleApp::readFile(const std::string & filename)
+std::vector<char> Renderer::readFile(const std::string & filename)
 {
 	std::ifstream file(filename, std::ios::ate | std::ios::binary);
 
@@ -1245,7 +1252,7 @@ std::vector<char> TriangleApp::readFile(const std::string & filename)
 	helper method to check layer support
 	In this method we check if the instance supports the validation layer
 */
-bool TriangleApp::checkValidationLayerSupport()
+bool Renderer::checkValidationLayerSupport()
 {
 	uint32_t layerCount = 0; //variable to store the number of supported layers by the instance
 	vkEnumerateInstanceLayerProperties(&layerCount, nullptr); //get the number of supported layers by passing nullptr as the out param
@@ -1271,8 +1278,8 @@ bool TriangleApp::checkValidationLayerSupport()
 /*
 	static method to be used with GLFW to catch window resize events and execute code when it happens
 */
-void TriangleApp::framebufferResizeCallback(GLFWwindow * window, int width, int height)
+void Renderer::framebufferResizeCallback(GLFWwindow * window, int width, int height)
 {
-	auto app = reinterpret_cast<TriangleApp*>(glfwGetWindowUserPointer(window)); //get a pointer to the app instance
+	auto app = reinterpret_cast<Renderer*>(glfwGetWindowUserPointer(window)); //get a pointer to the app instance
 	app->framebufferResized = true; //we resized the window
 }
