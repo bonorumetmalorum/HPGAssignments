@@ -69,6 +69,7 @@ private:
 	void createGraphicsPipeline();
 	void createFramebuffers();
 	void createCommandPool();
+	void createVertexBuffer();
 	void createCommandBuffers();
 	void createSyncObjects();
 
@@ -225,6 +226,10 @@ private:
 			return attributeDescriptions;
 		}
 	};
+
+	//buffer handle
+	VkBuffer vertexBuffer;
+
 	//vertices
 	const std::vector<Vertex> vertices = {
 		{{0.0f, -0.5f}, {1.0f, 0.0f, 0.0f}},

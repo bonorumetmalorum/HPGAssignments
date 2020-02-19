@@ -42,6 +42,7 @@ void Renderer::initVulkan()
 	createGraphicsPipeline(); //create a graphics pipeline to process drawing commands and render to the surface
 	createFramebuffers(); //create a framebuffer to represent the set of images the graphics pipeline will render to
 	createCommandPool(); //create a command pool to manage allocation of command buffers
+	createVertexBuffer();
 	createCommandBuffers(); //create the command buffer from the pool with the appropriate commands
 	createSyncObjects(); //create synchronization primitives to control rendering
 }
@@ -184,6 +185,8 @@ void Renderer::cleanup()
 {
 	
 	cleanupSwapChain(); //first we clean up the swap chain and all related resources
+
+	vkDestroyBuffer(device, vertexBuffer, nullptr); //free buffer
 
 	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) { //destroy all synchronization objects
 		vkDestroySemaphore(device, renderFinishedSemaphores[i], nullptr);
@@ -934,6 +937,23 @@ void Renderer::createCommandPool()
 
 	if (vkCreateCommandPool(device, &poolInfo, nullptr, &commandPool) != VK_SUCCESS) { //create the pool
 		throw std::runtime_error("failed to create command pool!"); //if we are unsuccessful throw an error
+	}
+
+}
+
+/*
+	
+*/
+void Renderer::createVertexBuffer()
+{
+	VkBufferCreateInfo bufferInfo = {}; //create info struct
+	bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO; //type of the struct
+	bufferInfo.size = sizeof(vertices[0]) * vertices.size(); // number of elements in bytes
+	bufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT; //which purpose is this going to be used for
+	bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE; //buffers can also be owned by a specific queue family, here it is only used by one queue family
+
+	if (vkCreateBuffer(device, &bufferInfo, nullptr, &vertexBuffer) != VK_SUCCESS) {
+		throw std::runtime_error("failed to create vertex buffer!");
 	}
 
 }
