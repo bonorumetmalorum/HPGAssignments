@@ -19,7 +19,7 @@ public:
 	bool loadTexture(std::string path);
 	~ObjLoader();
 	struct VertexIndicies {
-		long v, n, t;
+		long v, n, t = 0;
 	};
 
 private:

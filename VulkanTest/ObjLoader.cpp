@@ -9,7 +9,7 @@ ObjLoader::ObjLoader()
 bool ObjLoader::loadObj(std::string path)
 {
 	std::fstream inStream(path.data(), std::ios::in);
-	if (!inStream.is_open) {
+	if (!inStream.is_open()) {
 		throw std::runtime_error("unable to open file");
 	}
 	std::string currentLine = "";
@@ -56,10 +56,10 @@ bool ObjLoader::loadObj(std::string path)
 			std::string v1, v2, v3, v4;
 			stream >> v1 >> v2 >> v3 >> v4;
 			VertexIndicies vertIndices1, vertIndices2, vertIndices3, vertIndices4;
-			sscanf(v1.data(), "%l/%l/%l", vertIndices1.v, vertIndices1.n, vertIndices1.t);
-			sscanf(v1.data(), "%l/%l/%l", vertIndices2.v, vertIndices2.n, vertIndices2.t);
-			sscanf(v1.data(), "%l/%l/%l", vertIndices3.v, vertIndices3.n, vertIndices3.t);
-			sscanf(v1.data(), "%l/%l/%l", vertIndices4.v, vertIndices4.n, vertIndices4.t);
+			sscanf_s(v1.data(), "%l/%l/%l", vertIndices1.v, vertIndices1.n, vertIndices1.t);
+			sscanf_s(v1.data(), "%l/%l/%l", vertIndices2.v, vertIndices2.n, vertIndices2.t);
+			sscanf_s(v1.data(), "%l/%l/%l", vertIndices3.v, vertIndices3.n, vertIndices3.t);
+			sscanf_s(v1.data(), "%l/%l/%l", vertIndices4.v, vertIndices4.n, vertIndices4.t);
 			faceVertices.push_back(vertIndices1);
 			faceVertices.push_back(vertIndices2);
 			faceVertices.push_back(vertIndices3);
