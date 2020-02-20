@@ -73,6 +73,7 @@ private:
 	void createCommandBuffers();
 	void createSyncObjects();
 
+	void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory);
 	VkShaderModule createShaderModule(const std::vector<char>& code);
 	bool isDeviceSuitable(VkPhysicalDevice device);
 	void populateDebugMessengerInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo);

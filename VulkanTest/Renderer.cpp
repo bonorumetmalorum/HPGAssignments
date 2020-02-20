@@ -808,6 +808,34 @@ void Renderer::createGraphicsPipeline()
 	vkDestroyShaderModule(device, vertShaderModule, nullptr); //destroy the shader modules since they have been loaded in the pipeline
 }
 
+//helper function to create a buffer
+void Renderer::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer & buffer, VkDeviceMemory & bufferMemory)
+{
+	VkBufferCreateInfo bufferInfo = {}; //create info struct
+	bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO; //type of the struct
+	bufferInfo.size = sizeof(vertices[0]) * vertices.size(); // number of elements in bytes
+	bufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT; //which purpose is this going to be used for
+	bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE; //buffers can also be owned by a specific queue family, here it is only used by one queue family
+
+	if (vkCreateBuffer(device, &bufferInfo, nullptr, &vertexBuffer) != VK_SUCCESS) {
+		throw std::runtime_error("failed to create vertex buffer!");
+	}
+
+	VkMemoryRequirements memRequirements; //the requirements for the buffer we want to allocate (size and type for example)
+	vkGetBufferMemoryRequirements(device, vertexBuffer, &memRequirements);
+
+	VkMemoryAllocateInfo allocInfo = {}; //we are now going to allcoate the buffer
+	allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+	allocInfo.allocationSize = memRequirements.size; //memory requirements (this can differ from what is in the mem requirements struct)
+	allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT); //the type of memory we want
+
+	if (vkAllocateMemory(device, &allocInfo, nullptr, &vertexBufferMemory) != VK_SUCCESS) { //allocate the memory
+		throw std::runtime_error("failed to allocate vertex buffer memory!");
+	}
+
+	vkBindBufferMemory(device, vertexBuffer, vertexBufferMemory, 0); //associate the memory with the buffer
+}
+
 /*
 	helper function to create a shader module given compiled shader code
 */
@@ -964,33 +992,11 @@ void Renderer::createCommandPool()
 */
 void Renderer::createVertexBuffer()
 {
-	VkBufferCreateInfo bufferInfo = {}; //create info struct
-	bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO; //type of the struct
-	bufferInfo.size = sizeof(vertices[0]) * vertices.size(); // number of elements in bytes
-	bufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT; //which purpose is this going to be used for
-	bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE; //buffers can also be owned by a specific queue family, here it is only used by one queue family
-
-	if (vkCreateBuffer(device, &bufferInfo, nullptr, &vertexBuffer) != VK_SUCCESS) {
-		throw std::runtime_error("failed to create vertex buffer!");
-	}
-
-	VkMemoryRequirements memRequirements; //the requirements for the buffer we want to allocate (size and type for example)
-	vkGetBufferMemoryRequirements(device, vertexBuffer, &memRequirements);
-
-	VkMemoryAllocateInfo allocInfo = {}; //we are now going to allcoate the buffer
-	allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO; 
-	allocInfo.allocationSize = memRequirements.size; //memory requirements (this can differ from what is in the mem requirements struct)
-	allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT); //the type of memory we want
-	
-	if (vkAllocateMemory(device, &allocInfo, nullptr, &vertexBufferMemory) != VK_SUCCESS) { //allocate the memory
-		throw std::runtime_error("failed to allocate vertex buffer memory!");
-	}
-
-	vkBindBufferMemory(device, vertexBuffer, vertexBufferMemory, 0); //associate the memory with the buffer
-
+	VkDeviceSize bufferSize = sizeof(vertices[0]) * vertices.size();
+	createBuffer(bufferSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, vertexBuffer, vertexBufferMemory);
 	void* data; //map the data to main memory so we can load it with vertices
-	vkMapMemory(device, vertexBufferMemory, 0, bufferInfo.size, 0, &data);
-	memcpy(data, vertices.data(), (size_t)bufferInfo.size);
+	vkMapMemory(device, vertexBufferMemory, 0, bufferSize, 0, &data);
+	memcpy(data, vertices.data(), (size_t)bufferSize);
 	vkUnmapMemory(device, vertexBufferMemory);
 }
 
