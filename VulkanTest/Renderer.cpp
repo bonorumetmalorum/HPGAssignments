@@ -42,7 +42,7 @@ void Renderer::initVulkan()
 	createGraphicsPipeline(); //create a graphics pipeline to process drawing commands and render to the surface
 	createFramebuffers(); //create a framebuffer to represent the set of images the graphics pipeline will render to
 	createCommandPool(); //create a command pool to manage allocation of command buffers
-	createVertexBuffer();
+	createVertexBuffer(); //create the vertex buffer
 	createCommandBuffers(); //create the command buffer from the pool with the appropriate commands
 	createSyncObjects(); //create synchronization primitives to control rendering
 }
@@ -644,9 +644,10 @@ void Renderer::createGraphicsPipeline()
 	auto attributeDescriptions = Vertex::getAttributeDescriptions(); //get the attribute description
 	VkPipelineVertexInputStateCreateInfo vertexInputInfo = {};
 	vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO; //type of struct
+	
 	vertexInputInfo.vertexBindingDescriptionCount = 1; // number of vertex bindings used by the pipeline
 	vertexInputInfo.pVertexBindingDescriptions = &bindingDescription; // Optional - we are not binding any vertex information
-	vertexInputInfo.vertexAttributeDescriptionCount = 1; //type of the attributes passed to the vertex shader, which binding to load them from and at which offset
+	vertexInputInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(attributeDescriptions.size()); //type of the attributes passed to the vertex shader, which binding to load them from and at which offset
 	vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions.data(); // also not binding any attributes for the vertices
 
 	//this stage will take vertex input data and groups them into primitives ready for processing
@@ -987,6 +988,10 @@ void Renderer::createVertexBuffer()
 
 	vkBindBufferMemory(device, vertexBuffer, vertexBufferMemory, 0); //associate the memory with the buffer
 
+	void* data; //map the data to main memory so we can load it with vertices
+	vkMapMemory(device, vertexBufferMemory, 0, bufferInfo.size, 0, &data);
+	memcpy(data, vertices.data(), (size_t)bufferInfo.size);
+	vkUnmapMemory(device, vertexBufferMemory);
 }
 
 /*
@@ -1043,6 +1048,14 @@ void Renderer::createCommandBuffers()
 		//bind graphics pipeline - we supply the command buffer we wish to feed to the pipeline, where we want to bind, our pipeline is a graphics pipeline
 		//so we bind it to the VK_PIPELINE_BIND_POINT_GRAPHICS and finally we provide the pipeline handle.
 		vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
+		
+		//bind the buffer of vertices to draw
+		VkBuffer vertexBuffers[] = { vertexBuffer };
+		VkDeviceSize offsets[] = { 0 };
+		vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, vertexBuffers, offsets);
+
+		vkCmdDraw(commandBuffers[i], static_cast<uint32_t>(vertices.size()), 1, 0, 0);
+
 		/*		
 			vkCmdDraw:
 				vertexCount: Even though we don't have a vertex buffer, we technically still have 3 vertices to draw.
