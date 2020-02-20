@@ -187,6 +187,7 @@ void Renderer::cleanup()
 	cleanupSwapChain(); //first we clean up the swap chain and all related resources
 
 	vkDestroyBuffer(device, vertexBuffer, nullptr); //free buffer
+	vkFreeMemory(device, vertexBufferMemory, nullptr); //free the memory related to the buffer
 
 	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) { //destroy all synchronization objects
 		vkDestroySemaphore(device, renderFinishedSemaphores[i], nullptr);
@@ -546,6 +547,22 @@ VkExtent2D Renderer::chooseSwapExtent(const VkSurfaceCapabilitiesKHR & capabilit
 
 		return actualExtent; //return the extents
 	}
+}
+
+uint32_t Renderer::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties)
+{
+	//the structure below has two arrays memoryTypes and memoryHeaps. 
+	//Memory heaps are distinct memory resources like dedicated VRAM and swap space in RAM for when VRAM runs out.
+	VkPhysicalDeviceMemoryProperties memProperties; 
+	vkGetPhysicalDeviceMemoryProperties(physicalDevice, &memProperties);
+	for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++) {
+		if (typeFilter & (1 << i) && (memProperties.memoryTypes[i].propertyFlags & properties) == properties) { 
+			//check to see if the memory type is available for use, binary op to calculate the type check with the filter provided
+			//we also want to be able to write to that memory so we check the properties of it to see if the mem is host visible
+			return i; //index of the memory type we want
+		}
+	}
+	throw std::runtime_error("failed to find suitable memory type!");
 }
 
 /*
@@ -955,6 +972,20 @@ void Renderer::createVertexBuffer()
 	if (vkCreateBuffer(device, &bufferInfo, nullptr, &vertexBuffer) != VK_SUCCESS) {
 		throw std::runtime_error("failed to create vertex buffer!");
 	}
+
+	VkMemoryRequirements memRequirements; //the requirements for the buffer we want to allocate (size and type for example)
+	vkGetBufferMemoryRequirements(device, vertexBuffer, &memRequirements);
+
+	VkMemoryAllocateInfo allocInfo = {}; //we are now going to allcoate the buffer
+	allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO; 
+	allocInfo.allocationSize = memRequirements.size; //memory requirements (this can differ from what is in the mem requirements struct)
+	allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT); //the type of memory we want
+	
+	if (vkAllocateMemory(device, &allocInfo, nullptr, &vertexBufferMemory) != VK_SUCCESS) { //allocate the memory
+		throw std::runtime_error("failed to allocate vertex buffer memory!");
+	}
+
+	vkBindBufferMemory(device, vertexBuffer, vertexBufferMemory, 0); //associate the memory with the buffer
 
 }
 

@@ -82,6 +82,7 @@ private:
 	VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats);
 	VkPresentModeKHR chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes);
 	VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities);
+	uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
 	void recreateSwapChain();
 	void cleanupSwapChain();
 	void cleanup();
@@ -229,6 +230,8 @@ private:
 
 	//buffer handle
 	VkBuffer vertexBuffer;
+	//memory handle
+	VkDeviceMemory vertexBufferMemory;
 
 	//vertices
 	const std::vector<Vertex> vertices = {
