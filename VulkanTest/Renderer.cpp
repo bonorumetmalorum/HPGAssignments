@@ -43,6 +43,7 @@ void Renderer::initVulkan()
 	createFramebuffers(); //create a framebuffer to represent the set of images the graphics pipeline will render to
 	createCommandPool(); //create a command pool to manage allocation of command buffers
 	createVertexBuffer(); //create the vertex buffer
+	createIndexBuffer();
 	createCommandBuffers(); //create the command buffer from the pool with the appropriate commands
 	createSyncObjects(); //create synchronization primitives to control rendering
 }
@@ -185,6 +186,10 @@ void Renderer::cleanup()
 {
 	
 	cleanupSwapChain(); //first we clean up the swap chain and all related resources
+
+	//free the index buffer related memory
+	vkDestroyBuffer(device, indexBuffer, nullptr);
+	vkFreeMemory(device, indexBufferMemory, nullptr);
 
 	vkDestroyBuffer(device, vertexBuffer, nullptr); //free buffer
 	vkFreeMemory(device, vertexBufferMemory, nullptr); //free the memory related to the buffer
@@ -861,7 +866,7 @@ void Renderer::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemor
 	VkMemoryRequirements memRequirements; //the requirements for the buffer we want to allocate (size and type for example)
 	vkGetBufferMemoryRequirements(device, buffer, &memRequirements);
 
-	VkMemoryAllocateInfo allocInfo = {}; //we are now going to allcoate the buffer
+	VkMemoryAllocateInfo allocInfo = {}; //we are now going to allocate the buffer
 	allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
 	allocInfo.allocationSize = memRequirements.size; //memory requirements (this can differ from what is in the mem requirements struct)
 	allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT); //the type of memory we want
@@ -1052,6 +1057,29 @@ void Renderer::createVertexBuffer()
 	vkFreeMemory(device, stagingBufferMemory, nullptr);
 }
 
+void Renderer::createIndexBuffer()
+{
+	VkDeviceSize bufferSize = sizeof(indices[0]) * indices.size();
+	//create a staging buffer to hold the indices temprorarily
+	VkBuffer stagingBuffer;
+	VkDeviceMemory stagingBufferMemory;
+	createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory);
+
+	//map the memory to CPU so we can load the data
+	void* data;
+	vkMapMemory(device, stagingBufferMemory, 0, bufferSize, 0, &data);
+	memcpy(data, indices.data(), (size_t)bufferSize);
+	vkUnmapMemory(device, stagingBufferMemory);
+
+	//create the device local memory (index buffer bit is set to indicate what the memory is used for)
+	createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, indexBuffer, indexBufferMemory);
+	//copy the data to the device local memory
+	copyBuffer(stagingBuffer, indexBuffer, bufferSize);
+	//destroy the staging buffer and free its memory
+	vkDestroyBuffer(device, stagingBuffer, nullptr);
+	vkFreeMemory(device, stagingBufferMemory, nullptr);
+}
+
 /*
 	a command buffer represents a sequence of commands that are recorded and stored in a buffer.
 	this buffer after recording will then be submitted to a queue for execution (batch execution).
@@ -1112,7 +1140,9 @@ void Renderer::createCommandBuffers()
 		VkDeviceSize offsets[] = { 0 };
 		vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, vertexBuffers, offsets);
 
-		vkCmdDraw(commandBuffers[i], static_cast<uint32_t>(vertices.size()), 1, 0, 0);
+		vkCmdBindIndexBuffer(commandBuffers[i], indexBuffer, 0, VK_INDEX_TYPE_UINT16); //bind the index buffer
+
+		vkCmdDrawIndexed(commandBuffers[i], static_cast<uint32_t>(indices.size()), 1, 0, 0, 0); //draw using the index buffer
 
 		/*		
 			vkCmdDraw:
