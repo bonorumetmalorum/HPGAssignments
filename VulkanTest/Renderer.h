@@ -14,6 +14,7 @@
 #include <glm/vec2.hpp>
 #include <glm/vec3.hpp>
 #include <array>
+#include <glm/mat4x4.hpp>
 
 #define DEBUG
 #define BLEND true
@@ -71,6 +72,9 @@ private:
 	void createCommandPool();
 	void createVertexBuffer();
 	void createIndexBuffer();
+	void createDescriptorSetLayout();
+	void createDescriptorPool();
+	void createDescriptorSets();
 	void createCommandBuffers();
 	void createSyncObjects();
 
@@ -180,6 +184,7 @@ private:
 	std::vector<VkImageView> swapChainImageViews;
 
 	VkRenderPass renderPass;
+	VkDescriptorSetLayout descriptorSetLayout;
 	VkPipelineLayout pipelineLayout;
 	VkPipeline graphicsPipeline;
 	/*
@@ -194,6 +199,12 @@ private:
 		batch
 	*/
 	VkCommandPool commandPool;
+
+	/*
+		pool used to bind uniforms to buffers
+	*/
+	VkDescriptorPool descriptorPool;
+	std::vector<VkDescriptorSet> descriptorSets; //the descriptor sets, 1 for each uniform, so 1 for each image in the swap chain
 
 	/*
 		per framebuffer recording of commands
@@ -240,6 +251,14 @@ private:
 	//index buffer memory
 	VkDeviceMemory indexBufferMemory;
 
+	//uniform buffer
+	std::vector<VkBuffer> uniformBuffers;
+	std::vector<VkDeviceMemory> uniformBuffersMemory;
+
+	void createUniformBuffers();
+
+	void updateUniformBuffer(uint32_t index);
+
 	//vertices
 	const std::vector<Vertex> vertices = {
 		{{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}},
@@ -247,6 +266,14 @@ private:
 		{{0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}},
 		{{-0.5f, 0.5f}, {1.0f, 1.0f, 1.0f}}
 	};
+
+	//uniforms
+	struct UniformBufferObject {
+		alignas(16) glm::mat4 model;
+		alignas(16) glm::mat4 view;
+		alignas(16) glm::mat4 proj;
+	};
+
 
 	//index buffer data
 	const std::vector<uint16_t> indices = {
