@@ -7,7 +7,17 @@
 
 #include "Renderer.h"
 
+#include "ObjLoader.h"
+
 int main() {
+	ObjLoader loader;
+	try {
+		bool result = loader.loadObj("../models/duck/12248_Bird_v1_L2.obj");
+	}
+	catch (std::exception e) {
+		std::cout << "exception: " << e.what() << std::endl;
+		return -1;
+	}
 	Renderer app;
 	try {
 		app.run();
