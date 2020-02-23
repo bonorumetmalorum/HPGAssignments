@@ -4,8 +4,15 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
+
 Renderer::Renderer()
 {
+}
+
+Renderer::Renderer(OBJ & model)
+{
+	this->indices = model.indices;
+	this->vertices = model.vertexList;
 }
 
 /*
@@ -198,16 +205,16 @@ void Renderer::cleanup()
 		vkFreeMemory(device, uniformBuffersMemory[i], nullptr);
 	}
 
-	vkDestroyDescriptorPool(device, descriptorPool, nullptr);
-
-	vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
-
 	//free the index buffer related memory
 	vkDestroyBuffer(device, indexBuffer, nullptr);
 	vkFreeMemory(device, indexBufferMemory, nullptr);
 
 	vkDestroyBuffer(device, vertexBuffer, nullptr); //free buffer
 	vkFreeMemory(device, vertexBufferMemory, nullptr); //free the memory related to the buffer
+
+	vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
+
+	vkDestroyDescriptorPool(device, descriptorPool, nullptr);
 
 	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) { //destroy all synchronization objects
 		vkDestroySemaphore(device, renderFinishedSemaphores[i], nullptr);
@@ -216,6 +223,8 @@ void Renderer::cleanup()
 	}
 
 	vkDestroyCommandPool(device, commandPool, nullptr); //destroy the command pool
+
+	vkDeviceWaitIdle(device); //getting an error when the device is destroyed faster than the buffers (maybe because they are so big)
 
 	vkDestroyDevice(device, nullptr); //destroy the logical device
 
@@ -666,7 +675,7 @@ void Renderer::createGraphicsPipeline()
 	vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO; //type of struct
 	
 	vertexInputInfo.vertexBindingDescriptionCount = 1; // number of vertex bindings used by the pipeline
-	vertexInputInfo.pVertexBindingDescriptions = &bindingDescription; // Optional - we are not binding any vertex information
+	vertexInputInfo.pVertexBindingDescriptions = &bindingDescription; // binding description
 	vertexInputInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(attributeDescriptions.size()); //type of the attributes passed to the vertex shader, which binding to load them from and at which offset
 	vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions.data(); // also not binding any attributes for the vertices
 
@@ -1055,7 +1064,7 @@ void Renderer::createVertexBuffer()
 	//use staging buffer as temp storage for vertices
 	VkBuffer stagingBuffer;
 	VkDeviceMemory stagingBufferMemory;
-	//here we indicate that the memory type is host visibile, is used as a transfer src.
+	//here we indicate that the memory type is host visible, is used as a transfer src.
 	createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory);
 	
 	void* data; //map the data to main memory so we can load it with vertices
@@ -1549,9 +1558,15 @@ void Renderer::updateUniformBuffer(uint32_t index)
 	float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
 
 	UniformBufferObject ubo = {};
-	ubo.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+	//insert time here to rotation
+
+	
+	glm::mat4 model = glm::translate(glm::mat4(1.0), {0.0, -1.0, -1.0});
+	//model = glm::scale(model, glm::vec3(e->getScale()));
+
+	ubo.model = glm::rotate(model, time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
 	ubo.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-	ubo.proj = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float)swapChainExtent.height, 0.1f, 10.0f);
+	ubo.proj = glm::perspective(glm::radians(60.0f), swapChainExtent.width / (float)swapChainExtent.height, 0.1f, 10000.0f);
 	ubo.proj[1][1] *= -1;
 
 	void* data;

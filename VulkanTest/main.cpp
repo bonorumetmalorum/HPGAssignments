@@ -18,7 +18,8 @@ int main() {
 		std::cout << "exception: " << e.what() << std::endl;
 		return -1;
 	}
-	Renderer app;
+	OBJ model = loader.createObj();
+ 	Renderer app(model);
 	try {
 		app.run();
 	}

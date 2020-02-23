@@ -15,6 +15,7 @@
 #include <glm/vec3.hpp>
 #include <array>
 #include <glm/mat4x4.hpp>
+#include "ObjLoader.h"
 
 #define DEBUG
 #define BLEND true
@@ -47,6 +48,7 @@ class Renderer
 public:
 
 	Renderer();
+	Renderer(OBJ &model);// - store the reference to the OBJ, so you can set up the buffers
 	~Renderer();
 	
 	void run();
@@ -211,36 +213,36 @@ private:
 	*/
 	std::vector<VkCommandBuffer> commandBuffers;
 
-	/*
-		vertex buffer stuff
-	*/
-	//struct to hold a vertex
-	struct Vertex {
-		glm::vec2 position;
-		glm::vec3 color;
+	///*
+	//	vertex buffer stuff
+	//*/
+	////struct to hold a vertex
+	//struct Vertex {
+	//	glm::vec2 position;
+	//	glm::vec3 color;
 
-		static VkVertexInputBindingDescription getBindingDescription() {
-			VkVertexInputBindingDescription desc = {};
-			desc.binding = 0; //which layout is this in reference to, layout location 0 is what we are binding to
-			desc.inputRate = VK_VERTEX_INPUT_RATE_VERTEX; //load after each vertex (can also be instance, but we wont use that)
-			desc.stride = sizeof(Vertex);
-			return desc;
-		}
+	//	static VkVertexInputBindingDescription getBindingDescription() {
+	//		VkVertexInputBindingDescription desc = {};
+	//		desc.binding = 0; //which layout is this in reference to, layout location 0 is what we are binding to
+	//		desc.inputRate = VK_VERTEX_INPUT_RATE_VERTEX; //load after each vertex (can also be instance, but we wont use that)
+	//		desc.stride = sizeof(Vertex);
+	//		return desc;
+	//	}
 
-		static std::array<VkVertexInputAttributeDescription, 2> getAttributeDescriptions() {
-			std::array<VkVertexInputAttributeDescription, 2> attributeDescriptions = {};
-			attributeDescriptions[0].binding = 0;//which binding the vertex data comes from
-			attributeDescriptions[0].location = 0;//the location directive input of the vertex shader
-			attributeDescriptions[0].format = VK_FORMAT_R32G32_SFLOAT; //type of the data attribute
-			attributeDescriptions[0].offset = offsetof(Vertex, position); //offset, where to start reading (offset of position within struct, this is important because of potential compiler mangle)
+	//	static std::array<VkVertexInputAttributeDescription, 2> getAttributeDescriptions() {
+	//		std::array<VkVertexInputAttributeDescription, 2> attributeDescriptions = {};
+	//		attributeDescriptions[0].binding = 0;//which binding the vertex data comes from
+	//		attributeDescriptions[0].location = 0;//the location directive input of the vertex shader
+	//		attributeDescriptions[0].format = VK_FORMAT_R32G32_SFLOAT; //type of the data attribute
+	//		attributeDescriptions[0].offset = offsetof(Vertex, position); //offset, where to start reading (offset of position within struct, this is important because of potential compiler mangle)
 
-			attributeDescriptions[1].binding = 0; //which binding does the data come from
-			attributeDescriptions[1].location = 1; //refrence to a layout location within shader
-			attributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT; //the format of the data
-			attributeDescriptions[1].offset = offsetof(Vertex, color); //where in struct to read data for color
-			return attributeDescriptions;
-		}
-	};
+	//		attributeDescriptions[1].binding = 0; //which binding does the data come from
+	//		attributeDescriptions[1].location = 1; //refrence to a layout location within shader
+	//		attributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT; //the format of the data
+	//		attributeDescriptions[1].offset = offsetof(Vertex, color); //where in struct to read data for color
+	//		return attributeDescriptions;
+	//	}
+	//};
 
 	//buffer handle
 	VkBuffer vertexBuffer;
@@ -259,13 +261,8 @@ private:
 
 	void updateUniformBuffer(uint32_t index);
 
-	//vertices
-	const std::vector<Vertex> vertices = {
-		{{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}},
-		{{0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}},
-		{{0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}},
-		{{-0.5f, 0.5f}, {1.0f, 1.0f, 1.0f}}
-	};
+	//vertices - update it to hold a 3d pos, 3d normal and 2d tex coord
+	std::vector<Vertex> vertices;
 
 	//uniforms
 	struct UniformBufferObject {
@@ -276,9 +273,7 @@ private:
 
 
 	//index buffer data
-	const std::vector<uint16_t> indices = {
-		0, 1, 2, 2, 3, 0
-	};
+	std::vector<uint32_t> indices;
 
 	//synchronization with render operations
 	std::vector<VkSemaphore> imageAvailableSemaphores; //is the image available to render to? we use this to make sure we do not render to a frame that is being presented
