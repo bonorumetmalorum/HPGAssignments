@@ -50,8 +50,9 @@ void Renderer::initVulkan()
 	createRenderPass(); //create a render pass that specifies all the stages of the render
 	createDescriptorSetLayout();
 	createGraphicsPipeline(); //create a graphics pipeline to process drawing commands and render to the surface
-	createFramebuffers(); //create a framebuffer to represent the set of images the graphics pipeline will render to
 	createCommandPool(); //create a command pool to manage allocation of command buffers
+	createDepthResources(); //setup depth resources
+	createFramebuffers(); //create a framebuffer to represent the set of images the graphics pipeline will render to
 	createVertexBuffer(); //create the vertex buffer
 	createIndexBuffer();
 	createUniformBuffers();
@@ -253,6 +254,29 @@ std::vector<const char*> Renderer::getRequiredExtensions() {
 	}
 
 	return extensions; //return the extensions
+}
+
+VkFormat Renderer::findSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features)
+{
+	for (VkFormat format : candidates) {
+		VkFormatProperties props; //properties of the format, contains info on tiling features that are needed to setup the depth buffer
+		vkGetPhysicalDeviceFormatProperties(physicalDevice, format, &props);
+		if (tiling == VK_IMAGE_TILING_LINEAR && (props.linearTilingFeatures & features) == features) { //a format we would like to use
+			return format; //this is a format we would like to use
+		}
+		else if (tiling == VK_IMAGE_TILING_OPTIMAL && (props.optimalTilingFeatures & features) == features) {
+			return format; //and so is this one
+		}
+	}
+	throw std::runtime_error("failed to find supported format!");
+}
+
+VkFormat Renderer::findDepthFormat() {
+	return findSupportedFormat(
+		{ VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT },
+		VK_IMAGE_TILING_OPTIMAL,
+		VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT
+	);
 }
 
 /*
@@ -605,30 +629,31 @@ void Renderer::createImageViews()
 	swapChainImageViews.resize(swapChainImages.size());	//set size of image views array to the size of images available in the swap chain
 	//loop over all images in the swap chain and create an image view for each one
 	for (size_t i = 0; i < swapChainImages.size(); i++) {
-		VkImageViewCreateInfo createInfo = {}; //create info struct that will contain the information for setting up the image view
-		createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO; //type of the struct - image view
-		createInfo.image = swapChainImages[i]; //parent image of the view that will be created
-		createInfo.viewType = VK_IMAGE_VIEW_TYPE_2D; //type of the view that will be created - can be 1d, 2d, and 3d images, or even cube maps and cube map array images, there are also 1d and 2d array images
-		createInfo.format = swapChainImageFormat; //the format of the image, which will be the same as the swap chain format to ensure compatibility (this can be different however)
+		swapChainImageViews[i] = createImageView(swapChainImages[i], swapChainImageFormat, VK_IMAGE_ASPECT_COLOR_BIT);
+		//VkImageViewCreateInfo createInfo = {}; //create info struct that will contain the information for setting up the image view
+		//createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO; //type of the struct - image view
+		//createInfo.image = swapChainImages[i]; //parent image of the view that will be created
+		//createInfo.viewType = VK_IMAGE_VIEW_TYPE_2D; //type of the view that will be created - can be 1d, 2d, and 3d images, or even cube maps and cube map array images, there are also 1d and 2d array images
+		//createInfo.format = swapChainImageFormat; //the format of the image, which will be the same as the swap chain format to ensure compatibility (this can be different however)
 
-		//component ordering in the view may be different from that in the parent
-		//each member of the components struct will refer to the child rgba components and how it should be interpreted from the parent image
-		createInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY; //read from the corresponding channel in the parent - because we are using the identity swizzle
-		createInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY; //read from the corresponding channel in the parent - because we are using the identity swizzle
-		createInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY; //read from the corresponding channel in the parent - because we are using the identity swizzle
-		createInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY; //read from the corresponding channel in the parent - because we are using the identity swizzle
+		////component ordering in the view may be different from that in the parent
+		////each member of the components struct will refer to the child rgba components and how it should be interpreted from the parent image
+		//createInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY; //read from the corresponding channel in the parent - because we are using the identity swizzle
+		//createInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY; //read from the corresponding channel in the parent - because we are using the identity swizzle
+		//createInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY; //read from the corresponding channel in the parent - because we are using the identity swizzle
+		//createInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY; //read from the corresponding channel in the parent - because we are using the identity swizzle
 
-		//describes what part of the image should be accessed - colour in this case, no mipmapping or multiple layers here
-		//because this image view can be a subset of the parent image, the subset is specified in the following struct (subresourceRange)
-		createInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT; //bitfield made up of the members of the VkImageAspectFlagBits specifying which aspects of the image are effected by the barrier (here we are only modifying the colour part, there are other parts, such as the stencil buffer)
-		createInfo.subresourceRange.baseMipLevel = 0; //used to create an image view that corresponds to a certain part of the parents mip map chain
-		createInfo.subresourceRange.levelCount = 1; //how many mip levels do we want to use
-		createInfo.subresourceRange.baseArrayLayer = 0; //only used when the parent image is an array image, which in our case is not (how many layers do we want to use)
-		createInfo.subresourceRange.layerCount = 1; //we only have one layer
+		////describes what part of the image should be accessed - colour in this case, no mipmapping or multiple layers here
+		////because this image view can be a subset of the parent image, the subset is specified in the following struct (subresourceRange)
+		//createInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT; //bitfield made up of the members of the VkImageAspectFlagBits specifying which aspects of the image are effected by the barrier (here we are only modifying the colour part, there are other parts, such as the stencil buffer)
+		//createInfo.subresourceRange.baseMipLevel = 0; //used to create an image view that corresponds to a certain part of the parents mip map chain
+		//createInfo.subresourceRange.levelCount = 1; //how many mip levels do we want to use
+		//createInfo.subresourceRange.baseArrayLayer = 0; //only used when the parent image is an array image, which in our case is not (how many layers do we want to use)
+		//createInfo.subresourceRange.layerCount = 1; //we only have one layer
 
-		if (vkCreateImageView(device, &createInfo, nullptr, &swapChainImageViews[i]) != VK_SUCCESS) { //create the image view by passing the logical device, create info setup struct, null allocation callbacks and the out parameter to hold the swapchain views, if not successful stop
-			throw std::runtime_error("failed to create image views!"); //throw an error
-		}
+		//if (vkCreateImageView(device, &createInfo, nullptr, &swapChainImageViews[i]) != VK_SUCCESS) { //create the image view by passing the logical device, create info setup struct, null allocation callbacks and the out parameter to hold the swapchain views, if not successful stop
+		//	throw std::runtime_error("failed to create image views!"); //throw an error
+		//}
 	}
 }
 
@@ -666,6 +691,15 @@ void Renderer::createGraphicsPipeline()
 	fragShaderStageInfo.pName = "main"; //entry point to the program
 
 	VkPipelineShaderStageCreateInfo shaderStages[] = { vertShaderStageInfo, fragShaderStageInfo }; // store the shader stages in an array
+
+	VkPipelineDepthStencilStateCreateInfo depthStencil = {};
+	depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+	depthStencil.depthTestEnable = VK_TRUE;
+	depthStencil.depthWriteEnable = VK_TRUE;
+	depthStencil.depthCompareOp = VK_COMPARE_OP_LESS;
+	depthStencil.depthBoundsTestEnable = VK_FALSE;
+	depthStencil.stencilTestEnable = VK_FALSE;
+
 
 	//describing the configuration of the newly created pipeline vertex input state -  
 	//what we are doing here is describing the layout of geometric data in memory and then having Vulkan fetch it and then feed it to the shader
@@ -818,7 +852,7 @@ void Renderer::createGraphicsPipeline()
 	pipelineInfo.pViewportState = &viewportState; //view port state
 	pipelineInfo.pRasterizationState = &rasterizer; //rasterizer stage
 	pipelineInfo.pMultisampleState = &multisampling; //MS stage
-	pipelineInfo.pDepthStencilState = nullptr; // Optional - depth stencil stage, we don't use this
+	pipelineInfo.pDepthStencilState = &depthStencil;// Optional - depth stencil stage
 	pipelineInfo.pColorBlendState = &colorBlending; //colour blending stage
 	pipelineInfo.pDynamicState = nullptr; // Optional - the state which are treating as dynamic, we don't use this either
 	pipelineInfo.layout = pipelineLayout; // pipeline layout, we are not using any uniforms and other constants in our pipeline
@@ -841,20 +875,20 @@ void Renderer::createGraphicsPipeline()
 //here we are going to submit commands to copy data from the staging buffer to the device local vert buff
 void Renderer::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size)
 {
-	VkCommandBufferAllocateInfo allocInfo = {};
-	allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-	allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY; 
-	allocInfo.commandPool = commandPool;
-	allocInfo.commandBufferCount = 1;
+	//VkCommandBufferAllocateInfo allocInfo = {};
+	//allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+	//allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY; 
+	//allocInfo.commandPool = commandPool;
+	//allocInfo.commandBufferCount = 1;
 
-	VkCommandBuffer commandBuffer;
-	vkAllocateCommandBuffers(device, &allocInfo, &commandBuffer);
+	VkCommandBuffer commandBuffer = beginSingleTimeCommands();
+	//vkAllocateCommandBuffers(device, &allocInfo, &commandBuffer);
 	
-	VkCommandBufferBeginInfo beginInfo = {};
-	beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-	beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+	//VkCommandBufferBeginInfo beginInfo = {};
+	//beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+	//beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
 
-	vkBeginCommandBuffer(commandBuffer, &beginInfo);
+	//vkBeginCommandBuffer(commandBuffer, &beginInfo);
 
 	VkBufferCopy copyRegion = {};
 	copyRegion.srcOffset = 0; // Optional
@@ -862,7 +896,9 @@ void Renderer::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize s
 	copyRegion.size = size;
 	vkCmdCopyBuffer(commandBuffer, srcBuffer, dstBuffer, 1, &copyRegion);
 
-	vkEndCommandBuffer(commandBuffer);
+	endSingleTimeCommands(commandBuffer);
+
+	/*vkEndCommandBuffer(commandBuffer);
 
 	VkSubmitInfo submitInfo = {};
 	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -872,7 +908,7 @@ void Renderer::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize s
 	vkQueueSubmit(graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
 	vkQueueWaitIdle(graphicsQueue);
 
-	vkFreeCommandBuffers(device, commandPool, 1, &commandBuffer);
+	vkFreeCommandBuffers(device, commandPool, 1, &commandBuffer);*/
 }
 
 //helper function to create a buffer
@@ -945,6 +981,16 @@ void Renderer::createRenderPass()
 	colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; //specifies which layout the image will have before the render pass begins
 	colorAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR; // layout to automatically transition to when the render pass finishes. Images to be presented in the swap chain
 
+	VkAttachmentDescription depthAttachment = {};
+	depthAttachment.format = findDepthFormat();
+	depthAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+	depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+	depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+	depthAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+	depthAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+	depthAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	depthAttachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
 	//Subpasses and attachment references
 	/*
 		single render pass can consist of multiple subpasses. 
@@ -955,21 +1001,30 @@ void Renderer::createRenderPass()
 		An attachment reference is a structure containing an index into the array of attachments,
 		and what kind of image layout that the attachment is expected to be in at this subpass
 	*/
+
 	VkAttachmentReference colorAttachmentRef = {};
 	colorAttachmentRef.attachment = 0; //which attachment are we referring to (here we only have 1 attachment at index 0)
 	colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL; //the output image the attachment is associated with
+
+	VkAttachmentReference depthAttachmentRef = {};
+	depthAttachmentRef.attachment = 1;
+	depthAttachmentRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
 	//describe subpass - each subpass references a number of attachments, here we only want 1 subpass.
 	VkSubpassDescription subpass = {};
 	subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS; //bind point of a pipeline object to a command buffer (specifying as a graphics pipeline here, but it could be a compute pipeline)
 	subpass.colorAttachmentCount = 1; //number of color attachments (this is where output is written)
 	subpass.pColorAttachments = &colorAttachmentRef; //pointer into array containing the attachments (1 in this case so not an array, this is the output)
 	//we don't really have input attachments at the moment, since the triangle we render is defined in the shader itself
+	subpass.pDepthStencilAttachment = &depthAttachmentRef;
+	
+	std::array<VkAttachmentDescription, 2> attachments = { colorAttachment, depthAttachment };
 
 	//create render pass
 	VkRenderPassCreateInfo renderPassInfo = {}; //render pass information
 	renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO; //type of the struct
-	renderPassInfo.attachmentCount = 1; //number of attachments
-	renderPassInfo.pAttachments = &colorAttachment; //an array containing the attachment information for the number of attachments specified (in this case 1 and its just the color attachment)
+	renderPassInfo.attachmentCount = static_cast<uint32_t>(attachments.size()); //number of attachments
+	renderPassInfo.pAttachments = attachments.data(); //an array containing the attachment information for the number of attachments specified (in this case 1 and its just the color attachment)
 	renderPassInfo.subpassCount = 1; // the number of subpasses
 	renderPassInfo.pSubpasses = &subpass; //the subpass creation info
 
@@ -1009,15 +1064,16 @@ void Renderer::createFramebuffers()
 			you can only use a framebuffer with a render pass that has the
 			same number and type of attachments
 		*/
-		VkImageView attachments[] = {
-			swapChainImageViews[i]
-		}; //getting the swap chain images
+		std::array<VkImageView, 2> attachments = {
+			swapChainImageViews[i],
+			depthImageView
+		};
 
 		VkFramebufferCreateInfo framebufferInfo = {}; //struct to hold framebuffer creation info
 		framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO; //struct type
 		framebufferInfo.renderPass = renderPass; //render pass we are binding framebuffer to
-		framebufferInfo.attachmentCount = 1; //number of attachments
-		framebufferInfo.pAttachments = attachments; //the images that we wish to manage in the frame buffer
+		framebufferInfo.attachmentCount = static_cast<uint32_t>(attachments.size()); //number of attachments
+		framebufferInfo.pAttachments = attachments.data(); //the images that we wish to manage in the frame buffer
 		framebufferInfo.width = swapChainExtent.width; //the width of the image
 		framebufferInfo.height = swapChainExtent.height; //the height of the image
 		framebufferInfo.layers = 1; //number of layers in image array
@@ -1225,9 +1281,11 @@ void Renderer::createCommandBuffers()
 		renderPassInfo.renderArea.offset = { 0, 0 }; //origin of the buffer
 		renderPassInfo.renderArea.extent = swapChainExtent; //dimensions of the buffer - matches swap chain images
 		//clear values to use for VK_ATTACHMENT_LOAD_OP_CLEAR, which we used as load operation for the color attachment
-		VkClearValue clearColor = { 0.0f, 0.0f, 0.0f, 1.0f };
-		renderPassInfo.clearValueCount = 1; //one clear value
-		renderPassInfo.pClearValues = &clearColor; //clear value
+		std::array<VkClearValue, 2> clearColors = {};
+		clearColors[0].color = { 0.0f, 0.0f, 0.0f, 1.0f };
+		clearColors[1].depthStencil = { 1.0f, 0 };
+		renderPassInfo.clearValueCount = static_cast<uint32_t>(clearColors.size()); //one clear value
+		renderPassInfo.pClearValues = clearColors.data(); //clear value
 		//begin render pass
 		//command buffer to record the command to
 		//specifies the details of the render pass we've just provided
@@ -1265,6 +1323,102 @@ void Renderer::createCommandBuffers()
 			throw std::runtime_error("failed to record command buffer!"); //throw an error if are unable to stop recording
 		}
 	}
+}
+
+void Renderer::createDepthResources()
+{
+	VkFormat depthFormat = findDepthFormat();
+	createImage(swapChainExtent.width, swapChainExtent.height, depthFormat, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, depthImage, depthImageMemory);
+	depthImageView = createImageView(depthImage, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT);
+	//transitionImageLayout(depthImage, depthFormat, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+}
+
+void Renderer::createImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory) {
+	VkImageCreateInfo imageInfo = {};
+	imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+	imageInfo.imageType = VK_IMAGE_TYPE_2D;
+	imageInfo.extent.width = width;
+	imageInfo.extent.height = height;
+	imageInfo.extent.depth = 1;
+	imageInfo.mipLevels = 1;
+	imageInfo.arrayLayers = 1;
+	imageInfo.format = format;
+	imageInfo.tiling = tiling;
+	imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	imageInfo.usage = usage;
+	imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+	imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+	if (vkCreateImage(device, &imageInfo, nullptr, &image) != VK_SUCCESS) {
+		throw std::runtime_error("failed to create image!");
+	}
+
+	VkMemoryRequirements memRequirements;
+	vkGetImageMemoryRequirements(device, image, &memRequirements);
+
+	VkMemoryAllocateInfo allocInfo = {};
+	allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+	allocInfo.allocationSize = memRequirements.size;
+	allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, properties);
+
+	if (vkAllocateMemory(device, &allocInfo, nullptr, &imageMemory) != VK_SUCCESS) {
+		throw std::runtime_error("failed to allocate image memory!");
+	}
+
+	vkBindImageMemory(device, image, imageMemory, 0);
+}
+
+VkImageView Renderer::createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags) {
+	VkImageViewCreateInfo viewInfo = {};
+	viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+	viewInfo.image = image;
+	viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+	viewInfo.format = format;
+	viewInfo.subresourceRange.aspectMask = aspectFlags;
+	viewInfo.subresourceRange.baseMipLevel = 0;
+	viewInfo.subresourceRange.levelCount = 1;
+	viewInfo.subresourceRange.baseArrayLayer = 0;
+	viewInfo.subresourceRange.layerCount = 1;
+
+	VkImageView imageView;
+	if (vkCreateImageView(device, &viewInfo, nullptr, &imageView) != VK_SUCCESS) {
+		throw std::runtime_error("failed to create texture image view!");
+	}
+
+	return imageView;
+}
+
+VkCommandBuffer Renderer::beginSingleTimeCommands() {
+	VkCommandBufferAllocateInfo allocInfo = {};
+	allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+	allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+	allocInfo.commandPool = commandPool;
+	allocInfo.commandBufferCount = 1;
+
+	VkCommandBuffer commandBuffer;
+	vkAllocateCommandBuffers(device, &allocInfo, &commandBuffer);
+
+	VkCommandBufferBeginInfo beginInfo = {};
+	beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+	beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+	vkBeginCommandBuffer(commandBuffer, &beginInfo);
+
+	return commandBuffer;
+}
+
+void Renderer::endSingleTimeCommands(VkCommandBuffer commandBuffer) {
+	vkEndCommandBuffer(commandBuffer);
+
+	VkSubmitInfo submitInfo = {};
+	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+	submitInfo.commandBufferCount = 1;
+	submitInfo.pCommandBuffers = &commandBuffer;
+
+	vkQueueSubmit(graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
+	vkQueueWaitIdle(graphicsQueue);
+
+	vkFreeCommandBuffers(device, commandPool, 1, &commandBuffer);
 }
 
 /*
@@ -1562,6 +1716,7 @@ void Renderer::updateUniformBuffer(uint32_t index)
 
 	
 	glm::mat4 model = glm::translate(glm::mat4(1.0), {0.0, -1.0, -1.0});
+	model = glm::scale(model, {0.15,0.15,0.15});
 	//model = glm::scale(model, glm::vec3(e->getScale()));
 
 	ubo.model = glm::rotate(model, time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));

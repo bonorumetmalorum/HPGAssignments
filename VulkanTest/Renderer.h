@@ -78,6 +78,11 @@ private:
 	void createDescriptorPool();
 	void createDescriptorSets();
 	void createCommandBuffers();
+	void createDepthResources();
+	void createImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage & image, VkDeviceMemory & imageMemory);
+	VkImageView createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags);
+	VkCommandBuffer beginSingleTimeCommands();
+	void endSingleTimeCommands(VkCommandBuffer commandBuffer);
 	void createSyncObjects();
 
 	void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
@@ -103,6 +108,8 @@ private:
 	void  mainLoop();
 	
 	std::vector<const char*> getRequiredExtensions();
+	VkFormat findSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features);
+	VkFormat findDepthFormat();
 	QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device);
 	
 	GLFWwindow * window;
@@ -184,6 +191,11 @@ private:
 	VkExtent2D swapChainExtent;//resolution
 	//image views: how to access and how to and which part to access
 	std::vector<VkImageView> swapChainImageViews;
+
+	//images to do with depth calculations
+	VkImage depthImage;
+	VkDeviceMemory depthImageMemory;
+	VkImageView depthImageView;
 
 	VkRenderPass renderPass;
 	VkDescriptorSetLayout descriptorSetLayout;
