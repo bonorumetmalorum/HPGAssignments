@@ -12,7 +12,9 @@
 int main() {
 	ObjLoader loader;
 	try {
-		bool result = loader.loadObj("../models/duck/12248_Bird_v1_L2.obj");
+		if (!loader.loadObj("../models/duck/12248_Bird_v1_L2.obj")) {
+			throw std::runtime_error("unable to load obj");
+		}
 	}
 	catch (std::exception e) {
 		std::cout << "exception: " << e.what() << std::endl;
