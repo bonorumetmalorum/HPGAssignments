@@ -77,34 +77,17 @@ bool ObjLoader::loadMtl(std::string path)
 }
 
 
-bool ObjLoader::loadTexture(std::string path)
+Texture ObjLoader::loadTexture(std::string path)
 {
-	std::ifstream in(path);
-	if (in.fail())
-	{
-		throw "failed to read file";
+	Texture tex = {};
+	int texWidth, texHeight, texChannels;
+	tex.pixels = stbi_load(path.data(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
+	tex.imageSize = texWidth * texHeight * 4;
+
+	if (!tex.pixels) {
+		throw std::runtime_error("failed to load texture image!");
 	}
-	std::string p3;
-	std::string comment;
-	int h, w, max;
-	getline(in, p3);
-	in.ignore(100, '\n');
-	in >> w;
-	in >> h;
-	in >> max;
-	std::vector<int> row(w * 3, 129);
-	std::vector<std::vector<int>> pixels(h, row);
-	for (int i = h - 1; i >= 0; i--)
-	{
-		for (int j = 0; j < w; j++)
-		{
-			in >> pixels[i][j * 3];
-			in >> pixels[i][j * 3 + 1];
-			in >> pixels[i][j * 3 + 2];
-		}
-	}
-	in.close();
-	return false;
+	return tex;
 }
 
 ObjLoader::~ObjLoader()

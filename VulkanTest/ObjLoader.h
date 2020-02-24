@@ -10,6 +10,8 @@
 #include <array>
 #define GLM_ENABLE_EXPERIMENTAL
 #include <glm/gtx/hash.hpp>
+#include <stb_image.h>
+
 
 struct Vertex {
 	glm::vec3 position;
@@ -65,6 +67,11 @@ struct OBJ {
 	std::vector<uint32_t> indices; //grouped in triplets
 };
 
+struct Texture {
+	int imageSize;
+	stbi_uc* pixels
+};
+
 class ObjLoader
 {
 public:
@@ -74,7 +81,7 @@ public:
 	//load mtl
 	bool loadMtl(std::string path);
 	//load texture
-	bool loadTexture(std::string path);
+	Texture loadTexture(std::string path);
 	~ObjLoader();
 	
 	struct VertexIndicies {

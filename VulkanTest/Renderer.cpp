@@ -9,7 +9,7 @@ Renderer::Renderer()
 {
 }
 
-Renderer::Renderer(OBJ & model)
+Renderer::Renderer(OBJ & model, Texture texture)
 {
 	this->indices = model.indices;
 	this->vertices = model.vertexList;

@@ -21,7 +21,17 @@ int main() {
 		return -1;
 	}
 	OBJ model = loader.createObj();
- 	Renderer app(model);
+	Texture texture;
+	
+	//load the texture here
+	try {
+		texture = loader.loadTexture("../models/duck/12248_Bird_v1_diff.jpg");
+	}
+	catch (std::exception e) {
+		std::cout << "exception: " << e.what() << std::endl;
+		return -1;
+	}
+ 	Renderer app(model, texture);
 	try {
 		app.run();
 	}
