@@ -101,7 +101,7 @@ OBJ ObjLoader::createObj()
 		glm::vec3 position1 = vertices[faceVertices[i*4 + 1].v - 1];
 		glm::vec3 normal1 = normals[faceVertices[i*4 + 1].n - 1];
 		glm::vec2 uv1 = uvcoords[faceVertices[i*4 + 1].t - 1];
-		Vertex v1 = { position1, normal1,uv1 };
+		Vertex v1 = { position1, normal1, uv1 };
 		//data for 2 vertex
 		glm::vec3 position2 = vertices[faceVertices[i*4 + 2].v - 1];
 		glm::vec3 normal2 = normals[faceVertices[i*4 + 2].n - 1];

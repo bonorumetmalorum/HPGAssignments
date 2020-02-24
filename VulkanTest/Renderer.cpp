@@ -1300,11 +1300,10 @@ void Renderer::createCommandBuffers()
 		VkDeviceSize offsets[] = { 0 };
 		vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, vertexBuffers, offsets);
 
-		vkCmdBindIndexBuffer(commandBuffers[i], indexBuffer, 0, VK_INDEX_TYPE_UINT16); //bind the index buffer
+		vkCmdBindIndexBuffer(commandBuffers[i], indexBuffer, 0, VK_INDEX_TYPE_UINT32); //bind the index buffer
 		
 		//bind the uniform data to the bind point
 		vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[i], 0, nullptr);
-		vkCmdDrawIndexed(commandBuffers[i], static_cast<uint32_t>(indices.size()), 1, 0, 0, 0);
 
 		vkCmdDrawIndexed(commandBuffers[i], static_cast<uint32_t>(indices.size()), 1, 0, 0, 0); //draw using the index buffer
 
@@ -1315,7 +1314,7 @@ void Renderer::createCommandBuffers()
 				firstVertex: Used as an offset into the vertex buffer, defines the lowest value of gl_VertexIndex.
 				firstInstance: Used as an offset for instanced rendering, defines the lowest value of gl_InstanceIndex.
 		*/
-		vkCmdDraw(commandBuffers[i], 3, 1, 0, 0);
+		//vkCmdDraw(commandBuffers[i], 3, 1, 0, 0);
 		//end render pass
 		vkCmdEndRenderPass(commandBuffers[i]);
 		//end recording commands
@@ -1715,8 +1714,8 @@ void Renderer::updateUniformBuffer(uint32_t index)
 	//insert time here to rotation
 
 	
-	glm::mat4 model = glm::translate(glm::mat4(1.0), {0.0, -1.0, -1.0});
-	model = glm::scale(model, {0.15,0.15,0.15});
+	glm::mat4 model = glm::translate(glm::mat4(1.0), {0.0, 0.0, 0.0});
+	model = glm::scale(model, {0.01,0.01,0.01});
 	//model = glm::scale(model, glm::vec3(e->getScale()));
 
 	ubo.model = glm::rotate(model, time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
