@@ -48,7 +48,7 @@ class Renderer
 public:
 
 	Renderer();
-	Renderer(OBJ &model, Texture texture);// - store the reference to the OBJ, so you can set up the buffers
+	Renderer(OBJ &model, Texture & texture);// - store the reference to the OBJ, so you can set up the buffers
 	~Renderer();
 	
 	void run();
@@ -72,6 +72,9 @@ private:
 	void createGraphicsPipeline();
 	void createFramebuffers();
 	void createCommandPool();
+	void createTextureImage();
+	void createTextureImageView();
+	void createTextureSampler();
 	void createVertexBuffer();
 	void createIndexBuffer();
 	void createDescriptorSetLayout();
@@ -79,6 +82,7 @@ private:
 	void createDescriptorSets();
 	void createCommandBuffers();
 	void createDepthResources();
+	void copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height);
 	void createImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage & image, VkDeviceMemory & imageMemory);
 	VkImageView createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags);
 	VkCommandBuffer beginSingleTimeCommands();
@@ -97,6 +101,7 @@ private:
 	VkPresentModeKHR chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes);
 	VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities);
 	uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
+	void transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout);
 	void recreateSwapChain();
 	void cleanupSwapChain();
 	void cleanup();
@@ -192,6 +197,12 @@ private:
 	//image views: how to access and how to and which part to access
 	std::vector<VkImageView> swapChainImageViews;
 
+	//texture image and related memory
+	VkImage textureImage;
+	VkDeviceMemory textureImageMemory;
+	VkImageView textureImageView;
+	VkSampler textureSampler;
+
 	//images to do with depth calculations
 	VkImage depthImage;
 	VkDeviceMemory depthImageMemory;
@@ -256,6 +267,7 @@ private:
 	//	}
 	//};
 
+	Texture texture;
 	//buffer handle
 	VkBuffer vertexBuffer;
 	//memory handle

@@ -2,7 +2,6 @@
 #include <iostream>
 #include <unordered_map>
 
-
 ObjLoader::ObjLoader()
 {
 }
@@ -43,6 +42,7 @@ bool ObjLoader::loadObj(std::string path)
 			glm::vec2 tex;
 			stream >> tex.x;
 			stream >> tex.y;
+			tex.y *= -1;
 			uvcoords.push_back(tex);
 		}
 		else if (type == "g") {//load in group name
@@ -68,7 +68,7 @@ bool ObjLoader::loadObj(std::string path)
 			faceVertices.push_back(vertIndices4);
 		}
 	}
-	return false;
+	return true;
 }
 
 bool ObjLoader::loadMtl(std::string path)
@@ -83,6 +83,8 @@ Texture ObjLoader::loadTexture(std::string path)
 	int texWidth, texHeight, texChannels;
 	tex.pixels = stbi_load(path.data(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
 	tex.imageSize = texWidth * texHeight * 4;
+	tex.width = texWidth;
+	tex.height = texHeight;
 
 	if (!tex.pixels) {
 		throw std::runtime_error("failed to load texture image!");

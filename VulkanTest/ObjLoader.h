@@ -8,8 +8,10 @@
 #include <glm/vec2.hpp>
 #include <vulkan/vulkan.h>
 #include <array>
+
 #define GLM_ENABLE_EXPERIMENTAL
 #include <glm/gtx/hash.hpp>
+
 #include <stb_image.h>
 
 
@@ -68,8 +70,9 @@ struct OBJ {
 };
 
 struct Texture {
-	int imageSize;
-	stbi_uc* pixels
+	VkDeviceSize imageSize;
+	stbi_uc* pixels;
+	int width, height;
 };
 
 class ObjLoader
