@@ -8,13 +8,11 @@ ObjLoader::ObjLoader()
 
 bool ObjLoader::loadObj(std::string path)
 {
-	std::cout << path << std::endl;
 	std::fstream inStream(path.data(), std::ios::in);
 	if (!inStream.is_open()) {
 		throw std::runtime_error("unable to open file");
 	}
 	std::string currentLine = "";
-	std::string mtlPath;
 	while (inStream.peek() != -1) {
 		std::getline(inStream, currentLine);
 		std::istringstream stream(currentLine);
@@ -22,7 +20,7 @@ bool ObjLoader::loadObj(std::string path)
 		stream >> type;
 		if (type == "#") continue; //check if comment, ignore
 		else if (type == "mtllib") {		//get path filename of mtllib if it declared
-			stream >> mtlPath;
+			continue;
 		}
 		else if (type == "v") {	//load in vertices
 			glm::vec3 position;
@@ -71,9 +69,42 @@ bool ObjLoader::loadObj(std::string path)
 	return true;
 }
 
-bool ObjLoader::loadMtl(std::string path)
+Mtl ObjLoader::loadMtl(std::string path)
 {
-	return false;
+	std::fstream inStream(path.data(), std::ios::in);
+	if(!inStream.is_open()){
+		throw std::runtime_error("unable to open mtl file");
+	}
+	Mtl mtl = {};
+	std::string currentLine = "";
+	while (inStream.peek() != -1) {
+		std::getline(inStream, currentLine);
+		std::istringstream stream(currentLine);
+		std::string type;
+		stream >> type;
+		if (type == "#") {
+			continue;
+		}
+		if (type == "Ns") {
+			stream >> mtl.specularExponent;
+		}
+		if (type == "Ka") {
+			stream >> mtl.ambient.r;
+			stream >> mtl.ambient.g;
+			stream >> mtl.ambient.b;
+		}
+		if (type == "Kd") {
+			stream >> mtl.diffuse.r;
+			stream >> mtl.diffuse.g;
+			stream >> mtl.diffuse.b;
+		}
+		if (type == "Ks") {
+			stream >> mtl.specular.r;
+			stream >> mtl.specular.g;
+			stream >> mtl.specular.b;
+		}
+	}
+	return mtl;
 }
 
 

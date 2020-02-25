@@ -75,6 +75,13 @@ struct Texture {
 	int width, height;
 };
 
+struct Mtl {
+	glm::vec3 ambient;
+	glm::vec3 specular;
+	glm::vec3 diffuse;
+	float specularExponent;
+};
+
 class ObjLoader
 {
 public:
@@ -82,7 +89,7 @@ public:
 	//load obj
 	bool loadObj(std::string path);
 	//load mtl
-	bool loadMtl(std::string path);
+	Mtl loadMtl(std::string path);
 	//load texture
 	Texture loadTexture(std::string path);
 	~ObjLoader();

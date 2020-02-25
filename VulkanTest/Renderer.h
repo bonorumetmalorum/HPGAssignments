@@ -48,7 +48,7 @@ class Renderer
 public:
 
 	Renderer();
-	Renderer(OBJ &model, Texture & texture);// - store the reference to the OBJ, so you can set up the buffers
+	Renderer(OBJ &model, Texture & texture, Mtl & mtl);// - store the reference to the OBJ, so you can set up the buffers
 	~Renderer();
 	
 	void run();
@@ -305,6 +305,8 @@ private:
 		alignas(16) glm::vec3 lightDiffuse;
 		alignas(16) float lightSpecularExponent;
 	};
+
+	LightingConstants lighting;
 
 
 	//index buffer data

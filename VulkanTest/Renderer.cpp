@@ -9,11 +9,16 @@ Renderer::Renderer()
 {
 }
 
-Renderer::Renderer(OBJ & model, Texture & texture)
+Renderer::Renderer(OBJ & model, Texture & texture, Mtl & mtl)
 {
 	this->indices = model.indices;
 	this->vertices = model.vertexList;
 	this->texture = texture;
+	this->lighting.lightAmbient = mtl.ambient;
+	this->lighting.lightDiffuse = mtl.diffuse;
+	this->lighting.lightSpecular = mtl.specular;
+	this->lighting.lightSpecularExponent = mtl.specularExponent;
+	this->lighting.lightPos = glm::vec4(-1.0, -1.0, -1.0, 1.0);
 }
 
 /*
@@ -1916,19 +1921,11 @@ void Renderer::updateUniformBuffer(uint32_t index)
 	vkMapMemory(device, uniformBuffersMemory[index], 0, sizeof(ubo), 0, &data);
 	memcpy(data, &ubo, sizeof(ubo));
 	vkUnmapMemory(device, uniformBuffersMemory[index]);
-	
-	LightingConstants lightData = {};
-	lightData.lightPos = { 1.0,0.5,1.0,1.0 };
-	lightData.lightAmbient = glm::vec3(0.0);
-	lightData.lightDiffuse = glm::vec3(0.0);
-	lightData.lightSpecular = glm::vec3(0.0);
-	lightData.lightSpecularExponent = 0.0f;
 
 	void* dataLight;
 	vkMapMemory(device, lightingUniformBuffersMemory, 0, sizeof(LightingConstants), 0, &dataLight);
-	memcpy(dataLight, &lightData, sizeof(LightingConstants));
+	memcpy(dataLight, &lighting, sizeof(LightingConstants));
 	vkUnmapMemory(device, lightingUniformBuffersMemory);
-
 }
 
 /*
