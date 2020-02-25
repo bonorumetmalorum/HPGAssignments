@@ -300,9 +300,9 @@ private:
 
 	struct LightingConstants {
 		alignas(16) glm::vec4 lightPos;
-		alignas(16) glm::vec4 lightAmbient;
-		alignas(16) glm::vec4 lightSpecular;
-		alignas(16) glm::vec4 lightDiffuse;
+		alignas(16) glm::vec3 lightAmbient;
+		alignas(16) glm::vec3 lightSpecular;
+		alignas(16) glm::vec3 lightDiffuse;
 		alignas(16) float lightSpecularExponent;
 	};
 

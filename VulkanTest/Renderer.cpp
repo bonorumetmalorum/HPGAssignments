@@ -1916,6 +1916,19 @@ void Renderer::updateUniformBuffer(uint32_t index)
 	vkMapMemory(device, uniformBuffersMemory[index], 0, sizeof(ubo), 0, &data);
 	memcpy(data, &ubo, sizeof(ubo));
 	vkUnmapMemory(device, uniformBuffersMemory[index]);
+	
+	LightingConstants lightData = {};
+	lightData.lightPos = { 1.0,0.5,1.0,1.0 };
+	lightData.lightAmbient = glm::vec3(0.0);
+	lightData.lightDiffuse = glm::vec3(0.0);
+	lightData.lightSpecular = glm::vec3(0.0);
+	lightData.lightSpecularExponent = 0.0f;
+
+	void* dataLight;
+	vkMapMemory(device, lightingUniformBuffersMemory, 0, sizeof(LightingConstants), 0, &dataLight);
+	memcpy(dataLight, &lightData, sizeof(LightingConstants));
+	vkUnmapMemory(device, lightingUniformBuffersMemory);
+
 }
 
 /*
