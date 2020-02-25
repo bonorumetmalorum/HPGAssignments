@@ -208,6 +208,10 @@ void Renderer::cleanup()
 {
 	
 	cleanupSwapChain(); //first we clean up the swap chain and all related resources
+
+	vkDestroyImageView(device, depthImageView, nullptr);
+	vkDestroyImage(device, depthImage, nullptr);
+	vkFreeMemory(device, depthImageMemory, nullptr);
 	
 	vkDestroySampler(device, textureSampler, nullptr);
 	vkDestroyImageView(device, textureImageView, nullptr);
@@ -1423,7 +1427,7 @@ void Renderer::createCommandBuffers()
 		renderPassInfo.renderArea.extent = swapChainExtent; //dimensions of the buffer - matches swap chain images
 		//clear values to use for VK_ATTACHMENT_LOAD_OP_CLEAR, which we used as load operation for the color attachment
 		std::array<VkClearValue, 2> clearColors = {};
-		clearColors[0].color = { 0.0f, 0.0f, 0.0f, 1.0f };
+		clearColors[0].color = { 1.0f, 1.0f, 1.0f, 1.0f };
 		clearColors[1].depthStencil = { 1.0f, 0 };
 		renderPassInfo.clearValueCount = static_cast<uint32_t>(clearColors.size()); //one clear value
 		renderPassInfo.pClearValues = clearColors.data(); //clear value
@@ -1879,8 +1883,7 @@ void Renderer::updateUniformBuffer(uint32_t index)
 
 	
 	glm::mat4 model = glm::translate(glm::mat4(1.0), {0.0, 0.0, 0.0});
-	model = glm::scale(model, {0.01,0.01,0.01});
-	//model = glm::scale(model, glm::vec3(e->getScale()));
+	model = glm::scale(model, {0.02,0.02,0.02});
 
 	ubo.model = glm::rotate(model, time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
 	ubo.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
