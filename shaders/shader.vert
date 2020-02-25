@@ -14,6 +14,14 @@ layout(binding = 0) uniform UniformBufferObject {
     mat4 proj;
 } ubo;
 
+layout(binding = 2) uniform LightingConstants {
+	vec4 lightPos;
+	vec4 lightAmbient;
+	vec4 lightSpecular;
+	vec4 lightDiffuse;
+	float lightSpecularExponent;
+} lighting;
+
 void main() {
     gl_Position = ubo.proj * ubo.view * ubo.model * vec4(inPosition, 1.0);
     fragColor = vec3(0.5, 0.5, 0.5);

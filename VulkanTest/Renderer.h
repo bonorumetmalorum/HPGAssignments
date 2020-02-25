@@ -281,6 +281,9 @@ private:
 	std::vector<VkBuffer> uniformBuffers;
 	std::vector<VkDeviceMemory> uniformBuffersMemory;
 
+	VkBuffer lightingUniformBuffers;
+	VkDeviceMemory lightingUniformBuffersMemory;
+	
 	void createUniformBuffers();
 
 	void updateUniformBuffer(uint32_t index);
@@ -293,6 +296,14 @@ private:
 		alignas(16) glm::mat4 model;
 		alignas(16) glm::mat4 view;
 		alignas(16) glm::mat4 proj;
+	};
+
+	struct LightingConstants {
+		alignas(16) glm::vec4 lightPos;
+		alignas(16) glm::vec4 lightAmbient;
+		alignas(16) glm::vec4 lightSpecular;
+		alignas(16) glm::vec4 lightDiffuse;
+		alignas(16) float lightSpecularExponent;
 	};
 
 
