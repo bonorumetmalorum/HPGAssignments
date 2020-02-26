@@ -18,7 +18,7 @@ Renderer::Renderer(OBJ & model, Texture & texture, Mtl & mtl)
 	this->lighting.lightDiffuse = mtl.diffuse;
 	this->lighting.lightSpecular = mtl.specular;
 	this->lighting.lightSpecularExponent = mtl.specularExponent;
-	this->lighting.lightPos = glm::vec4(-1.0, -1.0, -1.0, 1.0);
+	this->lighting.lightPos = glm::vec4(5.0, 5.0, 0.0, 0.0);
 }
 
 /*
@@ -1451,7 +1451,7 @@ void Renderer::createCommandBuffers()
 		renderPassInfo.renderArea.extent = swapChainExtent; //dimensions of the buffer - matches swap chain images
 		//clear values to use for VK_ATTACHMENT_LOAD_OP_CLEAR, which we used as load operation for the color attachment
 		std::array<VkClearValue, 2> clearColors = {};
-		clearColors[0].color = { 1.0f, 1.0f, 1.0f, 1.0f };
+		clearColors[0].color = { 0.7f, 0.5f, 0.6f, 1.0f };
 		clearColors[1].depthStencil = { 1.0f, 0 };
 		renderPassInfo.clearValueCount = static_cast<uint32_t>(clearColors.size()); //one clear value
 		renderPassInfo.pClearValues = clearColors.data(); //clear value
@@ -1913,8 +1913,8 @@ void Renderer::updateUniformBuffer(uint32_t index)
 	model = glm::scale(model, {0.02,0.02,0.02});
 
 	ubo.model = glm::rotate(model, time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-	ubo.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-	ubo.proj = glm::perspective(glm::radians(60.0f), swapChainExtent.width / (float)swapChainExtent.height, 0.1f, 10000.0f);
+	ubo.view = glm::lookAt(glm::vec3(-5.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+	ubo.proj = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float)swapChainExtent.height, 0.1f, 10000.0f);
 	ubo.proj[1][1] *= -1;
 
 	void* data;
