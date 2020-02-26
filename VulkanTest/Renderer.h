@@ -322,5 +322,12 @@ private:
 	//we use this to handle resize events explicitly - whenever the window is resized this flag is set and then reset when the event is handled
 	bool framebufferResized = false;
 	static void framebufferResizeCallback(GLFWwindow* window, int width, int height);
+
+	static glm::vec2 previousMousePos;
+	static glm::vec2 currentMousePos;
+	static bool dragging;
+	static void mouseButtonCallBack(GLFWwindow* window, int button, int action, int mods);
+	static void mousePosCallback(GLFWwindow* window, double xpos, double ypos);
+
 };
 

@@ -82,6 +82,10 @@ void Renderer::initWindow()
 	window = glfwCreateWindow(WIDTH, HEIGHT, "Vulkan", nullptr, nullptr);//create the window
 	glfwSetWindowUserPointer(window, this); //set the user pointer (used to determine who is controlling the window)
 	glfwSetFramebufferSizeCallback(window, framebufferResizeCallback); //setup the window resize call back function
+	previousMousePos = { 0.0,0.0 };
+	currentMousePos = { 0.0,0.0 };
+	glfwSetMouseButtonCallback(window, mouseButtonCallBack);
+	glfwSetCursorPosCallback(window, mousePosCallback); //mouse button callback
 }
 
 /*
@@ -1936,3 +1940,26 @@ void Renderer::framebufferResizeCallback(GLFWwindow * window, int width, int hei
 	auto app = reinterpret_cast<Renderer*>(glfwGetWindowUserPointer(window)); //get a pointer to the app instance
 	app->framebufferResized = true; //we resized the window
 }
+
+glm::vec2 Renderer::previousMousePos = {};
+glm::vec2 Renderer::currentMousePos = {};
+bool Renderer::dragging = false;
+
+void Renderer::mousePosCallback(GLFWwindow* window, double xpos, double ypos)
+{
+	if (dragging) {
+		std::cout << xpos << " " << ypos << std::endl;
+	}
+}
+
+void Renderer::mouseButtonCallBack(GLFWwindow* window, int button, int action, int mods) {
+	if (button == GLFW_MOUSE_BUTTON_1) {
+		if (action == GLFW_PRESS) {
+			dragging = true;
+		}
+		else if (action == GLFW_RELEASE) {
+			dragging = false;
+		}
+	}
+}
+
