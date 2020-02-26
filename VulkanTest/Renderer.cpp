@@ -17,8 +17,8 @@ Renderer::Renderer(OBJ & model, Texture & texture, Mtl & mtl)
 	this->lighting.lightAmbient = mtl.ambient;
 	this->lighting.lightDiffuse = mtl.diffuse;
 	this->lighting.lightSpecular = mtl.specular;
-	this->lighting.lightSpecularExponent = mtl.specularExponent;
-	this->lighting.lightPos = glm::vec4(5.0, 5.0, 0.0, 0.0);
+	this->lighting.lightSpecularExponent = glm::vec2(mtl.specularExponent, 0.0);
+	this->lighting.lightPos = glm::vec4(0, -1.0, 5.0, 1.0);
 }
 
 /*
@@ -1913,7 +1913,7 @@ void Renderer::updateUniformBuffer(uint32_t index)
 	model = glm::scale(model, {0.02,0.02,0.02});
 
 	ubo.model = glm::rotate(model, time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-	ubo.view = glm::lookAt(glm::vec3(-5.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+	ubo.view = glm::lookAt(glm::vec3(0.0f, -2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
 	ubo.proj = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float)swapChainExtent.height, 0.1f, 10000.0f);
 	ubo.proj[1][1] *= -1;
 

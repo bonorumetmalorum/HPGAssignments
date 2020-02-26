@@ -16,26 +16,33 @@ layout(location = 0) out vec4 outColor;
 layout(binding = 1) uniform sampler2D texSampler;
 
 void main() {
-	vec3 ambientLight = fragAmbientLighting * fragColor;
+	vec4 textureColor = texture(texSampler, fragTexCoord);
+
+	float ambI = 0.2;
+	float diffI = 0.5;
+	float specI = 4.5;
+
+	vec3 ambientLight = fragAmbientLighting * fragColor * ambI;
 	vec4 normEyeVector = normalize(fragEyeVector);
 	vec4 normLightVector = normalize(fragLightVector);
 	vec4 normNormal = normalize(fragNormal);
 
-	vec4 textureColor = texture(texSampler, fragTexCoord);
 
-	float diffuseDotProd = dot(normLightVector, normNormal);
-	vec3 diffuseLight = ambientLight * fragColor * diffuseDotProd;
+	float diffuseDotProd = max(dot(normLightVector, normNormal), 0.0);
+	vec3 diffuseLight = fragDiffuseLighting * diffuseDotProd * diffI;
 
-	vec4 reflected = reflect(-normLightVector, normNormal);
-
-	//vec4 halfAngle = normalize((normEyeVector + (-normLightVector))/2.0);
-	float specularDotProd = max(dot(reflected, normEyeVector), 0.0);
+	//vec4 reflected = reflect(normLightVector, normNormal);
+	vec4 halfAngle = normalize((normEyeVector + normLightVector)/2.0);
+	float specularDotProd = max(dot(halfAngle, normNormal), 0.0);
 	float specularPower = pow(specularDotProd, fragSpecularCoefficient);
-	vec3 specularLight = fragSpecularLighting * fragColor * specularPower;
+	vec3 specularLight = fragSpecularLighting * fragColor * specularPower * specI;
 
 	vec3 lighting = ambientLight + diffuseLight + specularLight;
-	
 
-	outColor = vec4(lighting, 1.0) * textureColor;
+	outColor = vec4(lighting, 1.0) * vec4(fragColor, 1.0) * textureColor;
+
+	//outColor = vec4(vec3(fragSpecularCoefficient/28.0), 1.0);
+	//vec4 colorNormal = (normNormal + 1) / 2;
+	//outColor = colorNormal;
 }
 

@@ -27,13 +27,14 @@ layout(binding = 2) uniform LightingConstants {
 	vec3 lightAmbient;
 	vec3 lightSpecular;
 	vec3 lightDiffuse;
-	float lightSpecularExponent;
+	vec2 lightSpecularExponent;
 } lighting;
 
 void main() {
 	vec4 VCS_position = ubo.view * ubo.model * vec4(inPosition, 1.0);
-	fragLightVector = ubo.view * lighting.lightPos - VCS_position;
-	fragNormal = ubo.view * ubo.model * vec4(inNormal, 1.0);
+	//already in world coords so no need to multiply by model
+	fragLightVector = (ubo.view * lighting.lightPos) - VCS_position;
+	fragNormal = ubo.view * ubo.model * vec4(inNormal, 0.0);
 	fragEyeVector = - VCS_position;
 	gl_Position = ubo.proj * VCS_position;
 	
@@ -43,4 +44,5 @@ void main() {
 	fragSpecularLighting = lighting.lightSpecular;
 	fragDiffuseLighting = lighting.lightDiffuse;
 	fragAmbientLighting = lighting.lightAmbient;
+	fragSpecularCoefficient = lighting.lightSpecularExponent.x;
 }

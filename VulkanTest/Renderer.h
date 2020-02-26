@@ -303,7 +303,7 @@ private:
 		alignas(16) glm::vec3 lightAmbient;
 		alignas(16) glm::vec3 lightSpecular;
 		alignas(16) glm::vec3 lightDiffuse;
-		alignas(16) float lightSpecularExponent;
+		alignas(16) glm::vec2 lightSpecularExponent;
 	};
 
 	LightingConstants lighting;
