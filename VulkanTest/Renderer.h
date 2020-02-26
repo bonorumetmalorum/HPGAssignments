@@ -326,8 +326,11 @@ private:
 	static glm::vec2 previousMousePos;
 	static glm::vec2 currentMousePos;
 	static bool dragging;
+	static glm::vec3 axis;
+	static float angle;
 	static void mouseButtonCallBack(GLFWwindow* window, int button, int action, int mods);
 	static void mousePosCallback(GLFWwindow* window, double xpos, double ypos);
+	glm::vec3 get_arcball_vector(glm::vec2 mousePos);
 
 };
 

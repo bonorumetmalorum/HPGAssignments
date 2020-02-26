@@ -1916,7 +1916,7 @@ void Renderer::updateUniformBuffer(uint32_t index)
 	glm::mat4 model = glm::translate(glm::mat4(1.0), {0.0, 0.0, 0.0});
 	model = glm::scale(model, {0.02,0.02,0.02});
 
-	ubo.model = glm::rotate(model, time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+	ubo.model = glm::rotate(model, angle, axis);
 	ubo.view = glm::lookAt(glm::vec3(0.0f, -2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
 	ubo.proj = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float)swapChainExtent.height, 0.1f, 10000.0f);
 	ubo.proj[1][1] *= -1;
@@ -1944,18 +1944,53 @@ void Renderer::framebufferResizeCallback(GLFWwindow * window, int width, int hei
 glm::vec2 Renderer::previousMousePos = {};
 glm::vec2 Renderer::currentMousePos = {};
 bool Renderer::dragging = false;
+glm::vec3 Renderer::axis(1.0);
+float Renderer::angle = 0.0f;
 
 void Renderer::mousePosCallback(GLFWwindow* window, double xpos, double ypos)
 {
+	auto app = reinterpret_cast<Renderer*>(glfwGetWindowUserPointer(window)); //get a pointer to the app instance
 	if (dragging) {
-		std::cout << xpos << " " << ypos << std::endl;
+		//std::cout << xpos << " " << ypos << std::endl;
+		previousMousePos = currentMousePos;
+		currentMousePos.x = (float)xpos;
+		currentMousePos.y = (float)ypos;
+	}
+
+	//make the arcball vectors here
+	if (currentMousePos != previousMousePos) { //only if there has been a change compute the rest otherwise return
+		glm::vec3 start = app->get_arcball_vector(previousMousePos);
+		glm::vec3 end = app->get_arcball_vector(currentMousePos);
+		angle = acos(std::min(1.0f, glm::dot(start, end)));
+		std::cout << angle << std::endl;
+		axis = glm::cross(start, end);
 	}
 }
 
+//re-write this function TODO TODO TODO !!!!!!
+glm::vec3 Renderer::get_arcball_vector(glm::vec2 mousePos) {
+	int windowHeight;
+	int windowWidth;
+	glfwGetWindowSize(window, &windowWidth, &windowHeight);
+	glm::vec3 P = glm::vec3((1.0*mousePos.x / windowWidth) * 2 - 1.0,
+		(1.0*mousePos.y / windowHeight) * 2 - 1.0,
+		0);
+	//P.y = -P.y;
+	float OP_squared = P.x * P.x + P.y * P.y;
+	if (OP_squared <= 1 * 1)
+		P.z = sqrt(1 * 1 - OP_squared);  // Pythagoras
+	else
+		P = glm::normalize(P);  // nearest point
+	return P;
+}
+
 void Renderer::mouseButtonCallBack(GLFWwindow* window, int button, int action, int mods) {
+	auto app = reinterpret_cast<Renderer*>(glfwGetWindowUserPointer(window));
 	if (button == GLFW_MOUSE_BUTTON_1) {
 		if (action == GLFW_PRESS) {
 			dragging = true;
+			glfwGetCursorPos(app->window, (double*)&currentMousePos.x, (double*)&currentMousePos.y);
+			previousMousePos = currentMousePos;
 		}
 		else if (action == GLFW_RELEASE) {
 			dragging = false;
