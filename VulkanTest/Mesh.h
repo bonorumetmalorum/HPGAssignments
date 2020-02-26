@@ -9,7 +9,5 @@ public:
 private:
 	std::vector<float> vertices;
 	uint32_t offset = 0;
-
-
 };
 

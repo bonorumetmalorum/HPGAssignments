@@ -19,6 +19,8 @@ Renderer::Renderer(OBJ & model, Texture & texture, Mtl & mtl)
 	this->lighting.lightSpecular = mtl.specular;
 	this->lighting.lightSpecularExponent = glm::vec2(mtl.specularExponent, 0.0);
 	this->lighting.lightPos = glm::vec4(0, -1.0, 5.0, 1.0);
+	Ball_Init(&arcBall);
+	Ball_Place(&arcBall, { 0.0,0.0,0.0,1.0 }, 0.80);
 }
 
 /*
@@ -84,6 +86,7 @@ void Renderer::initWindow()
 	glfwSetFramebufferSizeCallback(window, framebufferResizeCallback); //setup the window resize call back function
 	previousMousePos = { 0.0,0.0 };
 	currentMousePos = { 0.0,0.0 };
+	
 	glfwSetMouseButtonCallback(window, mouseButtonCallBack);
 	glfwSetCursorPosCallback(window, mousePosCallback); //mouse button callback
 }
@@ -1913,11 +1916,14 @@ void Renderer::updateUniformBuffer(uint32_t index)
 	//insert time here to rotation
 
 	
-	glm::mat4 model = glm::translate(glm::mat4(1.0), {0.0, 0.0, 0.0});
+	glm::mat4 model = glm::translate(glm::mat4(1.0), {0.0, 8.0, 0.0});
 	model = glm::scale(model, {0.02,0.02,0.02});
 
-	ubo.model = glm::rotate(model, angle, axis);
-	ubo.view = glm::lookAt(glm::vec3(0.0f, -2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+	float mNow[16];
+	Ball_Value(&arcBall, mNow);
+	glm::mat4 rotatioMat = glm::make_mat4(mNow);
+	ubo.model = model * rotatioMat;
+	ubo.view = glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 8.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
 	ubo.proj = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float)swapChainExtent.height, 0.1f, 10000.0f);
 	ubo.proj[1][1] *= -1;
 
@@ -1941,59 +1947,48 @@ void Renderer::framebufferResizeCallback(GLFWwindow * window, int width, int hei
 	app->framebufferResized = true; //we resized the window
 }
 
-glm::vec2 Renderer::previousMousePos = {};
-glm::vec2 Renderer::currentMousePos = {};
+HVect Renderer::previousMousePos = {};
+HVect Renderer::currentMousePos = {};
 bool Renderer::dragging = false;
-glm::vec3 Renderer::axis(1.0);
-float Renderer::angle = 0.0f;
+BallData Renderer::arcBall;
 
 void Renderer::mousePosCallback(GLFWwindow* window, double xpos, double ypos)
 {
 	auto app = reinterpret_cast<Renderer*>(glfwGetWindowUserPointer(window)); //get a pointer to the app instance
-	if (dragging) {
-		//std::cout << xpos << " " << ypos << std::endl;
-		previousMousePos = currentMousePos;
-		currentMousePos.x = (float)xpos;
-		currentMousePos.y = (float)ypos;
+	if (arcBall.dragging) {
+		int height, width;
+		glfwGetWindowSize(window, &width, &height);
+		float size = (width > height) ? height : width;
+		double x, y;
+		glfwGetCursorPos(app->window, &x, &y);
+		HVect now{ (float)x, (float)y };
+		now.x = (2.0 * now.x - size) / size;
+		now.y = (size - 2.0 * now.y) / size;
+		std::cout << now.x << " " << now.y << std::endl;
+		Ball_Mouse(&arcBall, now);
+		Ball_Update(&arcBall);
 	}
-
-	//make the arcball vectors here
-	if (currentMousePos != previousMousePos) { //only if there has been a change compute the rest otherwise return
-		glm::vec3 start = app->get_arcball_vector(previousMousePos);
-		glm::vec3 end = app->get_arcball_vector(currentMousePos);
-		angle = acos(std::min(1.0f, glm::dot(start, end)));
-		std::cout << angle << std::endl;
-		axis = glm::cross(start, end);
-	}
-}
-
-//re-write this function TODO TODO TODO !!!!!!
-glm::vec3 Renderer::get_arcball_vector(glm::vec2 mousePos) {
-	int windowHeight;
-	int windowWidth;
-	glfwGetWindowSize(window, &windowWidth, &windowHeight);
-	glm::vec3 P = glm::vec3((1.0*mousePos.x / windowWidth) * 2 - 1.0,
-		(1.0*mousePos.y / windowHeight) * 2 - 1.0,
-		0);
-	//P.y = -P.y;
-	float OP_squared = P.x * P.x + P.y * P.y;
-	if (OP_squared <= 1 * 1)
-		P.z = sqrt(1 * 1 - OP_squared);  // Pythagoras
-	else
-		P = glm::normalize(P);  // nearest point
-	return P;
 }
 
 void Renderer::mouseButtonCallBack(GLFWwindow* window, int button, int action, int mods) {
 	auto app = reinterpret_cast<Renderer*>(glfwGetWindowUserPointer(window));
 	if (button == GLFW_MOUSE_BUTTON_1) {
 		if (action == GLFW_PRESS) {
-			dragging = true;
-			glfwGetCursorPos(app->window, (double*)&currentMousePos.x, (double*)&currentMousePos.y);
-			previousMousePos = currentMousePos;
+			int height, width;
+			glfwGetWindowSize(window, &width, &height);
+			float size = (width > height) ? height : width;
+			double x, y;
+			glfwGetCursorPos(app->window, &x, &y);
+			HVect now{ (float)x, (float)y };
+			now.x = (2.0 * now.x - size) / size;
+			now.y = (size - 2.0 * now.y) / size;
+			std::cout << now.x << " " << now.y << std::endl;
+			Ball_Mouse(&arcBall, now);
+			Ball_BeginDrag(&arcBall);
 		}
 		else if (action == GLFW_RELEASE) {
-			dragging = false;
+			Ball_EndDrag(&arcBall);
+			std::cout << "button released" << std::endl;
 		}
 	}
 }

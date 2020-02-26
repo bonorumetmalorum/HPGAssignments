@@ -16,6 +16,9 @@
 #include <array>
 #include <glm/mat4x4.hpp>
 #include "ObjLoader.h"
+#include "Ball.h"
+#include <glm/gtc/type_ptr.hpp>
+
 
 #define DEBUG
 #define BLEND true
@@ -323,11 +326,10 @@ private:
 	bool framebufferResized = false;
 	static void framebufferResizeCallback(GLFWwindow* window, int width, int height);
 
-	static glm::vec2 previousMousePos;
-	static glm::vec2 currentMousePos;
+	static HVect previousMousePos;
+	static HVect currentMousePos;
 	static bool dragging;
-	static glm::vec3 axis;
-	static float angle;
+	static BallData arcBall;
 	static void mouseButtonCallBack(GLFWwindow* window, int button, int action, int mods);
 	static void mousePosCallback(GLFWwindow* window, double xpos, double ypos);
 	glm::vec3 get_arcball_vector(glm::vec2 mousePos);
