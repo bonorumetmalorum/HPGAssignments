@@ -84,8 +84,6 @@ void Renderer::initWindow()
 	window = glfwCreateWindow(WIDTH, HEIGHT, "Vulkan", nullptr, nullptr);//create the window
 	glfwSetWindowUserPointer(window, this); //set the user pointer (used to determine who is controlling the window)
 	glfwSetFramebufferSizeCallback(window, framebufferResizeCallback); //setup the window resize call back function
-	previousMousePos = { 0.0,0.0 };
-	currentMousePos = { 0.0,0.0 };
 	
 	glfwSetMouseButtonCallback(window, mouseButtonCallBack);
 	glfwSetCursorPosCallback(window, mousePosCallback); //mouse button callback
@@ -1200,7 +1198,7 @@ void Renderer::createTextureImage()
 	memcpy(data, texture.pixels, static_cast<size_t>(texture.imageSize));
 	vkUnmapMemory(device, stagingBufferMemory);
 
-	stbi_image_free(texture.pixels);
+	//stbi_image_free(texture.pixels);
 
 	createImage(texture.width, texture.height, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, textureImage, textureImageMemory);
 
@@ -1947,9 +1945,6 @@ void Renderer::framebufferResizeCallback(GLFWwindow * window, int width, int hei
 	app->framebufferResized = true; //we resized the window
 }
 
-HVect Renderer::previousMousePos = {};
-HVect Renderer::currentMousePos = {};
-bool Renderer::dragging = false;
 BallData Renderer::arcBall;
 
 void Renderer::mousePosCallback(GLFWwindow* window, double xpos, double ypos)

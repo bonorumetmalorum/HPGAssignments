@@ -326,9 +326,6 @@ private:
 	bool framebufferResized = false;
 	static void framebufferResizeCallback(GLFWwindow* window, int width, int height);
 
-	static HVect previousMousePos;
-	static HVect currentMousePos;
-	static bool dragging;
 	static BallData arcBall;
 	static void mouseButtonCallBack(GLFWwindow* window, int button, int action, int mods);
 	static void mousePosCallback(GLFWwindow* window, double xpos, double ypos);

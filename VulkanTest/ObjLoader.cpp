@@ -116,11 +116,46 @@ Texture ObjLoader::loadTexture(std::string path)
 	tex.imageSize = texWidth * texHeight * 4;
 	tex.width = texWidth;
 	tex.height = texHeight;
-
+	std::cout << tex.width << " " << tex.height << std::endl;
 	if (!tex.pixels) {
 		throw std::runtime_error("failed to load texture image!");
 	}
 	return tex;
+}
+
+Texture ObjLoader::loadPpm(std::string path)
+{
+	Texture t = {};
+	std::ifstream instream(path.c_str(), std::ios::binary);
+	if (!instream.is_open()) {
+		throw std::runtime_error("unable to open ppm file");
+	}
+	char magicL, magicN;
+	instream >> magicL;
+	instream >> magicN;
+	if (magicL != 'P' && magicN != '6') {
+		throw std::runtime_error("incorrect ppm format, only binary (P6) supported");
+	}
+	int height, width, maxVal;
+	instream >> height >> width >> maxVal;
+	std::cout << height << " " << width << " " << maxVal << std::endl;
+	t.height = height;
+	t.width = width;
+	t.imageSize = height * width * 4;
+	std::cout << t.imageSize << std::endl;
+	t.pixels = new unsigned char[(size_t)t.imageSize];
+	instream.get();
+	for (size_t i = 0; i < t.imageSize/4; i++) {
+		char r, g, b, a = (unsigned char)255;
+		instream.read(&r, sizeof(char));
+		instream.read(&g, sizeof(char));
+		instream.read(&b, sizeof(char));
+		t.pixels[(i * 4)] =  r;
+		t.pixels[(i * 4) + 1] = g;
+		t.pixels[(i * 4) + 2] = b;
+		t.pixels[(i*4) + 3] = a;
+	}
+	return t;
 }
 
 ObjLoader::~ObjLoader()

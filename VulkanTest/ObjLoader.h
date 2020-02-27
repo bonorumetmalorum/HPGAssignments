@@ -71,7 +71,7 @@ struct OBJ {
 
 struct Texture {
 	VkDeviceSize imageSize;
-	stbi_uc* pixels;
+	unsigned char* pixels;
 	int width, height;
 };
 
@@ -92,6 +92,8 @@ public:
 	Mtl loadMtl(std::string path);
 	//load texture
 	Texture loadTexture(std::string path);
+	Texture loadPpm(std::string path);
+
 	~ObjLoader();
 	
 	struct VertexIndicies {
