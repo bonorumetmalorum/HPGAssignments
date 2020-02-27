@@ -87,6 +87,7 @@ void Renderer::initWindow()
 	
 	glfwSetMouseButtonCallback(window, mouseButtonCallBack);
 	glfwSetCursorPosCallback(window, mousePosCallback); //mouse button callback
+	glfwSetKeyCallback(window, keyboardKeyCallback);
 }
 
 /*
@@ -1911,11 +1912,9 @@ void Renderer::updateUniformBuffer(uint32_t index)
 	float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
 
 	UniformBufferObject ubo = {};
-	//insert time here to rotation
-
 	
 	glm::mat4 model = glm::translate(glm::mat4(1.0), {0.0, 8.0, 0.0});
-	model = glm::scale(model, {0.02,0.02,0.02});
+	model = glm::scale(model, {0.05,0.05,0.05});
 
 	float mNow[16];
 	Ball_Value(&arcBall, mNow);
@@ -1924,6 +1923,8 @@ void Renderer::updateUniformBuffer(uint32_t index)
 	ubo.view = glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 8.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
 	ubo.proj = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float)swapChainExtent.height, 0.1f, 10000.0f);
 	ubo.proj[1][1] *= -1;
+	ubo.renderFlags = renderFlags;
+
 
 	void* data;
 	vkMapMemory(device, uniformBuffersMemory[index], 0, sizeof(ubo), 0, &data);
@@ -1946,6 +1947,7 @@ void Renderer::framebufferResizeCallback(GLFWwindow * window, int width, int hei
 }
 
 BallData Renderer::arcBall;
+glm::vec3 Renderer::renderFlags = glm::vec3(true);
 
 void Renderer::mousePosCallback(GLFWwindow* window, double xpos, double ypos)
 {
@@ -1977,14 +1979,26 @@ void Renderer::mouseButtonCallBack(GLFWwindow* window, int button, int action, i
 			HVect now{ (float)x, (float)y };
 			now.x = (2.0 * now.x - size) / size;
 			now.y = (size - 2.0 * now.y) / size;
-			std::cout << now.x << " " << now.y << std::endl;
 			Ball_Mouse(&arcBall, now);
 			Ball_BeginDrag(&arcBall);
 		}
 		else if (action == GLFW_RELEASE) {
 			Ball_EndDrag(&arcBall);
-			std::cout << "button released" << std::endl;
 		}
 	}
 }
+
+void Renderer::keyboardKeyCallback(GLFWwindow * window, int key, int scancode, int action, int mods) {
+	if (key == GLFW_KEY_A && action == GLFW_PRESS) {
+		renderFlags.x = renderFlags.x==1.0?0.0:1.0;
+	}
+	else if (key == GLFW_KEY_D && action == GLFW_PRESS) {
+		renderFlags.y = renderFlags.y == 1.0 ? 0.0 : 1.0;
+	}
+	else if (key == GLFW_KEY_S && action == GLFW_PRESS) {
+		renderFlags.z = renderFlags.z == 1.0 ? 0.0 : 1.0;
+	}
+}
+
+ 
 

@@ -299,6 +299,8 @@ private:
 		alignas(16) glm::mat4 model;
 		alignas(16) glm::mat4 view;
 		alignas(16) glm::mat4 proj;
+		alignas(16) glm::vec3 renderFlags;
+
 	};
 
 	struct LightingConstants {
@@ -327,7 +329,9 @@ private:
 	static void framebufferResizeCallback(GLFWwindow* window, int width, int height);
 
 	static BallData arcBall;
+	static glm::vec3 renderFlags;
 	static void mouseButtonCallBack(GLFWwindow* window, int button, int action, int mods);
+	static void keyboardKeyCallback(GLFWwindow * window, int key, int scancode, int action, int mods);
 	static void mousePosCallback(GLFWwindow* window, double xpos, double ypos);
 	glm::vec3 get_arcball_vector(glm::vec2 mousePos);
 

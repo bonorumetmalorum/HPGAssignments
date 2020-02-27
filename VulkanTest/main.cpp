@@ -12,6 +12,7 @@
 #include "ObjLoader.h"
 
 int main() {
+	std::cout << "bool size "<< sizeof(bool) << std::endl;
 	ObjLoader loader;
 	try {
 		if (!loader.loadObj("../models/duck/12248_Bird_v1_L2.obj")) {

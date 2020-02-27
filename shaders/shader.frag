@@ -10,6 +10,7 @@ layout(location = 5) in vec3 fragDiffuseLighting;
 layout(location = 6) in vec3 fragAmbientLighting;
 layout(location = 7) in float fragSpecularCoefficient;
 layout(location = 8) in vec4 fragNormal;
+layout(location = 9) in vec3 renderFlags;
 
 layout(location = 0) out vec4 outColor;
 
@@ -35,8 +36,18 @@ void main() {
 	float specularPower = pow(specularDotProd, fragSpecularCoefficient);
 	vec3 specularLight = fragSpecularLighting * fragColor * specularPower * specI;
 
-	vec3 lighting = ambientLight + diffuseLight + specularLight;
-
-	outColor = vec4(lighting, 1.0) * vec4(fragColor, 1.0) * textureColor;
+	vec4 lighting = vec4(0);
+	if(abs(renderFlags.x - 1.0) < 0.00001){
+		lighting += vec4(ambientLight, 1.0) * vec4(fragColor, 1.0);
+	}
+	if(abs(renderFlags.y - 1.0) < 0.00001){
+		lighting += vec4(diffuseLight, 1.0) * vec4(fragColor, 1.0);
+	}
+	if(abs(renderFlags.z - 1.0) < 0.00001){
+		lighting += vec4(specularLight,1.0) * vec4(fragColor, 1.0);
+	}
+	
+	//outColor = vec4(renderFlags, 1.0);
+	outColor = lighting * textureColor;
 }
 

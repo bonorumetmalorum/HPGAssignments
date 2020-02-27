@@ -14,12 +14,15 @@ layout(location = 5) out vec3 fragDiffuseLighting;
 layout(location = 6) out vec3 fragAmbientLighting;
 layout(location = 7) out float fragSpecularCoefficient;
 layout(location = 8) out vec4 fragNormal;
+layout(location = 9) out vec3 renderFlags;
+
 
 
 layout(binding = 0) uniform UniformBufferObject {
     mat4 model;
     mat4 view;
     mat4 proj;
+	vec3 renderFlags;
 } ubo;
 
 layout(binding = 2) uniform LightingConstants {
@@ -45,4 +48,5 @@ void main() {
 	fragDiffuseLighting = lighting.lightDiffuse;
 	fragAmbientLighting = lighting.lightAmbient;
 	fragSpecularCoefficient = lighting.lightSpecularExponent.x;
+	renderFlags = ubo.renderFlags;
 }
