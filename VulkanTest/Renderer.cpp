@@ -219,31 +219,20 @@ void Renderer::cleanup()
 {
 	
 	cleanupSwapChain(); //first we clean up the swap chain and all related resources
-
-	vkDestroyImageView(device, depthImageView, nullptr);
-	vkDestroyImage(device, depthImage, nullptr);
-	vkFreeMemory(device, depthImageMemory, nullptr);
 	
 	vkDestroySampler(device, textureSampler, nullptr);
 	vkDestroyImageView(device, textureImageView, nullptr);
+
 	vkDestroyImage(device, textureImage, nullptr);
 	vkFreeMemory(device, textureImageMemory, nullptr);
 
-	for (size_t i = 0; i < swapChainImages.size(); i++) {
-		vkDestroyBuffer(device, uniformBuffers[i], nullptr);
-		vkFreeMemory(device, uniformBuffersMemory[i], nullptr);
-	}
+	vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
 
-	//free the index buffer related memory
 	vkDestroyBuffer(device, indexBuffer, nullptr);
 	vkFreeMemory(device, indexBufferMemory, nullptr);
 
-	vkDestroyBuffer(device, vertexBuffer, nullptr); //free buffer
-	vkFreeMemory(device, vertexBufferMemory, nullptr); //free the memory related to the buffer
-
-	vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
-
-	vkDestroyDescriptorPool(device, descriptorPool, nullptr);
+	vkDestroyBuffer(device, vertexBuffer, nullptr);
+	vkFreeMemory(device, vertexBufferMemory, nullptr);
 
 	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) { //destroy all synchronization objects
 		vkDestroySemaphore(device, renderFinishedSemaphores[i], nullptr);
@@ -253,7 +242,7 @@ void Renderer::cleanup()
 
 	vkDestroyCommandPool(device, commandPool, nullptr); //destroy the command pool
 
-	vkDeviceWaitIdle(device); //getting an error when the device is destroyed faster than the buffers (maybe because they are so big)
+	//vkDeviceWaitIdle(device); //getting an error when the device is destroyed faster than the buffers (maybe because they are so big)
 
 	vkDestroyDevice(device, nullptr); //destroy the logical device
 
@@ -1711,8 +1700,9 @@ void Renderer::recreateSwapChain()
 	createImageViews(); //create new image views
 	createRenderPass(); //create a new render pass
 	createGraphicsPipeline(); //create a new graphics pipeline
+	createDepthResources();
 	createFramebuffers(); //create a new framebuffer
-	createUniformBuffers(); //create the uniform buffers per frame
+	createUniformBuffers();
 	createDescriptorPool(); //create uniform descriptor pool
 	createDescriptorSets();
 	createCommandBuffers(); //create new command buffers (we recycle the command pool)
@@ -1723,6 +1713,10 @@ void Renderer::recreateSwapChain()
 */
 void Renderer::cleanupSwapChain()
 {
+	vkDestroyImageView(device, depthImageView, nullptr);
+	vkDestroyImage(device, depthImage, nullptr);
+	vkFreeMemory(device, depthImageMemory, nullptr);
+
 	for (size_t i = 0; i < swapChainFramebuffers.size(); i++) { //for all the frame buffers created to manage the images in the swap chain
 		vkDestroyFramebuffer(device, swapChainFramebuffers[i], nullptr); //destroy them
 	}
@@ -1741,6 +1735,17 @@ void Renderer::cleanupSwapChain()
 	}
 
 	vkDestroySwapchainKHR(device, swapChain, nullptr); //finally, destroy the swap chain by providing the logical device and the swap chain handle
+
+	for (size_t i = 0; i < swapChainImages.size(); i++) {
+		vkDestroyBuffer(device, uniformBuffers[i], nullptr);
+		vkFreeMemory(device, uniformBuffersMemory[i], nullptr);
+	}
+
+	vkDestroyBuffer(device, lightingUniformBuffers, nullptr);
+	vkFreeMemory(device, lightingUniformBuffersMemory, nullptr);
+
+	vkDestroyDescriptorPool(device, descriptorPool, nullptr);
+
 }
 
 /*
