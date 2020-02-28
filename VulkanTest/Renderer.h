@@ -330,10 +330,11 @@ private:
 
 	static BallData arcBall;
 	static glm::vec3 renderFlags;
+	static glm::vec2 lastPos;
+	static glm::vec3 translation;
+	static bool translating;
 	static void mouseButtonCallBack(GLFWwindow* window, int button, int action, int mods);
 	static void keyboardKeyCallback(GLFWwindow * window, int key, int scancode, int action, int mods);
 	static void mousePosCallback(GLFWwindow* window, double xpos, double ypos);
-	glm::vec3 get_arcball_vector(glm::vec2 mousePos);
-
 };
 

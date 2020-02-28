@@ -1918,7 +1918,7 @@ void Renderer::updateUniformBuffer(uint32_t index)
 
 	UniformBufferObject ubo = {};
 	
-	glm::mat4 model = glm::translate(glm::mat4(1.0), {0.0, 8.0, 0.0});
+	glm::mat4 model = glm::translate(glm::mat4(1.0), translation);
 	model = glm::scale(model, {0.05,0.05,0.05});
 
 	float mNow[16];
@@ -1953,42 +1953,60 @@ void Renderer::framebufferResizeCallback(GLFWwindow * window, int width, int hei
 
 BallData Renderer::arcBall;
 glm::vec3 Renderer::renderFlags = glm::vec3(true);
+glm::vec2 Renderer::lastPos = glm::vec2(0);
+glm::vec3 Renderer::translation = {0.0,8.0,0.0};
+bool Renderer::translating = false;
 
 void Renderer::mousePosCallback(GLFWwindow* window, double xpos, double ypos)
 {
 	auto app = reinterpret_cast<Renderer*>(glfwGetWindowUserPointer(window)); //get a pointer to the app instance
+	double x, y;
+	glfwGetCursorPos(app->window, &x, &y);
+	int height, width;
+	glfwGetWindowSize(window, &width, &height);
+	float size = (width > height) ? height : width;
+	HVect now{ (float)x, (float)y };
+	now.x = (2.0 * now.x - size) / size;
+	now.y = (size - 2.0 * now.y) / size;
 	if (arcBall.dragging) {
-		int height, width;
-		glfwGetWindowSize(window, &width, &height);
-		float size = (width > height) ? height : width;
-		double x, y;
-		glfwGetCursorPos(app->window, &x, &y);
-		HVect now{ (float)x, (float)y };
-		now.x = (2.0 * now.x - size) / size;
-		now.y = (size - 2.0 * now.y) / size;
-		std::cout << now.x << " " << now.y << std::endl;
 		Ball_Mouse(&arcBall, now);
 		Ball_Update(&arcBall);
+	}
+	else if (translating) {
+		translation.x +=  now.x - lastPos.x;
+		translation.z += now.y - lastPos.y;
+		lastPos.x = now.x;
+		lastPos.y = now.y;
 	}
 }
 
 void Renderer::mouseButtonCallBack(GLFWwindow* window, int button, int action, int mods) {
 	auto app = reinterpret_cast<Renderer*>(glfwGetWindowUserPointer(window));
+	double x, y;
+	glfwGetCursorPos(app->window, &x, &y);
+	int height, width;
+	glfwGetWindowSize(window, &width, &height);
+	float size = (width > height) ? height : width;
+	HVect now{ (float)x, (float)y };
+	now.x = (2.0 * now.x - size) / size;
+	now.y = (size - 2.0 * now.y) / size;
 	if (button == GLFW_MOUSE_BUTTON_1) {
 		if (action == GLFW_PRESS) {
-			int height, width;
-			glfwGetWindowSize(window, &width, &height);
-			float size = (width > height) ? height : width;
-			double x, y;
-			glfwGetCursorPos(app->window, &x, &y);
-			HVect now{ (float)x, (float)y };
-			now.x = (2.0 * now.x - size) / size;
-			now.y = (size - 2.0 * now.y) / size;
 			Ball_Mouse(&arcBall, now);
 			Ball_BeginDrag(&arcBall);
 		}
 		else if (action == GLFW_RELEASE) {
 			Ball_EndDrag(&arcBall);
+		}
+	}
+	else if (button == GLFW_MOUSE_BUTTON_2) {
+		if (action == GLFW_PRESS) {
+			lastPos.x = now.x;
+			lastPos.y = now.y;
+			translating = true;
+		}
+		else if (action == GLFW_RELEASE) {
+			translating = false;
 		}
 	}
 }
