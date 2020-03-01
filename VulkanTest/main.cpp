@@ -15,31 +15,24 @@ int main() {
 	std::cout << "bool size "<< sizeof(bool) << std::endl;
 	ObjLoader loader;
 	try {
-		if (!loader.loadObj("../models/duck/12248_Bird_v1_L2.obj")) {
-			throw std::runtime_error("unable to load obj");
-		}
+		loader.loadObj("../models/duck/12248_Bird_v1_L2.obj");
 	}
 	catch (std::exception e) {
-		std::cout << "exception: " << e.what() << std::endl;
+		std::cout << "exception reading obj: " << e.what() << std::endl;
 		return -1;
 	}
 	OBJ model = loader.createObj();
 	Texture texture;
 	Mtl mtl;
-	//load the texture here
 	try {
-		//texture = loader.loadTexture("../models/duck/12248_Bird_v1_diff.jpg");
-		std::cout << "loading ppm now" << std::endl;
-		texture = loader.loadPpm("../models/duck/ducktex.ppm");
+		//texture = loader.loadTextureJpg("../models/duck/12248_Bird_v1_diff.jpg");
+		texture = loader.loadTexturePpm("../models/duck/ducktex.ppm");
 		mtl = loader.loadMtl("../models/duck/12248_Bird_v1_L2.mtl");
 	}
 	catch (std::exception e) {
 		std::cout << "exception: " << e.what() << std::endl;
 		return -1;
 	}
-	/*for (long i = 0; i < texture.imageSize/4; i+=4) {
-		std::cout << (unsigned int)texture.pixels[i] << " " << (unsigned int)texture.pixels[i+1] << " " << (unsigned int)texture.pixels[i+2] << " " << (unsigned int)texture.pixels[i+3] << std::endl;
-	}*/
  	Renderer app(model, texture, mtl);
 	try {
 		app.run();

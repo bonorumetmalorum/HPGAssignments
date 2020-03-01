@@ -14,7 +14,7 @@
 
 #include <stb_image.h>
 
-
+//vertex struct to hold all vertex data
 struct Vertex {
 	glm::vec3 position;
 	glm::vec3 normal;
@@ -47,12 +47,13 @@ struct Vertex {
 		attributeDescriptions[2].offset = offsetof(Vertex, uv); //where in struct to read data for color
 		return attributeDescriptions;
 	}
-
+	//override for easier equality check
 	bool operator==(const Vertex& other) const {
 		return position == other.position && normal == other.normal && uv == other.uv;
 	}
 };
 
+//implement hashing so we can use the vertex in a std::map
 namespace std {
 	template<> struct hash<Vertex> {
 		size_t operator()(Vertex const& vertex) const {
@@ -63,18 +64,20 @@ namespace std {
 	};
 };
 
-
+//obj struct to hold all information related to an OBJ file (that we need to render)
 struct OBJ {
 	std::vector<Vertex> vertexList; //unique vertices
 	std::vector<uint32_t> indices; //grouped in triplets
 };
 
+//texture struct to hold all information regarding a texture image
 struct Texture {
 	VkDeviceSize imageSize;
 	unsigned char* pixels;
 	int width, height;
 };
 
+//mtl struct to hold all information needed for blinn-phong lighting
 struct Mtl {
 	glm::vec3 ambient;
 	glm::vec3 specular;
@@ -82,26 +85,31 @@ struct Mtl {
 	float specularExponent;
 };
 
+/*
+	simple OBJ loader class
+*/
 class ObjLoader
 {
 public:
 	ObjLoader();
 	//load obj
-	bool loadObj(std::string path);
+	void loadObj(std::string path);
 	//load mtl
 	Mtl loadMtl(std::string path);
 	//load texture
-	Texture loadTexture(std::string path);
-	Texture loadPpm(std::string path);
-
+	Texture loadTextureJpg(std::string path);
+	//load a ppm file as a texture
+	Texture loadTexturePpm(std::string path);
 	~ObjLoader();
-	
+	//internal struct to hold the indices for each vertex
 	struct VertexIndicies {
 		uint32_t v, n, t = 0;
 	};
 
+	//method to return a triangulated obj
 	OBJ createObj();
 
+	//get a untriangulated list of vertices
 	std::vector<glm::vec3> & getVertices();
 
 private:

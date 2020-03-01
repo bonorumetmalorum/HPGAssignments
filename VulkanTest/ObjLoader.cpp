@@ -6,7 +6,8 @@ ObjLoader::ObjLoader()
 {
 }
 
-bool ObjLoader::loadObj(std::string path)
+//load an obj into memory
+void ObjLoader::loadObj(std::string path)
 {
 	std::fstream inStream(path.data(), std::ios::in);
 	if (!inStream.is_open()) {
@@ -66,9 +67,9 @@ bool ObjLoader::loadObj(std::string path)
 			faceVertices.push_back(vertIndices4);
 		}
 	}
-	return true;
 }
 
+//load and create an mtl for use with vulkan
 Mtl ObjLoader::loadMtl(std::string path)
 {
 	std::fstream inStream(path.data(), std::ios::in);
@@ -107,8 +108,8 @@ Mtl ObjLoader::loadMtl(std::string path)
 	return mtl;
 }
 
-
-Texture ObjLoader::loadTexture(std::string path)
+//load and create a texture for use with vulkan
+Texture ObjLoader::loadTextureJpg(std::string path)
 {
 	Texture tex = {};
 	int texWidth, texHeight, texChannels;
@@ -116,14 +117,14 @@ Texture ObjLoader::loadTexture(std::string path)
 	tex.imageSize = texWidth * texHeight * 4;
 	tex.width = texWidth;
 	tex.height = texHeight;
-	std::cout << tex.width << " " << tex.height << std::endl;
 	if (!tex.pixels) {
 		throw std::runtime_error("failed to load texture image!");
 	}
 	return tex;
 }
 
-Texture ObjLoader::loadPpm(std::string path)
+//load and create a texture for use with vulkan
+Texture ObjLoader::loadTexturePpm(std::string path)
 {
 	Texture t = {};
 	std::ifstream instream(path.c_str(), std::ios::binary);
@@ -133,16 +134,14 @@ Texture ObjLoader::loadPpm(std::string path)
 	char magicL, magicN;
 	instream >> magicL;
 	instream >> magicN;
-	if (magicL != 'P' && magicN != '6') {
+	if (magicL != 'P' && magicN != '6') { //check if binary format, if not throw error
 		throw std::runtime_error("incorrect ppm format, only binary (P6) supported");
 	}
 	int height, width, maxVal;
 	instream >> height >> width >> maxVal;
-	std::cout << height << " " << width << " " << maxVal << std::endl;
 	t.height = height;
 	t.width = width;
 	t.imageSize = height * width * 4;
-	std::cout << t.imageSize << std::endl;
 	t.pixels = new unsigned char[(size_t)t.imageSize];
 	instream.get();
 	for (size_t i = 0; i < t.imageSize/4; i++) {
@@ -162,7 +161,7 @@ ObjLoader::~ObjLoader()
 {
 }
 
-//create an obj with data ready to be loaded into vulkan
+//create an obj with data ready to be loaded into vulkan (triangulated)
 OBJ ObjLoader::createObj()
 {
 	OBJ object;
@@ -223,7 +222,7 @@ OBJ ObjLoader::createObj()
 		else {
 			iv3 = uniqueVertices[v3];
 		}
-		//add 0, 1, 2, 3, 0, 2 to triangulate the quad
+		//add 0, 1, 2, 2, 3, 0 to triangulate the quad
 		object.indices.push_back(iv0);
 		object.indices.push_back(iv1);
 		object.indices.push_back(iv2);
