@@ -638,54 +638,59 @@ uint32_t Renderer::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags pro
 	throw std::runtime_error("failed to find suitable memory type!");
 }
 
+//we need to create a pipeline barrier so that the fragment shader will wait till the texture is written into the buffer before accessing it
 void Renderer::transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout)
 {
-	VkCommandBuffer commandBuffer = beginSingleTimeCommands();
+	VkCommandBuffer commandBuffer = beginSingleTimeCommands(); //start recording commands
 
-	VkImageMemoryBarrier barrier = {};
-	barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-	barrier.oldLayout = oldLayout;
-	barrier.newLayout = newLayout;
-	barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-	barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-	barrier.image = image;
-	barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-	barrier.subresourceRange.baseMipLevel = 0;
-	barrier.subresourceRange.levelCount = 1;
-	barrier.subresourceRange.baseArrayLayer = 0;
-	barrier.subresourceRange.layerCount = 1;
+	VkImageMemoryBarrier barrier = {}; //pipeline barrier
+	barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER; //struct type
+	barrier.oldLayout = oldLayout; //the old layout before the barrier
+	barrier.newLayout = newLayout; //the layout after the barrier
+	barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED; //where the src work takes place (we are copying from host so nothing here)
+	barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED; //where the dst work takes placer (again no work is taking place so nothing here)
+	barrier.image = image; //the image buffer
+	barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT; //the type of image data, color in this case
+	barrier.subresourceRange.baseMipLevel = 0; //startin mip level
+	barrier.subresourceRange.levelCount = 1; //number of mip levels
+	barrier.subresourceRange.baseArrayLayer = 0; //starting array level
+	barrier.subresourceRange.layerCount = 1; //number of array levels
 
+	//the source and destination stages of the image
 	VkPipelineStageFlags sourceStage;
 	VkPipelineStageFlags destinationStage;
 
+	//we are taking the image from an undefined layout to transfer dst optimal layout
 	if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL) {
-		barrier.srcAccessMask = 0;
-		barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+		barrier.srcAccessMask = 0; //no src access mask as it is undefined
+		barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT; //dst access mask is a write, because we are copying it to
 
-		sourceStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-		destinationStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+		sourceStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT; //the stage before the barrier is top of pipeline
+		destinationStage = VK_PIPELINE_STAGE_TRANSFER_BIT; //after the barrier it is transfer stage
 	}
+	//if we are taking the image from the transfer layout to the shader read only optimal layout
 	else if (oldLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL && newLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) {
-		barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-		barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+		barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT; //before barrier we have write access
+		barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT; //after the barrier we have shader only access 
 
-		sourceStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
-		destinationStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+		sourceStage = VK_PIPELINE_STAGE_TRANSFER_BIT; //before the barrier we have the transfer stage
+		destinationStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT; //after the barrier we have the fragment shader stage
 	}
 	else {
-		throw std::invalid_argument("unsupported layout transition!");
-	}
+		throw std::invalid_argument("unsupported layout transition!"); //any other combination of src and dst layout is invalid
+	} 
 
+	//create the pipeline barrier by providing the command buffer, src and st stages 
 	vkCmdPipelineBarrier(
-		commandBuffer,
-		sourceStage, destinationStage,
-		0,
-		0, nullptr,
-		0, nullptr,
-		1, &barrier
+		commandBuffer, //command buffer
+		sourceStage, destinationStage, //src and dst stages
+		0, //no dependencies
+		0, nullptr, //no memory barriers
+		0, nullptr, //no buffer memory barriers
+		1, &barrier //1 image memory barrier
 	);
 
-	endSingleTimeCommands(commandBuffer);
+	endSingleTimeCommands(commandBuffer); //stop recording commands submit
 }
 
 /*
@@ -700,6 +705,7 @@ void Renderer::createImageViews()
 	//loop over all images in the swap chain and create an image view for each one
 	for (size_t i = 0; i < swapChainImages.size(); i++) {
 		swapChainImageViews[i] = createImageView(swapChainImages[i], swapChainImageFormat, VK_IMAGE_ASPECT_COLOR_BIT);
+		//all of the following code has been refactored into a separate method "createImageView" which is used above
 		//VkImageViewCreateInfo createInfo = {}; //create info struct that will contain the information for setting up the image view
 		//createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO; //type of the struct - image view
 		//createInfo.image = swapChainImages[i]; //parent image of the view that will be created
@@ -761,14 +767,15 @@ void Renderer::createGraphicsPipeline()
 	fragShaderStageInfo.pName = "main"; //entry point to the program
 
 	VkPipelineShaderStageCreateInfo shaderStages[] = { vertShaderStageInfo, fragShaderStageInfo }; // store the shader stages in an array
-
+	
+	//enable depth testing
 	VkPipelineDepthStencilStateCreateInfo depthStencil = {};
-	depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
-	depthStencil.depthTestEnable = VK_TRUE;
-	depthStencil.depthWriteEnable = VK_TRUE;
-	depthStencil.depthCompareOp = VK_COMPARE_OP_LESS;
-	depthStencil.depthBoundsTestEnable = VK_FALSE;
-	depthStencil.stencilTestEnable = VK_FALSE;
+	depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO; //truct type
+	depthStencil.depthTestEnable = VK_TRUE; //enable depth test
+	depthStencil.depthWriteEnable = VK_TRUE; //enable ability to write values to the depth buffer
+	depthStencil.depthCompareOp = VK_COMPARE_OP_LESS; // keep fragments with lesser depth
+	depthStencil.depthBoundsTestEnable = VK_FALSE; //special test to check if depth buffer values are within a range, disabled here
+	depthStencil.stencilTestEnable = VK_FALSE; //no stencil test to do after depth test
 
 
 	//describing the configuration of the newly created pipeline vertex input state -  
@@ -1051,6 +1058,7 @@ void Renderer::createRenderPass()
 	colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; //specifies which layout the image will have before the render pass begins
 	colorAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR; // layout to automatically transition to when the render pass finishes. Images to be presented in the swap chain
 
+	//depth attachment to use for the depth test
 	VkAttachmentDescription depthAttachment = {};
 	depthAttachment.format = findDepthFormat();
 	depthAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
@@ -1180,6 +1188,7 @@ void Renderer::createCommandPool()
 
 }
 
+//create the texture
 void Renderer::createTextureImage()
 {
 	VkBuffer stagingBuffer; //intermediary buffer needed to load data to GPU only accessible memory
@@ -1193,13 +1202,18 @@ void Renderer::createTextureImage()
 	vkUnmapMemory(device, stagingBufferMemory);
 
 	//stbi_image_free(texture.pixels); - this is how we would do it using the stbi image loading lib
-
+	//create the image and its memory
 	createImage(texture.width, texture.height, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, textureImage, textureImageMemory);
 
+	//transition the image layout from undefined to image layout transfer dst optimal so we can copy data to it
+	//provide the texture image we are transitioning layouts, the format of the image, src layout, dst layout
 	transitionImageLayout(textureImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 	copyBufferToImage(stagingBuffer, textureImage, static_cast<uint32_t>(texture.width), static_cast<uint32_t>(texture.height));
+	//transition one more time to a format that is optimal for shader only access
+	//provide the texture image we are transitioning layouts, the format of the image, src layout, dst layout
 	transitionImageLayout(textureImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
+	//destroy the staging buffer and memory
 	vkDestroyBuffer(device, stagingBuffer, nullptr);
 	vkFreeMemory(device, stagingBufferMemory, nullptr);
 }
@@ -1241,10 +1255,11 @@ void Renderer::createTextureSampler()
 }
 
 /*
-	
+	create the vertex buffer to hold the unique vertices
 */
 void Renderer::createVertexBuffer()
 {
+	//size of the buffer is equal to the number of vertices we have
 	VkDeviceSize bufferSize = sizeof(vertices[0]) * vertices.size();
 	
 	//use staging buffer as temp storage for vertices
@@ -1262,12 +1277,15 @@ void Renderer::createVertexBuffer()
 	createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, 
 		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, vertexBuffer, vertexBufferMemory);
 
+	//copy the staging buffer to the device only vertex buffer
 	copyBuffer(stagingBuffer, vertexBuffer, bufferSize);
 
+	//destroy the staging buffer and and free its memory
 	vkDestroyBuffer(device, stagingBuffer, nullptr);
 	vkFreeMemory(device, stagingBufferMemory, nullptr);
 }
 
+//create an index buffer so we can reuse the vertices
 void Renderer::createIndexBuffer()
 {
 	VkDeviceSize bufferSize = sizeof(indices[0]) * indices.size();
@@ -1740,7 +1758,7 @@ void Renderer::recreateSwapChain()
 	createFramebuffers(); //create a new framebuffer
 	createUniformBuffers(); //create the uniform buffers
 	createDescriptorPool(); //create uniform descriptor pool
-	createDescriptorSets(); 
+	createDescriptorSets();  //create descriptor sets
 	createCommandBuffers(); //create new command buffers (we recycle the command pool)
 }
 
@@ -1989,28 +2007,30 @@ void Renderer::framebufferResizeCallback(GLFWwindow * window, int width, int hei
 	app->framebufferResized = true; //we resized the window
 }
 
+//variables need to control the ducks rotation and translation
 BallData Renderer::arcBall;
 glm::vec3 Renderer::renderFlags = glm::vec3(true);
 glm::vec2 Renderer::lastPos = glm::vec2(0);
 glm::vec3 Renderer::translation = {0.0,8.0,0.0};
 bool Renderer::translating = false;
 
+//mouse position callback, gets the mouses current position
 void Renderer::mousePosCallback(GLFWwindow* window, double xpos, double ypos)
 {
 	auto app = reinterpret_cast<Renderer*>(glfwGetWindowUserPointer(window)); //get a pointer to the app instance
-	double x, y;
-	glfwGetCursorPos(app->window, &x, &y);
+	//get current window dimensions
 	int height, width;
 	glfwGetWindowSize(window, &width, &height);
 	float size = (width > height) ? height : width;
-	HVect now{ (float)x, (float)y };
+	//calculate the screen coords in ndc space
+	HVect now{ (float)xpos, (float)ypos };
 	now.x = (2.0 * now.x - size) / size;
 	now.y = (size - 2.0 * now.y) / size;
-	if (arcBall.dragging) {
+	if (arcBall.dragging) { //if we are draggging, update the rotation
 		Ball_Mouse(&arcBall, now);
 		Ball_Update(&arcBall);
 	}
-	else if (translating) {
+	else if (translating) { //if we are otherwise translating, update the location of the duck
 		translation.x +=  now.x - lastPos.x;
 		translation.z += now.y - lastPos.y;
 		lastPos.x = now.x;
@@ -2018,6 +2038,7 @@ void Renderer::mousePosCallback(GLFWwindow* window, double xpos, double ypos)
 	}
 }
 
+//mouse button clicks callback
 void Renderer::mouseButtonCallBack(GLFWwindow* window, int button, int action, int mods) {
 	auto app = reinterpret_cast<Renderer*>(glfwGetWindowUserPointer(window));
 	double x, y;
@@ -2028,35 +2049,36 @@ void Renderer::mouseButtonCallBack(GLFWwindow* window, int button, int action, i
 	HVect now{ (float)x, (float)y };
 	now.x = (2.0 * now.x - size) / size;
 	now.y = (size - 2.0 * now.y) / size;
-	if (button == GLFW_MOUSE_BUTTON_1) {
-		if (action == GLFW_PRESS) {
-			Ball_Mouse(&arcBall, now);
+	if (button == GLFW_MOUSE_BUTTON_1) { //left click
+		if (action == GLFW_PRESS) { //press
+			Ball_Mouse(&arcBall, now); //start dragging
 			Ball_BeginDrag(&arcBall);
 		}
-		else if (action == GLFW_RELEASE) {
-			Ball_EndDrag(&arcBall);
+		else if (action == GLFW_RELEASE) { //release
+			Ball_EndDrag(&arcBall);//end dragging
 		}
 	}
-	else if (button == GLFW_MOUSE_BUTTON_2) {
-		if (action == GLFW_PRESS) {
+	else if (button == GLFW_MOUSE_BUTTON_2) { //right click
+		if (action == GLFW_PRESS) { //press
 			lastPos.x = now.x;
 			lastPos.y = now.y;
-			translating = true;
+			translating = true; //start translating
 		}
-		else if (action == GLFW_RELEASE) {
-			translating = false;
+		else if (action == GLFW_RELEASE) { //release
+			translating = false; //stop translating
 		}
 	}
 }
 
+//keyboard key click callback
 void Renderer::keyboardKeyCallback(GLFWwindow * window, int key, int scancode, int action, int mods) {
-	if (key == GLFW_KEY_A && action == GLFW_PRESS) {
+	if (key == GLFW_KEY_A && action == GLFW_PRESS) { //A key press for turning ambient on/off
 		renderFlags.x = renderFlags.x==1.0?0.0:1.0;
 	}
-	else if (key == GLFW_KEY_D && action == GLFW_PRESS) {
+	else if (key == GLFW_KEY_D && action == GLFW_PRESS) { //D key press for turning diffuse on/off
 		renderFlags.y = renderFlags.y == 1.0 ? 0.0 : 1.0;
 	}
-	else if (key == GLFW_KEY_S && action == GLFW_PRESS) {
+	else if (key == GLFW_KEY_S && action == GLFW_PRESS) { //S key press for turning specular on/off
 		renderFlags.z = renderFlags.z == 1.0 ? 0.0 : 1.0;
 	}
 }
