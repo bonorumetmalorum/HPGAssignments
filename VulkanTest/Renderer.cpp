@@ -56,19 +56,19 @@ void Renderer::initVulkan()
 	createSwapChain(); //create a swapchain that we can use to render images to the surface
 	createImageViews(); //create the image views that will hold additional info about the images in the swapchain
 	createRenderPass(); //create a render pass that specifies all the stages of the render
-	createDescriptorSetLayout();
+	createDescriptorSetLayout(); //create the descriptor sets
 	createGraphicsPipeline(); //create a graphics pipeline to process drawing commands and render to the surface
 	createCommandPool(); //create a command pool to manage allocation of command buffers
-	createTextureImage();
-	createTextureImageView();
-	createTextureSampler();
+	createTextureImage(); //load the image texture into gpu memory
+	createTextureImageView(); //create the image view to access the texture
+	createTextureSampler(); //the sampler function used on GPU shader to access the texture values
 	createDepthResources(); //setup depth resources
 	createFramebuffers(); //create a framebuffer to represent the set of images the graphics pipeline will render to
 	createVertexBuffer(); //create the vertex buffer
-	createIndexBuffer();
-	createUniformBuffers();
-	createDescriptorPool();
-	createDescriptorSets();
+	createIndexBuffer(); //create the index buffer so we reuse vertex data
+	createUniformBuffers(); //create the uniform buffer to load shader accessible data
+	createDescriptorPool(); //create a descriptor pool from which we can allocate uniforms
+	createDescriptorSets(); //create descriptor sets to describe the resources that will be bound to the pipeline
 	createCommandBuffers(); //create the command buffer from the pool with the appropriate commands
 	createSyncObjects(); //create synchronization primitives to control rendering
 }
@@ -273,6 +273,7 @@ std::vector<const char*> Renderer::getRequiredExtensions() {
 	return extensions; //return the extensions
 }
 
+//helper method to find the format which supports the features we need
 VkFormat Renderer::findSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features)
 {
 	for (VkFormat format : candidates) {
@@ -288,6 +289,7 @@ VkFormat Renderer::findSupportedFormat(const std::vector<VkFormat>& candidates, 
 	throw std::runtime_error("failed to find supported format!");
 }
 
+//helper method to find the required format for depth buffer
 VkFormat Renderer::findDepthFormat() {
 	return findSupportedFormat(
 		{ VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT },
@@ -619,6 +621,7 @@ VkExtent2D Renderer::chooseSwapExtent(const VkSurfaceCapabilitiesKHR & capabilit
 	}
 }
 
+//helper method to find the ideal memory type
 uint32_t Renderer::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties)
 {
 	//the structure below has two arrays memoryTypes and memoryHeaps. 
@@ -1179,16 +1182,17 @@ void Renderer::createCommandPool()
 
 void Renderer::createTextureImage()
 {
-	VkBuffer stagingBuffer;
-	VkDeviceMemory stagingBufferMemory;
+	VkBuffer stagingBuffer; //intermediary buffer needed to load data to GPU only accessible memory
+	VkDeviceMemory stagingBufferMemory; //the memory associated with the staging buffer handle
 
+	//make the buffer
 	createBuffer(texture.imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory);
-	void* data;
+	void* data; //map the memory so we can load the texture into it
 	vkMapMemory(device, stagingBufferMemory, 0, texture.imageSize, 0, &data);
 	memcpy(data, texture.pixels, static_cast<size_t>(texture.imageSize));
 	vkUnmapMemory(device, stagingBufferMemory);
 
-	//stbi_image_free(texture.pixels);
+	//stbi_image_free(texture.pixels); - this is how we would do it using the stbi image loading lib
 
 	createImage(texture.width, texture.height, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, textureImage, textureImageMemory);
 
@@ -1287,117 +1291,136 @@ void Renderer::createIndexBuffer()
 	vkFreeMemory(device, stagingBufferMemory, nullptr);
 }
 
+//a descriptor set is a set of resources thar are bound into the pipeline together
+//here we are going to create a descriptor set describing 3 resources we wish to bind into the pipeline
+//these are the ubo uniform buffer, lighting constants uniform buffer and the sampler used to access the texture
 void Renderer::createDescriptorSetLayout()
 {
+	//binding to describe the uniform buffer
 	VkDescriptorSetLayoutBinding uboLayoutBinding = {};
-	uboLayoutBinding.binding = 0;
-	uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	uboLayoutBinding.descriptorCount = 1;
-	uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-	uboLayoutBinding.pImmutableSamplers = nullptr; // Optional
+	uboLayoutBinding.binding = 0; //the number we are binding to (shader access will use this number)
+	uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; //type of the binding, uniform buffer because that is what we are binding
+	uboLayoutBinding.descriptorCount = 1; //number of descriptors contained in the binding
+	uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT; //which stage of the pipeline will access this binding
 
+	//binding to describe the lighting buffer
 	VkDescriptorSetLayoutBinding lightingLayoutBinding = {};
-	lightingLayoutBinding.binding = 2;
-	lightingLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	lightingLayoutBinding.descriptorCount = 1;
-	lightingLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-	lightingLayoutBinding.pImmutableSamplers = nullptr; // Optional
+	lightingLayoutBinding.binding = 2; //the binding number, this is what we will refer to in our shader program
+	lightingLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; //type of the binding, uniform buffer because that is what we are binding
+	lightingLayoutBinding.descriptorCount = 1; //the number of descriptors contained in the binding
+	lightingLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT; //which stage of the pipeline will access this binding
 
+	//binding to describe the sampler
 	VkDescriptorSetLayoutBinding samplerLayoutBinding = {};
-	samplerLayoutBinding.binding = 1;
-	samplerLayoutBinding.descriptorCount = 1;
-	samplerLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	samplerLayoutBinding.pImmutableSamplers = nullptr;
-	samplerLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+	samplerLayoutBinding.binding = 1; //the number we are binding to (shader access will use this number)
+	samplerLayoutBinding.descriptorCount = 1; //one descriptor in this binding
+	samplerLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; //the type of this binding, we are using combined sampler, both image and sampler in one
+	samplerLayoutBinding.pImmutableSamplers = nullptr; //this field needs to be included because the type of this binding is combined image sampler (we set this later, nullptr makes it dynamic)
+	samplerLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT; //which stage of the pipeline will access this binding
 
+	//group the descriptor set layout bindings
 	std::array<VkDescriptorSetLayoutBinding, 3> bindings = { uboLayoutBinding, samplerLayoutBinding, lightingLayoutBinding};
-	VkDescriptorSetLayoutCreateInfo layoutInfo = {};
+	VkDescriptorSetLayoutCreateInfo layoutInfo = {}; //create the descriptor set layout
 	layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-	layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
-	layoutInfo.pBindings = bindings.data();
+	layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size()); //the number of bindings
+	layoutInfo.pBindings = bindings.data(); //the bindings
 
+	//create the descriptor set
 	if (vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &descriptorSetLayout) != VK_SUCCESS) {
 		throw std::runtime_error("failed to create descriptor set layout!");
 	}
 }
 
+//the descriptor pool used to allocate the descriptor set. Good for memory optimization as the structs use similar memory
 void Renderer::createDescriptorPool()
 {
+	//we need to create the pool sizes for each type of descriptor binding
 	std::array<VkDescriptorPoolSize, 3> poolSizes = {};
-	poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	poolSizes[0].descriptorCount = static_cast<uint32_t>(swapChainImages.size());
-	poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	poolSizes[1].descriptorCount = static_cast<uint32_t>(swapChainImages.size());
-	poolSizes[2].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	poolSizes[2].descriptorCount = static_cast<uint32_t>(swapChainImages.size());
+	poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; //type of the buffer
+	poolSizes[0].descriptorCount = static_cast<uint32_t>(swapChainImages.size());  //the max number of descriptors we can allocate from this pool
+	poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; //type of the buffer
+	poolSizes[1].descriptorCount = static_cast<uint32_t>(swapChainImages.size()); //the max number of descriptors we can allocate from this pool
+	poolSizes[2].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; //type of the buffer
+	poolSizes[2].descriptorCount = static_cast<uint32_t>(swapChainImages.size()); //the max number of descriptors we can allocate from this pool
 
+	//create the pool
 	VkDescriptorPoolCreateInfo poolInfo = {};
-	poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-	poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
-	poolInfo.pPoolSizes = poolSizes.data();
-	poolInfo.maxSets = static_cast<uint32_t>(swapChainImages.size());
+	poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO; //type of struct
+	poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size()); //number of different pool sizes
+	poolInfo.pPoolSizes = poolSizes.data(); //the sizes
+	poolInfo.maxSets = static_cast<uint32_t>(swapChainImages.size()); //max number of descriptor sets we can allocate
 
+	//create the pool
 	if (vkCreateDescriptorPool(device, &poolInfo, nullptr, &descriptorPool) != VK_SUCCESS) {
 		throw std::runtime_error("failed to create descriptor pool!");
 	}
 }
 
+//allocate the descriptor sets using the device which owns the descriptor pool from which we wish to allocate the sets
 void Renderer::createDescriptorSets()
 {
+	//create an array to hold handles to all the descriptor sets, one for each image in the swap chain ( we have the same descriptor for each image)
 	std::vector<VkDescriptorSetLayout> layouts(swapChainImages.size(), descriptorSetLayout);
+	//allocation info for descriptor sets
 	VkDescriptorSetAllocateInfo allocInfo = {};
-	allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-	allocInfo.descriptorPool = descriptorPool;
-	allocInfo.descriptorSetCount = static_cast<uint32_t>(swapChainImages.size());
-	allocInfo.pSetLayouts = layouts.data();
+	allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO; //struct type
+	allocInfo.descriptorPool = descriptorPool; //the pool we are going to allocate from
+	allocInfo.descriptorSetCount = static_cast<uint32_t>(swapChainImages.size()); //the number of descriptors to allcoate (same as max number)
+	allocInfo.pSetLayouts = layouts.data(); //the descriptor set layout structs
 
+	//resize to hold all handles to descriptor sets
 	descriptorSets.resize(swapChainImages.size());
+	//create the descriptor sets
 	if (vkAllocateDescriptorSets(device, &allocInfo, descriptorSets.data()) != VK_SUCCESS) {
 		throw std::runtime_error("failed to allocate descriptor sets!");
 	}
 
+	//we now need to associate the right buffers with the descriptor sets we have just created
 	for (size_t i = 0; i < swapChainImages.size(); i++) {
+		//struct to use when updating the descriptor set with the correct buffer
 		VkDescriptorBufferInfo bufferInfo = {};
-		bufferInfo.buffer = uniformBuffers[i];
-		bufferInfo.offset = 0;
-		bufferInfo.range = sizeof(UniformBufferObject);
+		bufferInfo.buffer = uniformBuffers[i]; //handle to the buffer we wish to bind to the descriptor set
+		bufferInfo.offset = 0; //start at offset 0 in the buffer
+		bufferInfo.range = sizeof(UniformBufferObject); //the size of each element in the buffer
+		//struct to use when updating the descriptor set with the correct buffer
+		VkDescriptorBufferInfo lightingBufferInfo = {}; 
+		lightingBufferInfo.buffer = lightingUniformBuffers; //handle to the buffer we wish to bind to the descriptor set (only 1 buffer)
+		lightingBufferInfo.offset = 0; //start at offset 0 within the buffer
+		lightingBufferInfo.range = sizeof(LightingConstants); //the size of each element in the buffer
+		//struct to use when updating the image associated with a descriptor set
+		VkDescriptorImageInfo imageInfo = {}; 
+		imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL; //the image layout
+		imageInfo.imageView = textureImageView; //the image view of the texture
+		imageInfo.sampler = textureSampler; //the sampler (before we said we would update it later, here we are providing the sampler to use with the texture)
 
-		VkDescriptorBufferInfo lightingBufferInfo = {};
-		lightingBufferInfo.buffer = lightingUniformBuffers;
-		lightingBufferInfo.offset = 0;
-		lightingBufferInfo.range = sizeof(LightingConstants);
-
-		VkDescriptorImageInfo imageInfo = {};
-		imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-		imageInfo.imageView = textureImageView;
-		imageInfo.sampler = textureSampler;
-
+		//array to hold info of updates to the descriptor sets
 		std::array<VkWriteDescriptorSet, 3> descriptorWrites = {};
+		//have to be created in the same order that the descriptors appear (ubo, texture, lightingconstants)
+		descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; //we are writing to the descriptor set so this must be the type of the struct
+		descriptorWrites[0].dstSet = descriptorSets[i]; //the set we are writing to
+		descriptorWrites[0].dstBinding = 0; //the binding of the descriptor in the
+		descriptorWrites[0].dstArrayElement = 0; //starting index of the udpate
+		descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; //the type of the descriptor (uniform buffer)
+		descriptorWrites[0].descriptorCount = 1; //the number of descriptors to update
+		descriptorWrites[0].pBufferInfo = &bufferInfo; //the buffer we are binding
 
-		descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-		descriptorWrites[0].dstSet = descriptorSets[i];
-		descriptorWrites[0].dstBinding = 0;
-		descriptorWrites[0].dstArrayElement = 0;
-		descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-		descriptorWrites[0].descriptorCount = 1;
-		descriptorWrites[0].pBufferInfo = &bufferInfo;
+		descriptorWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;//we are writing to the descriptor set so this must be the type of the struct
+		descriptorWrites[1].dstSet = descriptorSets[i]; //the set we are updating
+		descriptorWrites[1].dstBinding = 1; //the binding of the descpriptor in the set
+		descriptorWrites[1].dstArrayElement = 0; //the starting index of the update
+		descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; //the type of the descriptor (texture so we specify combined image and sampler)
+		descriptorWrites[1].descriptorCount = 1; //the number of descriptors we are updating
+		descriptorWrites[1].pImageInfo = &imageInfo; //the image we are binding (we are no correctly providing the texture data and sampler)
 
-		descriptorWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-		descriptorWrites[1].dstSet = descriptorSets[i];
-		descriptorWrites[1].dstBinding = 1;
-		descriptorWrites[1].dstArrayElement = 0;
-		descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-		descriptorWrites[1].descriptorCount = 1;
-		descriptorWrites[1].pImageInfo = &imageInfo;
+		descriptorWrites[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;//we are writing to the descriptor set so this must be the type of the struct
+		descriptorWrites[2].dstSet = descriptorSets[i]; //the set we are writing to
+		descriptorWrites[2].dstBinding = 2; //the binding of the descriptor in the set
+		descriptorWrites[2].dstArrayElement = 0; //starting index of the udpate
+		descriptorWrites[2].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; //the type of the descriptor (uniform buffer)
+		descriptorWrites[2].descriptorCount = 1;//the number of descriptors to update
+		descriptorWrites[2].pBufferInfo = &lightingBufferInfo; //the buffer we are binding
 
-		descriptorWrites[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-		descriptorWrites[2].dstSet = descriptorSets[i];
-		descriptorWrites[2].dstBinding = 2;
-		descriptorWrites[2].dstArrayElement = 0;
-		descriptorWrites[2].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-		descriptorWrites[2].descriptorCount = 1;
-		descriptorWrites[2].pBufferInfo = &lightingBufferInfo;
-
+		//update that descriptor set by providing the device (which owns the pool), the number of descriptor writes, the descriptor writes, and 0 and nullptr becuase we are not copying any data from pre exisiting descriptors
 		vkUpdateDescriptorSets(device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
 	}
 }
@@ -1488,84 +1511,95 @@ void Renderer::createCommandBuffers()
 	}
 }
 
+//create depth stencil resources
 void Renderer::createDepthResources()
 {
-	VkFormat depthFormat = findDepthFormat();
+	VkFormat depthFormat = findDepthFormat(); //find the format we need to create a depth buffer
+	//create the image that will be used to store the depth buffer data, it must have the same dimensions as a swap chain image
 	createImage(swapChainExtent.width, swapChainExtent.height, depthFormat, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, depthImage, depthImageMemory);
-	depthImageView = createImageView(depthImage, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT);
-	//transitionImageLayout(depthImage, depthFormat, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+	depthImageView = createImageView(depthImage, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT); //create the image view so we can access it
 }
 
+//helper method to copy a buffer full of data to an image
 void Renderer::copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height) {
-	VkCommandBuffer commandBuffer = beginSingleTimeCommands();
+	VkCommandBuffer commandBuffer = beginSingleTimeCommands(); // begine recording single time commands
 
-	VkBufferImageCopy region = {};
-	region.bufferOffset = 0;
-	region.bufferRowLength = 0;
-	region.bufferImageHeight = 0;
-	region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-	region.imageSubresource.mipLevel = 0;
-	region.imageSubresource.baseArrayLayer = 0;
-	region.imageSubresource.layerCount = 1;
-	region.imageOffset = { 0, 0, 0 };
+	VkBufferImageCopy region = {}; //the region to which we are copy the buffer to
+	region.bufferOffset = 0; //starting point of buffer
+	region.bufferRowLength = 0; //if we specify 0 here then vulkan assumes that the row length is equal to image.width
+	region.bufferImageHeight = 0; //if the we specify 0 here then vulkan assumes the number of rows is equal to the image.height
+	region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT; //the data type of the image (color image)
+	region.imageSubresource.mipLevel = 0; //0 mip levels are enabled
+	region.imageSubresource.baseArrayLayer = 0; //it is not an array image, so base array layer is 0 (default)
+	region.imageSubresource.layerCount = 1; //layer count is 1, not an array image
+	region.imageOffset = { 0, 0, 0 }; //offset to which we should copy the data (will overwrite an entire mipmap level)
 	region.imageExtent = {
 		width,
 		height,
 		1
-	};
+	};//extent of the image (height and width and depth (2d so z = 1)
 
+	//copy the buffer data to the image buffer by providing the command buffer, the buffer data, the image buffer to copy to and the layout of the data in the image buffer, the number of regions in the image we are copying to and the descriptor of that region
 	vkCmdCopyBufferToImage(commandBuffer, buffer, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
-
+	//stop recording the command submit the buffer to execute
 	endSingleTimeCommands(commandBuffer);
 }
 
+//helper method to make an image (images are more complex than buffers because they are multidimensional, have specific layouts and format info)
 void Renderer::createImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory) {
-	VkImageCreateInfo imageInfo = {};
-	imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-	imageInfo.imageType = VK_IMAGE_TYPE_2D;
-	imageInfo.extent.width = width;
-	imageInfo.extent.height = height;
-	imageInfo.extent.depth = 1;
-	imageInfo.mipLevels = 1;
-	imageInfo.arrayLayers = 1;
-	imageInfo.format = format;
-	imageInfo.tiling = tiling;
-	imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-	imageInfo.usage = usage;
-	imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
-	imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	VkImageCreateInfo imageInfo = {}; //image setup
+	imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO; //struct type
+	imageInfo.imageType = VK_IMAGE_TYPE_2D; //image type, here we have a 2D texture, but it can also be a 3d volumetric texture for example
+	imageInfo.extent.width = width; //width of image image
+	imageInfo.extent.height = height; //height of image image
+	imageInfo.extent.depth = 1; //depth of image, in our case its 1 since we do not have a 3d image
+	imageInfo.mipLevels = 1; //mip levels for when we want to use multiple levels of MIPMAPPING (which we also need to compute ourselves), 1 in our case since we are not using any mip levels
+	imageInfo.arrayLayers = 1; //layered images, can be used to store different kinds of information, 1 in our case again since we only have a 2D texture
+	imageInfo.format = format; //format of the image
+	imageInfo.tiling = tiling; // how the image is laid out in memory, can effect performance and optimal should normally be chosen
+	imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; //the layout from which the image is initialised (we dont care what is there)
+	imageInfo.usage = usage; //what will this image be used as? can be src of info or dst of info among other things.
+	imageInfo.samples = VK_SAMPLE_COUNT_1_BIT; //number of samples per pixel
+	imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE; //how can the data be accessed from multiple queues
 
+	//create the image by providing the device
 	if (vkCreateImage(device, &imageInfo, nullptr, &image) != VK_SUCCESS) {
 		throw std::runtime_error("failed to create image!");
 	}
 
+	//get image memory requirements
 	VkMemoryRequirements memRequirements;
 	vkGetImageMemoryRequirements(device, image, &memRequirements);
 
+	//create info to allocate the memory for the image
 	VkMemoryAllocateInfo allocInfo = {};
-	allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-	allocInfo.allocationSize = memRequirements.size;
-	allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, properties);
+	allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO; //type of struct
+	allocInfo.allocationSize = memRequirements.size; //the amount of memory
+	allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, properties); //find the memory type we want
 
+	//allocate the memory
 	if (vkAllocateMemory(device, &allocInfo, nullptr, &imageMemory) != VK_SUCCESS) {
 		throw std::runtime_error("failed to allocate image memory!");
 	}
 
+	//bind the memory to the image (associating the two)
 	vkBindImageMemory(device, image, imageMemory, 0);
 }
 
+//helper method to create an image view for an image (image view is a way of accessing an image, contains specific information about the image)
 VkImageView Renderer::createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags) {
-	VkImageViewCreateInfo viewInfo = {};
-	viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-	viewInfo.image = image;
-	viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-	viewInfo.format = format;
-	viewInfo.subresourceRange.aspectMask = aspectFlags;
-	viewInfo.subresourceRange.baseMipLevel = 0;
-	viewInfo.subresourceRange.levelCount = 1;
-	viewInfo.subresourceRange.baseArrayLayer = 0;
-	viewInfo.subresourceRange.layerCount = 1;
+	VkImageViewCreateInfo viewInfo = {}; //create info for image view
+	viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO; //struct type
+	viewInfo.image = image; //the image we are creating the view for
+	viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D; //the image view type which is 2D in our case
+	viewInfo.format = format; //format of the image view, should be the same as the image
+	viewInfo.subresourceRange.aspectMask = aspectFlags; //the type of data that we are modifying in the image
+	viewInfo.subresourceRange.baseMipLevel = 0; //mip level 0, we dont have levels
+	viewInfo.subresourceRange.levelCount = 1; //1 mip level count
+	viewInfo.subresourceRange.baseArrayLayer = 0; //we dont have array layer either, so just the base one
+	viewInfo.subresourceRange.layerCount = 1; //1 array layer, default
 
+	//create the iamge view
 	VkImageView imageView;
 	if (vkCreateImageView(device, &viewInfo, nullptr, &imageView) != VK_SUCCESS) {
 		throw std::runtime_error("failed to create texture image view!");
@@ -1574,36 +1608,38 @@ VkImageView Renderer::createImageView(VkImage image, VkFormat format, VkImageAsp
 	return imageView;
 }
 
+//helper method to submit single time commands, used to transfer memory from staging buffer to GPU only buffer
 VkCommandBuffer Renderer::beginSingleTimeCommands() {
-	VkCommandBufferAllocateInfo allocInfo = {};
-	allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-	allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-	allocInfo.commandPool = commandPool;
-	allocInfo.commandBufferCount = 1;
+	VkCommandBufferAllocateInfo allocInfo = {}; //allocate the command buffer
+	allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO; //struct type
+	allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY; //command buffer level is primary ( we can have secondary so we can call secondary ones from primary ones... not needed in this case)
+	allocInfo.commandPool = commandPool; //the command pool from which we will allocate the command buffer
+	allocInfo.commandBufferCount = 1; //the number of command buffers we will be allocating
 
-	VkCommandBuffer commandBuffer;
-	vkAllocateCommandBuffers(device, &allocInfo, &commandBuffer);
+	VkCommandBuffer commandBuffer; //command buffer handle
+	vkAllocateCommandBuffers(device, &allocInfo, &commandBuffer); //allocate the command buffer
 
-	VkCommandBufferBeginInfo beginInfo = {};
-	beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-	beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+	VkCommandBufferBeginInfo beginInfo = {}; //begin recording commands
+	beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO; //struct type
+	beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT; //one time usage
 
-	vkBeginCommandBuffer(commandBuffer, &beginInfo);
+	vkBeginCommandBuffer(commandBuffer, &beginInfo); //begine recording
 
-	return commandBuffer;
+	return commandBuffer;//return the command buffer
 }
 
+//helper method to stop recording single time commands
 void Renderer::endSingleTimeCommands(VkCommandBuffer commandBuffer) {
-	vkEndCommandBuffer(commandBuffer);
+	vkEndCommandBuffer(commandBuffer); //the command buffer from which we which to stop recording commands
 
-	VkSubmitInfo submitInfo = {};
-	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-	submitInfo.commandBufferCount = 1;
-	submitInfo.pCommandBuffers = &commandBuffer;
+	VkSubmitInfo submitInfo = {}; //submit the command buffer to execute
+	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO; //struct type
+	submitInfo.commandBufferCount = 1; //1 command buffer to submit
+	submitInfo.pCommandBuffers = &commandBuffer; //the command buffer
 
-	vkQueueSubmit(graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
-	vkQueueWaitIdle(graphicsQueue);
-
+	vkQueueSubmit(graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE); //submit the command buffer to the graphics queue
+	vkQueueWaitIdle(graphicsQueue); //wait until the execution is complete to free the buffer
+	 //free the command buffer
 	vkFreeCommandBuffers(device, commandPool, 1, &commandBuffer);
 }
 
@@ -1700,11 +1736,11 @@ void Renderer::recreateSwapChain()
 	createImageViews(); //create new image views
 	createRenderPass(); //create a new render pass
 	createGraphicsPipeline(); //create a new graphics pipeline
-	createDepthResources();
+	createDepthResources(); //create the depth stencil
 	createFramebuffers(); //create a new framebuffer
-	createUniformBuffers();
+	createUniformBuffers(); //create the uniform buffers
 	createDescriptorPool(); //create uniform descriptor pool
-	createDescriptorSets();
+	createDescriptorSets(); 
 	createCommandBuffers(); //create new command buffers (we recycle the command pool)
 }
 
@@ -1713,9 +1749,10 @@ void Renderer::recreateSwapChain()
 */
 void Renderer::cleanupSwapChain()
 {
-	vkDestroyImageView(device, depthImageView, nullptr);
-	vkDestroyImage(device, depthImage, nullptr);
-	vkFreeMemory(device, depthImageMemory, nullptr);
+	//destroy depth buffer related data and handles
+	vkDestroyImageView(device, depthImageView, nullptr); //destroy the image view for the depth buffer
+	vkDestroyImage(device, depthImage, nullptr); //destroy the image related to the view
+	vkFreeMemory(device, depthImageMemory, nullptr); //free the buffer memory associated with the image
 
 	for (size_t i = 0; i < swapChainFramebuffers.size(); i++) { //for all the frame buffers created to manage the images in the swap chain
 		vkDestroyFramebuffer(device, swapChainFramebuffers[i], nullptr); //destroy them
@@ -1736,14 +1773,16 @@ void Renderer::cleanupSwapChain()
 
 	vkDestroySwapchainKHR(device, swapChain, nullptr); //finally, destroy the swap chain by providing the logical device and the swap chain handle
 
-	for (size_t i = 0; i < swapChainImages.size(); i++) {
-		vkDestroyBuffer(device, uniformBuffers[i], nullptr);
-		vkFreeMemory(device, uniformBuffersMemory[i], nullptr);
+	for (size_t i = 0; i < swapChainImages.size(); i++) { //destroy all the uniform buffers (1 for each image in the swap chain)
+		vkDestroyBuffer(device, uniformBuffers[i], nullptr); //destroy the handle to the buffer
+		vkFreeMemory(device, uniformBuffersMemory[i], nullptr); //destroy the memory associated with that buffer handle
 	}
 
+	//destroy the buffer with lighting constants (only 1)
 	vkDestroyBuffer(device, lightingUniformBuffers, nullptr);
 	vkFreeMemory(device, lightingUniformBuffersMemory, nullptr);
 
+	//destroy the pool from which we allocated the uniform buffers
 	vkDestroyDescriptorPool(device, descriptorPool, nullptr);
 
 }
@@ -1785,7 +1824,7 @@ void Renderer::drawFrame()
 	// Mark the image as now being in use by this frame
 	imagesInFlight[imageIndex] = inFlightFences[currentFrame];
 
-	updateUniformBuffer(imageIndex);
+	updateUniformBuffer(imageIndex); //update the uniform buffers
 
 	VkSubmitInfo submitInfo = {}; //information needed to submit a queue for execution
 	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO; //struct type
@@ -1894,14 +1933,16 @@ bool Renderer::checkValidationLayerSupport()
 	return true; //we found the layer
 }
 
+//method to create all uniform buffers
 void Renderer::createUniformBuffers()
 {
-	VkDeviceSize bufferSize = sizeof(UniformBufferObject);
-	VkDeviceSize lightingBufferSize = sizeof(LightingConstants);
+	VkDeviceSize bufferSize = sizeof(UniformBufferObject); //size of in bytes of the uniform buffer object struct
+	VkDeviceSize lightingBufferSize = sizeof(LightingConstants); //size of in bytes of the lighting constants struct
 
-	uniformBuffers.resize(swapChainImages.size());
-	uniformBuffersMemory.resize(swapChainImages.size());
+	uniformBuffers.resize(swapChainImages.size()); //allocate space to hold all the handles for the uniform buffer
+	uniformBuffersMemory.resize(swapChainImages.size()); //allocate space to hold handles to the associated memory of uniform buffer
 
+	//create buffers
 	for (size_t i = 0; i < swapChainImages.size(); i++) {
 		createBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, uniformBuffers[i], uniformBuffersMemory[i]);
 	}
@@ -1909,28 +1950,25 @@ void Renderer::createUniformBuffers()
 	createBuffer(lightingBufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, lightingUniformBuffers, lightingUniformBuffersMemory);
 }
 
+//method to update the uniform buffers (pass in the index of the image we are rendering to)
 void Renderer::updateUniformBuffer(uint32_t index)
 {
-	static auto startTime = std::chrono::high_resolution_clock::now();
-
-	auto currentTime = std::chrono::high_resolution_clock::now();
-	float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
-
-	UniformBufferObject ubo = {};
+	UniformBufferObject ubo = {}; //ubo object that we will load into buffer
 	
-	glm::mat4 model = glm::translate(glm::mat4(1.0), translation);
-	model = glm::scale(model, {0.05,0.05,0.05});
+	glm::mat4 model = glm::translate(glm::mat4(1.0), translation); //model matrix
+	model = glm::scale(model, {0.05,0.05,0.05}); //scale the duck so its not so big
 
-	float mNow[16];
-	Ball_Value(&arcBall, mNow);
-	glm::mat4 rotatioMat = glm::make_mat4(mNow);
-	ubo.model = model * rotatioMat;
-	ubo.view = glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 8.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-	ubo.proj = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float)swapChainExtent.height, 0.1f, 10000.0f);
-	ubo.proj[1][1] *= -1;
-	ubo.renderFlags = renderFlags;
+	float mNow[16]; //the rotation matrix from the arcball controller
+	Ball_Value(&arcBall, mNow); //get the current rotation matrix
+	glm::mat4 rotatioMat = glm::make_mat4(mNow); //make it such that we can use it with glm
+	ubo.model = model * rotatioMat; //incorporate it into the model matrix
+	ubo.view = glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 8.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f)); //look direction
+	ubo.proj = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float)swapChainExtent.height, 0.1f, 10000.0f); //perspective projection matrix
+	ubo.proj[1][1] *= -1; //invert the y component so things are drawn the right way around
+	ubo.renderFlags = renderFlags; //render flags used to deactivate ambient, diff and spec
 
 
+	//map the on GPU memory to main memory so we can load the data, then unmap
 	void* data;
 	vkMapMemory(device, uniformBuffersMemory[index], 0, sizeof(ubo), 0, &data);
 	memcpy(data, &ubo, sizeof(ubo));

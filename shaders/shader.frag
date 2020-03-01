@@ -37,13 +37,13 @@ void main() {
 	vec3 specularLight = fragSpecularLighting * fragColor * specularPower * specI;
 
 	vec4 lighting = vec4(0);
-	if(abs(renderFlags.x - 1.0) < 0.00001){
+	if(abs(renderFlags.x) > 0.5){
 		lighting += vec4(ambientLight, 1.0) * vec4(fragColor, 1.0);
 	}
-	if(abs(renderFlags.y - 1.0) < 0.00001){
+	if(abs(renderFlags.y) > 0.5){
 		lighting += vec4(diffuseLight, 1.0) * vec4(fragColor, 1.0);
 	}
-	if(abs(renderFlags.z - 1.0) < 0.00001){
+	if(abs(renderFlags.z) > 0.5){
 		lighting += vec4(specularLight,1.0) * vec4(fragColor, 1.0);
 	}
 	
