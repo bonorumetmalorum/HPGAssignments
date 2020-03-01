@@ -34,11 +34,6 @@ void Renderer::run()
 	cleanup();
 }
 
-void Renderer::renderMesh(Mesh mesh)
-{
-	//TODO
-}
-
 Renderer::~Renderer()
 {
 }

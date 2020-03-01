@@ -10,7 +10,6 @@
 #include <set>
 #include <algorithm>
 #include <fstream>
-#include "Mesh.h"
 #include <glm/vec2.hpp>
 #include <glm/vec3.hpp>
 #include <array>
@@ -55,8 +54,6 @@ public:
 	~Renderer();
 	
 	void run();
-	void renderMesh(Mesh mesh);
-
 private:
 
 	void initVulkan();
