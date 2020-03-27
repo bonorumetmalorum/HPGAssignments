@@ -7,8 +7,9 @@ ObjLoader::ObjLoader()
 }
 
 //load an obj into memory
-void ObjLoader::loadObj(std::string path)
+void ObjLoader::loadObj(std::string path, ReadMode mode)
 {
+	this->mode = mode;
 	std::fstream inStream(path.data(), std::ios::in);
 	if (!inStream.is_open()) {
 		throw std::runtime_error("unable to open file");
@@ -55,16 +56,29 @@ void ObjLoader::loadObj(std::string path)
 		}
 		else if (type == "f") {	//load in face indices
 			std::string v1, v2, v3, v4;
-			stream >> v1 >> v2 >> v3 >> v4;
 			VertexIndicies vertIndices1, vertIndices2, vertIndices3, vertIndices4;
-			sscanf_s(v1.c_str(), "%ld/%ld/%ld", &vertIndices1.v, &vertIndices1.t, &vertIndices1.n);
-			sscanf_s(v2.c_str(), "%ld/%ld/%ld", &vertIndices2.v, &vertIndices2.t, &vertIndices2.n);
-			sscanf_s(v3.c_str(), "%ld/%ld/%ld", &vertIndices3.v, &vertIndices3.t, &vertIndices3.n);
-			sscanf_s(v4.c_str(), "%ld/%ld/%ld", &vertIndices4.v, &vertIndices4.t, &vertIndices4.n);
-			faceVertices.push_back(vertIndices1);
-			faceVertices.push_back(vertIndices2);
-			faceVertices.push_back(vertIndices3);
-			faceVertices.push_back(vertIndices4);
+			switch (mode) {
+			case ReadMode::QUADS:
+				stream >> v1 >> v2 >> v3 >> v4;
+				sscanf_s(v1.c_str(), "%ld/%ld/%ld", &vertIndices1.v, &vertIndices1.t, &vertIndices1.n);
+				sscanf_s(v2.c_str(), "%ld/%ld/%ld", &vertIndices2.v, &vertIndices2.t, &vertIndices2.n);
+				sscanf_s(v3.c_str(), "%ld/%ld/%ld", &vertIndices3.v, &vertIndices3.t, &vertIndices3.n);
+				sscanf_s(v4.c_str(), "%ld/%ld/%ld", &vertIndices4.v, &vertIndices4.t, &vertIndices4.n);
+				faceVertices.push_back(vertIndices1);
+				faceVertices.push_back(vertIndices2);
+				faceVertices.push_back(vertIndices3);
+				faceVertices.push_back(vertIndices4);
+				break;
+			case ReadMode::TRIANGLES:
+				stream >> v1 >> v2 >> v3;
+				sscanf_s(v1.c_str(), "%ld/%ld/%ld", &vertIndices1.v, &vertIndices1.t, &vertIndices1.n);
+				sscanf_s(v2.c_str(), "%ld/%ld/%ld", &vertIndices2.v, &vertIndices2.t, &vertIndices2.n);
+				sscanf_s(v3.c_str(), "%ld/%ld/%ld", &vertIndices3.v, &vertIndices3.t, &vertIndices3.n);
+				faceVertices.push_back(vertIndices1);
+				faceVertices.push_back(vertIndices2);
+				faceVertices.push_back(vertIndices3);
+				break;
+			}
 		}
 	}
 }
@@ -165,27 +179,46 @@ ObjLoader::~ObjLoader()
 OBJ ObjLoader::createObj()
 {
 	OBJ object;
+	int numPerF;
+	switch (this->mode) {
+	case ReadMode::QUADS:
+		triangulate(object);
+		break;
+	case ReadMode::TRIANGLES:
+		package(object);
+		break;
+	}
+	return object;
+}
+
+std::vector<glm::vec3>& ObjLoader::getVertices()
+{
+	return this->vertices;
+}
+
+void ObjLoader::triangulate(OBJ & object)
+{
 	std::unordered_map<Vertex, uint32_t> uniqueVertices; //keep track of unique face vertices
-	for (long i = 0; i < faceVertices.size()/4; i++) {
+	for (long i = 0; i < faceVertices.size() / 4; i++) {
 		//data for 0 vertex
-		glm::vec3 position = vertices[faceVertices[i*4].v - 1];
-		glm::vec3 normal = normals[faceVertices[i*4].n - 1];
-		glm::vec2 uv = uvcoords[faceVertices[i*4].t - 1];
+		glm::vec3 position = vertices[faceVertices[i * 4].v - 1];
+		glm::vec3 normal = normals[faceVertices[i * 4].n - 1];
+		glm::vec2 uv = uvcoords[faceVertices[i * 4].t - 1];
 		Vertex v0 = { position, normal, uv };
 		//data for 1 vertex
-		glm::vec3 position1 = vertices[faceVertices[i*4 + 1].v - 1];
-		glm::vec3 normal1 = normals[faceVertices[i*4 + 1].n - 1];
-		glm::vec2 uv1 = uvcoords[faceVertices[i*4 + 1].t - 1];
+		glm::vec3 position1 = vertices[faceVertices[i * 4 + 1].v - 1];
+		glm::vec3 normal1 = normals[faceVertices[i * 4 + 1].n - 1];
+		glm::vec2 uv1 = uvcoords[faceVertices[i * 4 + 1].t - 1];
 		Vertex v1 = { position1, normal1, uv1 };
 		//data for 2 vertex
-		glm::vec3 position2 = vertices[faceVertices[i*4 + 2].v - 1];
-		glm::vec3 normal2 = normals[faceVertices[i*4 + 2].n - 1];
-		glm::vec2 uv2 = uvcoords[faceVertices[i*4 + 2].t - 1];
+		glm::vec3 position2 = vertices[faceVertices[i * 4 + 2].v - 1];
+		glm::vec3 normal2 = normals[faceVertices[i * 4 + 2].n - 1];
+		glm::vec2 uv2 = uvcoords[faceVertices[i * 4 + 2].t - 1];
 		Vertex v2 = { position2, normal2, uv2 };
 		//data for 3 vertex
-		glm::vec3 position3 = vertices[faceVertices[i*4 + 3].v - 1];
-		glm::vec3 normal3 = normals[faceVertices[i*4 + 3].n - 1];
-		glm::vec2 uv3 = uvcoords[faceVertices[i*4 + 3].t - 1];
+		glm::vec3 position3 = vertices[faceVertices[i * 4 + 3].v - 1];
+		glm::vec3 normal3 = normals[faceVertices[i * 4 + 3].n - 1];
+		glm::vec2 uv3 = uvcoords[faceVertices[i * 4 + 3].t - 1];
 		Vertex v3 = { position3, normal3, uv3 };
 
 		//routine to add vertices in right order
@@ -229,11 +262,58 @@ OBJ ObjLoader::createObj()
 		object.indices.push_back(iv2);
 		object.indices.push_back(iv3);
 		object.indices.push_back(iv0);
-	}	
-	return object;
+	}
 }
 
-std::vector<glm::vec3>& ObjLoader::getVertices()
+void ObjLoader::package(OBJ& object)
 {
-	return this->vertices;
+	std::unordered_map<Vertex, uint32_t> uniqueVertices; //keep track of unique face vertices
+	for (long i = 0; i < faceVertices.size() / 3; i++) {
+		//data for 0 vertex
+		glm::vec3 position = vertices[faceVertices[i * 3].v - 1];
+		glm::vec3 normal = normals[faceVertices[i * 3].n - 1];
+		glm::vec2 uv = uvcoords[faceVertices[i * 3].t - 1];
+		Vertex v0 = { position, normal, uv };
+		//data for 1 vertex
+		glm::vec3 position1 = vertices[faceVertices[i * 3 + 1].v - 1];
+		glm::vec3 normal1 = normals[faceVertices[i * 3 + 1].n - 1];
+		glm::vec2 uv1 = uvcoords[faceVertices[i * 3 + 1].t - 1];
+		Vertex v1 = { position1, normal1, uv1 };
+		//data for 2 vertex
+		glm::vec3 position2 = vertices[faceVertices[i * 3 + 2].v - 1];
+		glm::vec3 normal2 = normals[faceVertices[i * 3 + 2].n - 1];
+		glm::vec2 uv2 = uvcoords[faceVertices[i * 3 + 2].t - 1];
+		Vertex v2 = { position2, normal2, uv2 };
+		
+		uint32_t iv0, iv1, iv2, iv3 = 0;
+		if (uniqueVertices.count(v0) == 0) {
+			uniqueVertices[v0] = object.vertexList.size();
+			iv0 = object.vertexList.size();
+			object.vertexList.push_back(v0);
+		}
+		else {
+			iv0 = uniqueVertices[v0];
+		}
+		if (uniqueVertices.count(v1) == 0) {
+			uniqueVertices[v1] = object.vertexList.size();
+			iv1 = object.vertexList.size();
+			object.vertexList.push_back(v1);
+		}
+		else {
+			iv1 = uniqueVertices[v1];
+		}
+		if (uniqueVertices.count(v2) == 0) {
+			uniqueVertices[v2] = object.vertexList.size();
+			iv2 = object.vertexList.size();
+			object.vertexList.push_back(v2);
+		}
+		else {
+			iv2 = uniqueVertices[v2];
+		}
+
+		object.indices.push_back(iv0);
+		object.indices.push_back(iv1);
+		object.indices.push_back(iv2);
+
+	}
 }

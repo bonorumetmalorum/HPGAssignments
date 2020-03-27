@@ -14,7 +14,7 @@
 int main() {
 	ObjLoader loader;
 	try {
-		loader.loadObj("../models/duck/12248_Bird_v1_L2.obj");
+		loader.loadObj("../models/bunny/bunny.obj", ReadMode::TRIANGLES);
 	}
 	catch (std::exception e) {
 		std::cout << "exception reading obj: " << e.what() << std::endl;
@@ -24,7 +24,6 @@ int main() {
 	Texture texture;
 	Mtl mtl;
 	try {
-		//texture = loader.loadTextureJpg("../models/duck/12248_Bird_v1_diff.jpg");
 		texture = loader.loadTexturePpm("../models/duck/ducktex.ppm");
 		mtl = loader.loadMtl("../models/duck/12248_Bird_v1_L2.mtl");
 	}

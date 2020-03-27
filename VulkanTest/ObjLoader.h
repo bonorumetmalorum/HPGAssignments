@@ -53,6 +53,12 @@ struct Vertex {
 	}
 };
 
+enum ReadMode
+{
+	TRIANGLES,
+	QUADS
+};
+
 //implement hashing so we can use the vertex in a std::map
 namespace std {
 	template<> struct hash<Vertex> {
@@ -93,7 +99,7 @@ class ObjLoader
 public:
 	ObjLoader();
 	//load obj
-	void loadObj(std::string path);
+	void loadObj(std::string path, ReadMode mode);
 	//load mtl
 	Mtl loadMtl(std::string path);
 	//load texture
@@ -117,5 +123,9 @@ private:
 	std::vector<glm::vec3> normals;
 	std::vector<glm::vec2> uvcoords;
 	std::vector<VertexIndicies> faceVertices;
+	ReadMode mode;
+
+	void triangulate(OBJ & obj);
+	void package(OBJ & obj);
 };
 
