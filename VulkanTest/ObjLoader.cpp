@@ -141,34 +141,73 @@ Texture ObjLoader::loadTextureJpg(std::string path)
 Texture ObjLoader::loadTexturePpm(std::string path)
 {
 	Texture t = {};
-	std::ifstream instream(path.c_str(), std::ios::binary);
+	std::ifstream instream(path.c_str(), std::ios::binary | std::ios::in);
 	if (!instream.is_open()) {
 		throw std::runtime_error("unable to open ppm file");
 	}
 	char magicL, magicN;
 	instream >> magicL;
 	instream >> magicN;
-	if (magicL != 'P' && magicN != '6') { //check if binary format, if not throw error
-		throw std::runtime_error("incorrect ppm format, only binary (P6) supported");
+	if (magicL == 'P' && magicN == '6') { //check if binary format, if not throw error
+		char comment;
+		instream >> comment;
+		if (comment = '#') {
+			instream.ignore(100, '\r\n');
+		}
+		int height, width, maxVal;
+		instream >> height;
+		instream >> width;
+		instream >> maxVal;
+		//instream >> height >> width >> maxVal;
+		t.height = height;
+		t.width = width;
+		t.imageSize = height * width * 4;
+		t.pixels = new unsigned char[(size_t)t.imageSize];
+		instream.get();
+		for (size_t i = 0; i < t.imageSize / 4; i++) {
+			char r, g, b, a = (unsigned char)255;
+			instream.read(&r, sizeof(char));
+			instream.read(&g, sizeof(char));
+			instream.read(&b, sizeof(char));
+			t.pixels[(i * 4)] = r;
+			t.pixels[(i * 4) + 1] = g;
+			t.pixels[(i * 4) + 2] = b;
+			t.pixels[(i * 4) + 3] = a;
+		}
+		return t;
 	}
-	int height, width, maxVal;
-	instream >> height >> width >> maxVal;
-	t.height = height;
-	t.width = width;
-	t.imageSize = height * width * 4;
-	t.pixels = new unsigned char[(size_t)t.imageSize];
-	instream.get();
-	for (size_t i = 0; i < t.imageSize/4; i++) {
-		char r, g, b, a = (unsigned char)255;
-		instream.read(&r, sizeof(char));
-		instream.read(&g, sizeof(char));
-		instream.read(&b, sizeof(char));
-		t.pixels[(i * 4)] =  r;
-		t.pixels[(i * 4) + 1] = g;
-		t.pixels[(i * 4) + 2] = b;
-		t.pixels[(i*4) + 3] = a;
+	else if (magicL == 'P' && magicN == '3') {
+		char comment;
+		instream >> comment;
+		if (comment = '#') {
+			instream.ignore(100, '\n');
+		}
+		int height, width, maxVal;
+		instream >> height;
+		instream >> width;
+		instream >> maxVal;
+		//instream >> height >> width >> maxVal;
+		t.height = height;
+		t.width = width;
+		t.imageSize = height * width * 4;
+		t.pixels = new unsigned char[(size_t)t.imageSize];
+		instream.get();
+		for (size_t i = 0; i < t.imageSize / 4; i++) {
+			char r, g, b, a = (unsigned char)255;
+			instream.read(&r, sizeof(char));
+			instream.read(&g, sizeof(char));
+			instream.read(&b, sizeof(char));
+			t.pixels[(i * 4)] = r;
+			t.pixels[(i * 4) + 1] = g;
+			t.pixels[(i * 4) + 2] = b;
+			t.pixels[(i * 4) + 3] = a;
+		}
+		return t;
 	}
-	return t;
+	else {
+		throw std::runtime_error("unsuported ppm format");
+	}
+
 }
 
 ObjLoader::~ObjLoader()

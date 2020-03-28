@@ -950,6 +950,7 @@ void Renderer::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize s
 	//VkCommandBufferAllocateInfo allocInfo = {};
 	//allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
 	//allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY; 
+	//allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY; 
 	//allocInfo.commandPool = commandPool;
 	//allocInfo.commandBufferCount = 1;
 
@@ -1969,7 +1970,7 @@ void Renderer::updateUniformBuffer(uint32_t index)
 	UniformBufferObject ubo = {}; //ubo object that we will load into buffer
 	
 	glm::mat4 model = glm::translate(glm::mat4(1.0), translation); //model matrix
-	model = glm::scale(model, { 12,12,12 }); //scale the duck so its not so big
+	model = glm::scale(model, { 0.05,0.05,0.05 }); //scale the duck so its not so big
 
 	float mNow[16]; //the rotation matrix from the arcball controller
 	Ball_Value(&arcBall, mNow); //get the current rotation matrix
