@@ -11,14 +11,15 @@ layout(location = 6) in vec3 fragAmbientLighting;
 layout(location = 7) in float fragSpecularCoefficient;
 layout(location = 8) in vec4 fragNormal;
 layout(location = 9) in vec3 renderFlags;
+layout(location = 10) in float opacity;
 
 layout(location = 0) out vec4 outColor;
 
 layout(binding = 1) uniform sampler2D texSampler;
 
 void main() {
-	vec4 skinColor = texture(texSampler, fragTexCoord);
-
+	vec4 textureColor = texture(texSampler, fragTexCoord);
+	textureColor.a *= opacity;
 	float ambI = 0.25;
 	float diffI = 0.9;
 	float specI = 4.0;
@@ -36,18 +37,18 @@ void main() {
 	float specularPower = pow(specularDotProd, fragSpecularCoefficient);
 	vec3 specularLight = fragSpecularLighting * fragColor * specularPower * specI;
 
-	vec4 lighting = vec4(0);
+	vec3 lighting = vec3(0);
 	if(abs(renderFlags.x) > 0.5){
-		lighting += vec4(ambientLight, 1.0) * vec4(fragColor, 1.0);
+		lighting += ambientLight * fragColor;
 	}
 	if(abs(renderFlags.y) > 0.5){
-		lighting += vec4(diffuseLight, 1.0) * vec4(fragColor, 1.0);
+		lighting += diffuseLight * fragColor;
 	}
 	if(abs(renderFlags.z) > 0.5){
-		lighting += vec4(specularLight,1.0) * vec4(fragColor, 1.0);
+		lighting += specularLight * fragColor;
 	}
 	
 	//outColor = vec4(renderFlags, 1.0);
-	outColor = skinColor;
+	outColor = textureColor;
 }
 

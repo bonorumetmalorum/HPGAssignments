@@ -151,13 +151,14 @@ Texture ObjLoader::loadTexturePpm(std::string path)
 	if (magicL == 'P' && magicN == '6') { //check if binary format, if not throw error
 		char comment;
 		instream >> comment;
-		if (comment = '#') {
-			instream.ignore(100, '\r\n');
-		}
-		int height, width, maxVal;
+		//if (comment = '#') {
+		//	instream.ignore(100, '\r\n');
+		//}
+		int height, width, maxVal = 0;
 		instream >> height;
 		instream >> width;
 		instream >> maxVal;
+		std::cout << maxVal << std::endl;
 		//instream >> height >> width >> maxVal;
 		t.height = height;
 		t.width = width;
@@ -197,6 +198,7 @@ Texture ObjLoader::loadTexturePpm(std::string path)
 			instream.read(&r, sizeof(char));
 			instream.read(&g, sizeof(char));
 			instream.read(&b, sizeof(char));
+			instream.read(&a, sizeof(char));
 			t.pixels[(i * 4)] = r;
 			t.pixels[(i * 4) + 1] = g;
 			t.pixels[(i * 4) + 2] = b;

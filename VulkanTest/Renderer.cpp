@@ -51,8 +51,11 @@ void Renderer::initVulkan()
 	createSwapChain(); //create a swapchain that we can use to render images to the surface
 	createImageViews(); //create the image views that will hold additional info about the images in the swapchain
 	createRenderPass(); //create a render pass that specifies all the stages of the render
-	createDescriptorSetLayout(); //create the descriptor sets
-	createGraphicsPipeline(); //create a graphics pipeline to process drawing commands and render to the surface
+	createDescriptorSetLayout(); //create the descriptor sets TODO
+	//^add to the descriptor above
+	createBaseGraphicsPipeline(); //create a graphics pipeline to process drawing commands and render to the surface
+	createShellGraphicsPipeline(); //shell rendering pipeline
+	createFinGraphicsPipeline(); //fin rendering pipeline
 	createCommandPool(); //create a command pool to manage allocation of command buffers
 	createTextureImage(); //load the image texture into gpu memory
 	createTextureImageView(); //create the image view to access the texture
@@ -62,6 +65,7 @@ void Renderer::initVulkan()
 	createVertexBuffer(); //create the vertex buffer
 	createIndexBuffer(); //create the index buffer so we reuse vertex data
 	createUniformBuffers(); //create the uniform buffer to load shader accessible data
+	//create uniforms for the shell pipeline
 	createDescriptorPool(); //create a descriptor pool from which we can allocate uniforms
 	createDescriptorSets(); //create descriptor sets to describe the resources that will be bound to the pipeline
 	createCommandBuffers(); //create the command buffer from the pool with the appropriate commands
@@ -221,7 +225,8 @@ void Renderer::cleanup()
 	vkDestroyImage(device, textureImage, nullptr);
 	vkFreeMemory(device, textureImageMemory, nullptr);
 
-	vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
+	vkDestroyDescriptorSetLayout(device, descriptorSetLayoutBase, nullptr);
+	vkDestroyDescriptorSetLayout(device, descriptorSetLayoutShell, nullptr);
 
 	vkDestroyBuffer(device, indexBuffer, nullptr);
 	vkFreeMemory(device, indexBufferMemory, nullptr);
@@ -230,7 +235,8 @@ void Renderer::cleanup()
 	vkFreeMemory(device, vertexBufferMemory, nullptr);
 
 	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) { //destroy all synchronization objects
-		vkDestroySemaphore(device, renderFinishedSemaphores[i], nullptr);
+		vkDestroySemaphore(device, baseRenderFinishedSemaphores[i], nullptr);
+		vkDestroySemaphore(device, shellRenderFinishedSemaphores[i], nullptr);
 		vkDestroySemaphore(device, imageAvailableSemaphores[i], nullptr);
 		vkDestroyFence(device, inFlightFences[i], nullptr);
 	}
@@ -737,7 +743,7 @@ void Renderer::createImageViews()
 	The graphics pipeline can be viewed as an assembly line where commands to execute come in the front and colourful pixels are displayed at the end
 	The graphics pipeline is highly customizable and so in this method we go about setting it up
 */
-void Renderer::createGraphicsPipeline()
+void Renderer::createBaseGraphicsPipeline()
 {
 	//read in shader programs in binary format (pre compiled)
 	auto vertShaderCode = readFile("../shaders/vert.spv");
@@ -905,11 +911,11 @@ void Renderer::createGraphicsPipeline()
 	VkPipelineLayoutCreateInfo pipelineLayoutInfo = {};
 	pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO; //struct type
 	pipelineLayoutInfo.setLayoutCount = 1; // Optional - number of different uniform layouts
-	pipelineLayoutInfo.pSetLayouts = &descriptorSetLayout; // Optional - the uniform layouts
+	pipelineLayoutInfo.pSetLayouts = &descriptorSetLayoutBase; // Optional - the uniform layouts
 	pipelineLayoutInfo.pushConstantRangeCount = 0; // Optional - a push constant is uniform variable in a shader and is used similarly, but it is vulkan owned and managed, it is set through the command buffer (number of push constant ranges)
 	pipelineLayoutInfo.pPushConstantRanges = nullptr; // Optional - the push constant ranges that specify what stage of the pipeline will access the uniform and it also specifies the start offset and size of the uniform
 
-	if (vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS) { //create the pipeline layout by passing the logical device, the pipeline layout information, nullptr allocation callbacks and finally an out parameter to hold a handle to the pipeline layout, if not successful
+	if (vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &basePipelineLayout) != VK_SUCCESS) { //create the pipeline layout by passing the logical device, the pipeline layout information, nullptr allocation callbacks and finally an out parameter to hold a handle to the pipeline layout, if not successful
 		throw std::runtime_error("failed to create pipeline layout!"); //throw an error
 	}
 
@@ -927,7 +933,7 @@ void Renderer::createGraphicsPipeline()
 	pipelineInfo.pDepthStencilState = &depthStencil;// Optional - depth stencil stage
 	pipelineInfo.pColorBlendState = &colorBlending; //colour blending stage
 	pipelineInfo.pDynamicState = nullptr; // Optional - the state which are treating as dynamic, we don't use this either
-	pipelineInfo.layout = pipelineLayout; // pipeline layout, we are not using any uniforms and other constants in our pipeline
+	pipelineInfo.layout = basePipelineLayout; // pipeline layout, we are not using any uniforms and other constants in our pipeline
 	pipelineInfo.renderPass = renderPass; // the render passes associating operations and images
 	pipelineInfo.subpass = 0; // we are not using any subpasses
 	pipelineInfo.basePipelineHandle = VK_NULL_HANDLE; // Optional - vulkan allows you to derive from another pipeline
@@ -936,7 +942,7 @@ void Renderer::createGraphicsPipeline()
 	//more parameters are used here as multiple graphics pipelines can be created in one go by providing a list of create info structs
 	//second param is a cache which can be used to reuse data relevant to pipeline creation across multiple class
 	//the third param is the count of create info structs, in our case we only have one and only one pipeline is created
-	if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &graphicsPipeline) != VK_SUCCESS) { //make the graphics pipeline
+	if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &baseGraphicsPipeline) != VK_SUCCESS) { //make the graphics pipeline
 		throw std::runtime_error("failed to create graphics pipeline!"); //throw an error if it was unsuccessful
 	}
 
@@ -944,24 +950,222 @@ void Renderer::createGraphicsPipeline()
 	vkDestroyShaderModule(device, vertShaderModule, nullptr); //destroy the shader modules since they have been loaded in the pipeline
 }
 
+void Renderer::createShellGraphicsPipeline()
+{
+	//read in shader programs in binary format (pre compiled)
+	auto vertShaderCode = readFile("../shaders/shellVert.spv");
+	auto fragShaderCode = readFile("../shaders/shellFrag.spv");
+
+	//create shader modules using read in code
+	VkShaderModule vertShaderModule = createShaderModule(vertShaderCode);
+	VkShaderModule fragShaderModule = createShaderModule(fragShaderCode);
+
+	//now that the shader modules have been created we need to assign them to specific stages in the pipeline
+	VkPipelineShaderStageCreateInfo vertShaderStageInfo = {};
+	vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO; //type of struct
+	vertShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT; //pipeline stage we are assigning the module to
+	vertShaderStageInfo.module = vertShaderModule; //shader module containing the code 
+	vertShaderStageInfo.pName = "main"; //entry point to shader program
+
+	//same thing but now for the fragment shader
+	VkPipelineShaderStageCreateInfo fragShaderStageInfo = {};
+	fragShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO; //type of the struct
+	fragShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT; //stage we are assigning the shader program to
+	fragShaderStageInfo.module = fragShaderModule; //the shader module containing the code
+	fragShaderStageInfo.pName = "main"; //entry point to the program
+
+	VkPipelineShaderStageCreateInfo shaderStages[] = { vertShaderStageInfo, fragShaderStageInfo }; // store the shader stages in an array
+
+	//enable depth testing
+	VkPipelineDepthStencilStateCreateInfo depthStencil = {};
+	depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO; //truct type
+	depthStencil.depthTestEnable = VK_TRUE; //enable depth test
+	depthStencil.depthWriteEnable = VK_TRUE; //enable ability to write values to the depth buffer
+	depthStencil.depthCompareOp = VK_COMPARE_OP_LESS; // keep fragments with lesser depth
+	depthStencil.depthBoundsTestEnable = VK_FALSE; //special test to check if depth buffer values are within a range, disabled here
+	depthStencil.stencilTestEnable = VK_FALSE; //no stencil test to do after depth test
+
+
+	//describing the configuration of the newly created pipeline vertex input state -  
+	//what we are doing here is describing the layout of geometric data in memory and then having Vulkan fetch it and then feed it to the shader
+	auto bindingDescription = Vertex::getBindingDescription(); //get the binding description
+	auto attributeDescriptions = Vertex::getAttributeDescriptions(); //get the attribute description
+	VkPipelineVertexInputStateCreateInfo vertexInputInfo = {};
+	vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO; //type of struct
+
+	vertexInputInfo.vertexBindingDescriptionCount = 1; // number of vertex bindings used by the pipeline
+	vertexInputInfo.pVertexBindingDescriptions = &bindingDescription; // binding description
+	vertexInputInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(attributeDescriptions.size()); //type of the attributes passed to the vertex shader, which binding to load them from and at which offset
+	vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions.data(); // also not binding any attributes for the vertices
+
+	//this stage will take vertex input data and groups them into primitives ready for processing
+	VkPipelineInputAssemblyStateCreateInfo inputAssembly = {};
+	inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO; //type of the struct
+	inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST; //type of the primitive that vertices will be grouped into, in this case a triangle
+	inputAssembly.primitiveRestartEnable = VK_FALSE; //used to allow strips and fan primitives topologies to be cut and restarted (use for optimizing draw calls) - we don't need this
+
+	//define the viewport (area to which we will render)
+	VkViewport viewport = {};
+	viewport.x = 0.0f; //origin
+	viewport.y = 0.0f; //origin
+	viewport.width = (float)swapChainExtent.width; //max width (here we are matching the swap chain width)
+	viewport.height = (float)swapChainExtent.height; //max height (here we are matching the swap chain height)
+	viewport.minDepth = 0.0f; //frame buffer depth values - we don't really use them at the moment
+	viewport.maxDepth = 1.0f; //frame buffer depth values - we don't really use them at the moment
+
+	//filter that discards pixels, we want to draw the entire image so we have a scissor angle to cover it entirely
+	VkRect2D scissor = {}; //VkRect2D is a type that defines a rectangle in vulkan, it can be used for other things as well
+	scissor.offset = { 0, 0 }; //screen offset (in our case it starts at the origin)
+	scissor.extent = swapChainExtent; // the dimensions of the swap chain image (so here we are not discarding any pixels, it covers the full extent of the swap chain image)
+
+	//combine the viewport and scissor configuration into viewport state
+	VkPipelineViewportStateCreateInfo viewportState = {};
+	viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO; //type of the struct
+	viewportState.viewportCount = 1; //number of view ports we want to use
+	viewportState.pViewports = &viewport; //the viewport(s)
+	viewportState.scissorCount = 1; //the number of scissors we want to use
+	viewportState.pScissors = &scissor; //the scissor(s)
+
+	//setup rasterization stage
+	/*
+		important stage that converts primitives into fragments that are going to be shaded by the fragment shader
+	*/
+	VkPipelineRasterizationStateCreateInfo rasterizer = {};
+	rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+	rasterizer.depthClampEnable = VK_FALSE; //fragments beyond the near and far plane are culled - (not needed here, this way we don't need to process these fragments)
+	rasterizer.rasterizerDiscardEnable = VK_FALSE; //when this is enabled the rasterizer will not run
+	rasterizer.polygonMode = VK_POLYGON_MODE_FILL; //turns triangles into points or lines - in this case triangles are solid, filled in
+	rasterizer.lineWidth = 1.0f; //thickness of lines
+	//these have changed to accommodate for the y flip in the projection matrix
+	rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;  //which faces should we cull (here we choose to cull back faces, we could also do both)
+	rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE; //how to iterate over vertices (determines which faces are front and back) can be CC or C
+	//the following parameters can be used to fix issues with z-fighting by allowing fragments to be offset in depth
+	rasterizer.depthBiasEnable = VK_FALSE; // can be modified based on slope but we don't want that here so it is disabled
+	rasterizer.depthBiasConstantFactor = 0.0f; // Optional - depth bias equation
+	rasterizer.depthBiasClamp = 0.0f; // Optional - puts an upper bound on the depth bias equation output if positive and non zero and lower bound if non zero and negative
+	rasterizer.depthBiasSlopeFactor = 0.0f; // Optional - param in depth bias equation
+	//depth bias is calculated by finding m which is steepest descent in z direction and then multiplying it by depthBiasSlopeFactor and depthBiasConstantFactor
+
+	//multisampling
+	/*
+		process of generating samples for each pixel in an image
+		Anti-Aliasing is a for of multi-sampling, there are different kinds, MSAA...
+	*/
+	VkPipelineMultisampleStateCreateInfo multisampling = {};
+	multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO; //struct type
+	multisampling.sampleShadingEnable = VK_FALSE; //disable MS on the shading
+	multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT; //number of samples to use, use 1 sample in this case
+	multisampling.minSampleShading = 1.0f; // Optional - minimum number of times the shader will be run per pixel (value is between 0 - 1, 1 means each pixel will receive its own data by another invocation of the frag shader)
+	multisampling.pSampleMask = nullptr; // Optional - used to update only a subset of the samples produced (bitmaps)
+	multisampling.alphaToCoverageEnable = VK_FALSE; // Optional - use the alpha channel to store coverage values which will be used for easy transparency
+	multisampling.alphaToOneEnable = VK_FALSE; // Optional - what do we do with actual alpha values, set the alpha to one as if the fragment shader has not produced an alpha value
+
+	//depth stencil testing not being used so its create info is omitted
+
+	//colour-blending specification
+	//configuration per colour attachment (we only have one colour attachment)
+	VkPipelineColorBlendAttachmentState colorBlendAttachment = {};
+	colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT; //the channels we are writing to
+	if (BLEND) {
+		colorBlendAttachment.blendEnable = VK_TRUE; //if we want to blend the colours
+		colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA; //use the source image alpha channel to determine how much of src colours we use
+		colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA; //use the destination image alpha channel to determine how much of dst colours we use
+		colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD; //add the two colours together
+		colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE; //use the source images alpha
+		colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO; //don't use the destination images alpha
+		colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD; //add the alphas together to determine final alpha of new image
+	}
+	else {
+		colorBlendAttachment.blendEnable = VK_FALSE; //do we blend, not in this case,  we simply overwrite the contents of the buffer the parameters below are ignored
+		colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_ONE; // Optional - we treat the src as opaque and replace everything in the dst
+		colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO; // Optional - we are not using any amount of the destination images colour
+		colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD; // Optional - we add the colours (essentially replacing them)
+		colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE; // Optional - use all of the source images alpha value
+		colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO; // Optional - don't use any of the destination images alpha
+		colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD; // Optional - add the alphas together to determine final alpha value
+	}
+
+	//references the array of structures for all of the framebuffers and allows you to set blend constants that you can use as blend factors in the blend calculations
+	//final stage in the graphics pipeline is the colour blend stage
+	//this is responsible for writing fragments into color attachments
+	VkPipelineColorBlendStateCreateInfo colorBlending = {};
+	colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO; //struct type
+	colorBlending.logicOpEnable = VK_FALSE; //specifies if we should perform logical operation between the output of the frag shader and the colour attachment
+	colorBlending.logicOp = VK_LOGIC_OP_COPY; // Optional - we have chosen not to do any operations so the data is written unmodified to the colour attachment from the frag shader
+	colorBlending.attachmentCount = 1; //number of attachments, we only have 1 which the colour attachment
+	colorBlending.pAttachments = &colorBlendAttachment; //the colour blend attachment
+	//4 constants used for RGBA blending depending on blend factor
+	colorBlending.blendConstants[0] = 0.0f; // Optional - R
+	colorBlending.blendConstants[1] = 0.0f; // Optional - G
+	colorBlending.blendConstants[2] = 0.0f; // Optional - B
+	colorBlending.blendConstants[3] = 0.0f; // Optional - A
+
+	//dynamic state - what parameters can we change at runtime (can be nullptr if we don't have any)
+	VkDynamicState dynamicStates[] = {
+		VK_DYNAMIC_STATE_VIEWPORT, //we would like to change the viewport dimensions
+		VK_DYNAMIC_STATE_LINE_WIDTH //we would also like to change the line width on the fly
+	};
+
+	/*
+		It is possible to make particular parts of the graphics pipeline dynamic
+		this means that they can be updated using commands in side the command buffer rather than through an object
+	*/
+	VkPipelineDynamicStateCreateInfo dynamicState = {};
+	dynamicState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO; //type of struct
+	dynamicState.dynamicStateCount = 2; //the number of states we wish to make dynamic
+	dynamicState.pDynamicStates = dynamicStates; //the states
+
+	//pipeline layout - specifies uniform layout information - which we are not using here so the struct is blank, but we still need to provide it
+	VkPipelineLayoutCreateInfo pipelineLayoutInfo = {};
+	pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO; //struct type
+	pipelineLayoutInfo.setLayoutCount = 1; // Optional - number of different uniform layouts
+	pipelineLayoutInfo.pSetLayouts = &descriptorSetLayoutShell; // Optional - the uniform layouts
+	pipelineLayoutInfo.pushConstantRangeCount = 0; // Optional - a push constant is uniform variable in a shader and is used similarly, but it is vulkan owned and managed, it is set through the command buffer (number of push constant ranges)
+	pipelineLayoutInfo.pPushConstantRanges = nullptr; // Optional - the push constant ranges that specify what stage of the pipeline will access the uniform and it also specifies the start offset and size of the uniform
+
+	if (vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &shellPipelineLayout) != VK_SUCCESS) { //create the pipeline layout by passing the logical device, the pipeline layout information, nullptr allocation callbacks and finally an out parameter to hold a handle to the pipeline layout, if not successful
+		throw std::runtime_error("failed to create pipeline layout!"); //throw an error
+	}
+
+	//create graphics pipeline
+	VkGraphicsPipelineCreateInfo pipelineInfo = {};
+	pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO; //struct type
+	pipelineInfo.stageCount = 2; //the number of stages we have (2, shader and frag)
+	pipelineInfo.pStages = shaderStages; // array of shader stages
+
+	pipelineInfo.pVertexInputState = &vertexInputInfo; //vertex stage
+	pipelineInfo.pInputAssemblyState = &inputAssembly; //input assembly stage
+	pipelineInfo.pViewportState = &viewportState; //view port state
+	pipelineInfo.pRasterizationState = &rasterizer; //rasterizer stage
+	pipelineInfo.pMultisampleState = &multisampling; //MS stage
+	pipelineInfo.pDepthStencilState = &depthStencil;// Optional - depth stencil stage
+	pipelineInfo.pColorBlendState = &colorBlending; //colour blending stage
+	pipelineInfo.pDynamicState = nullptr; // Optional - the state which are treating as dynamic, we don't use this either
+	pipelineInfo.layout = shellPipelineLayout; // pipeline layout, we are not using any uniforms and other constants in our pipeline
+	pipelineInfo.renderPass = renderPass; // the render passes associating operations and images
+	pipelineInfo.subpass = 0; // we are not using any subpasses
+	pipelineInfo.basePipelineHandle = VK_NULL_HANDLE; // Optional - vulkan allows you to derive from another pipeline
+	pipelineInfo.basePipelineIndex = -1; // Optional - no base pipeline so init to -1 as per spec
+
+	//more parameters are used here as multiple graphics pipelines can be created in one go by providing a list of create info structs
+	//second param is a cache which can be used to reuse data relevant to pipeline creation across multiple class
+	//the third param is the count of create info structs, in our case we only have one and only one pipeline is created
+	if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &shellGraphicsPipeline) != VK_SUCCESS) { //make the graphics pipeline
+		throw std::runtime_error("failed to create graphics pipeline!"); //throw an error if it was unsuccessful
+	}
+
+	vkDestroyShaderModule(device, fragShaderModule, nullptr); //destroy the shader modules since they have been loaded in the pipeline
+	vkDestroyShaderModule(device, vertShaderModule, nullptr); //destroy the shader modules since they have been loaded in the pipeline
+}
+
+void Renderer::createFinGraphicsPipeline()
+{
+}
+
 //here we are going to submit commands to copy data from the staging buffer to the device local vert buff
 void Renderer::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size)
 {
-	//VkCommandBufferAllocateInfo allocInfo = {};
-	//allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-	//allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY; 
-	//allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY; 
-	//allocInfo.commandPool = commandPool;
-	//allocInfo.commandBufferCount = 1;
-
 	VkCommandBuffer commandBuffer = beginSingleTimeCommands();
-	//vkAllocateCommandBuffers(device, &allocInfo, &commandBuffer);
-	
-	//VkCommandBufferBeginInfo beginInfo = {};
-	//beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-	//beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-
-	//vkBeginCommandBuffer(commandBuffer, &beginInfo);
 
 	VkBufferCopy copyRegion = {};
 	copyRegion.srcOffset = 0; // Optional
@@ -970,18 +1174,6 @@ void Renderer::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize s
 	vkCmdCopyBuffer(commandBuffer, srcBuffer, dstBuffer, 1, &copyRegion);
 
 	endSingleTimeCommands(commandBuffer);
-
-	/*vkEndCommandBuffer(commandBuffer);
-
-	VkSubmitInfo submitInfo = {};
-	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-	submitInfo.commandBufferCount = 1;
-	submitInfo.pCommandBuffers = &commandBuffer;
-
-	vkQueueSubmit(graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
-	vkQueueWaitIdle(graphicsQueue);
-
-	vkFreeCommandBuffers(device, commandPool, 1, &commandBuffer);*/
 }
 
 //helper function to create a buffer
@@ -1332,15 +1524,33 @@ void Renderer::createDescriptorSetLayout()
 	samplerLayoutBinding.pImmutableSamplers = nullptr; //this field needs to be included because the type of this binding is combined image sampler (we set this later, nullptr makes it dynamic)
 	samplerLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT; //which stage of the pipeline will access this binding
 
+		//TODO create a descriptor for the UBO to be used in the shell pipeline
+	VkDescriptorSetLayoutBinding uboShellLayoutBinding = {};
+	uboShellLayoutBinding.binding = 3;
+	uboShellLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	uboShellLayoutBinding.descriptorCount = 1;
+	uboShellLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+
 	//group the descriptor set layout bindings
 	std::array<VkDescriptorSetLayoutBinding, 3> bindings = { uboLayoutBinding, samplerLayoutBinding, lightingLayoutBinding};
-	VkDescriptorSetLayoutCreateInfo layoutInfo = {}; //create the descriptor set layout
-	layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-	layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size()); //the number of bindings
-	layoutInfo.pBindings = bindings.data(); //the bindings
+	VkDescriptorSetLayoutCreateInfo layoutInfoBase = {}; //create the descriptor set layout
+	layoutInfoBase.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+	layoutInfoBase.bindingCount = static_cast<uint32_t>(bindings.size()); //the number of bindings
+	layoutInfoBase.pBindings = bindings.data(); //the bindings
+
+	//group the descriptor set layout bindings
+	std::array<VkDescriptorSetLayoutBinding, 4> shellBindings = { uboLayoutBinding, samplerLayoutBinding, lightingLayoutBinding, uboShellLayoutBinding};
+	VkDescriptorSetLayoutCreateInfo layoutInfoShell = {}; //create the descriptor set layout
+	layoutInfoShell.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+	layoutInfoShell.bindingCount = static_cast<uint32_t>(shellBindings.size()); //the number of bindings
+	layoutInfoShell.pBindings = shellBindings.data(); //the bindings
 
 	//create the descriptor set
-	if (vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &descriptorSetLayout) != VK_SUCCESS) {
+	if (vkCreateDescriptorSetLayout(device, &layoutInfoBase, nullptr, &descriptorSetLayoutBase) != VK_SUCCESS) {
+		throw std::runtime_error("failed to create descriptor set layout!");
+	}
+
+	if (vkCreateDescriptorSetLayout(device, &layoutInfoShell, nullptr, &descriptorSetLayoutShell) != VK_SUCCESS) {
 		throw std::runtime_error("failed to create descriptor set layout!");
 	}
 }
@@ -1349,20 +1559,21 @@ void Renderer::createDescriptorSetLayout()
 void Renderer::createDescriptorPool()
 {
 	//we need to create the pool sizes for each type of descriptor binding
-	std::array<VkDescriptorPoolSize, 3> poolSizes = {};
+	std::array<VkDescriptorPoolSize, 4> poolSizes = {};
 	poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; //type of the buffer
-	poolSizes[0].descriptorCount = static_cast<uint32_t>(swapChainImages.size());  //the max number of descriptors we can allocate from this pool
+	poolSizes[0].descriptorCount = static_cast<uint32_t>(swapChainImages.size() * 3);  //the max number of descriptors we can allocate from this pool
 	poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; //type of the buffer
-	poolSizes[1].descriptorCount = static_cast<uint32_t>(swapChainImages.size()); //the max number of descriptors we can allocate from this pool
+	poolSizes[1].descriptorCount = static_cast<uint32_t>(swapChainImages.size() * 3); //the max number of descriptors we can allocate from this pool
 	poolSizes[2].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; //type of the buffer
-	poolSizes[2].descriptorCount = static_cast<uint32_t>(swapChainImages.size()); //the max number of descriptors we can allocate from this pool
-
+	poolSizes[2].descriptorCount = static_cast<uint32_t>(swapChainImages.size() * 3); //the max number of descriptors we can allocate from this pool
+	poolSizes[3].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; //type of the buffer
+	poolSizes[3].descriptorCount = static_cast<uint32_t>(swapChainImages.size()); //the max number of descriptors we can allocate from this pool
 	//create the pool
 	VkDescriptorPoolCreateInfo poolInfo = {};
 	poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO; //type of struct
 	poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size()); //number of different pool sizes
 	poolInfo.pPoolSizes = poolSizes.data(); //the sizes
-	poolInfo.maxSets = static_cast<uint32_t>(swapChainImages.size()); //max number of descriptor sets we can allocate
+	poolInfo.maxSets = static_cast<uint32_t>(swapChainImages.size()*3); //max number of descriptor sets we can allocate
 
 	//create the pool
 	if (vkCreateDescriptorPool(device, &poolInfo, nullptr, &descriptorPool) != VK_SUCCESS) {
@@ -1374,7 +1585,8 @@ void Renderer::createDescriptorPool()
 void Renderer::createDescriptorSets()
 {
 	//create an array to hold handles to all the descriptor sets, one for each image in the swap chain ( we have the same descriptor for each image)
-	std::vector<VkDescriptorSetLayout> layouts(swapChainImages.size(), descriptorSetLayout);
+	std::vector<VkDescriptorSetLayout> layouts(swapChainImages.size(), descriptorSetLayoutBase);
+	std::vector<VkDescriptorSetLayout> layoutsShell(swapChainImages.size(), descriptorSetLayoutShell);
 	//allocation info for descriptor sets
 	VkDescriptorSetAllocateInfo allocInfo = {};
 	allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO; //struct type
@@ -1382,10 +1594,23 @@ void Renderer::createDescriptorSets()
 	allocInfo.descriptorSetCount = static_cast<uint32_t>(swapChainImages.size()); //the number of descriptors to allcoate (same as max number)
 	allocInfo.pSetLayouts = layouts.data(); //the descriptor set layout structs
 
+	//shell descriptors
+	VkDescriptorSetAllocateInfo allocInfoShell = {};
+	allocInfoShell.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO; //struct type
+	allocInfoShell.descriptorPool = descriptorPool; //the pool we are going to allocate from
+	allocInfoShell.descriptorSetCount = static_cast<uint32_t>(swapChainImages.size()); //the number of descriptors to allcoate (same as max number)
+	allocInfoShell.pSetLayouts = layoutsShell.data(); //the descriptor set layout structs
+
 	//resize to hold all handles to descriptor sets
-	descriptorSets.resize(swapChainImages.size());
+	descriptorSets.resize(swapChainImages.size()); //for the base pipeline
+	shellDescriptorSets.resize(swapChainImages.size()); //for the shell pipeline
 	//create the descriptor sets
 	if (vkAllocateDescriptorSets(device, &allocInfo, descriptorSets.data()) != VK_SUCCESS) {
+		throw std::runtime_error("failed to allocate descriptor sets!");
+	}
+	
+	//allocate descriptor set for the shell pipeline
+	if (vkAllocateDescriptorSets(device, &allocInfoShell, shellDescriptorSets.data()) != VK_SUCCESS) {
 		throw std::runtime_error("failed to allocate descriptor sets!");
 	}
 
@@ -1406,6 +1631,11 @@ void Renderer::createDescriptorSets()
 		imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL; //the image layout
 		imageInfo.imageView = textureImageView; //the image view of the texture
 		imageInfo.sampler = textureSampler; //the sampler (before we said we would update it later, here we are providing the sampler to use with the texture)
+
+		VkDescriptorBufferInfo shellUBOBufferInfo = {};
+		shellUBOBufferInfo.buffer = shellUBOs;
+		shellUBOBufferInfo.offset = 0;
+		shellUBOBufferInfo.range = sizeof(ShellUniformBufferObject);
 
 		//array to hold info of updates to the descriptor sets
 		std::array<VkWriteDescriptorSet, 3> descriptorWrites = {};
@@ -1436,6 +1666,43 @@ void Renderer::createDescriptorSets()
 
 		//update that descriptor set by providing the device (which owns the pool), the number of descriptor writes, the descriptor writes, and 0 and nullptr becuase we are not copying any data from pre exisiting descriptors
 		vkUpdateDescriptorSets(device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
+
+		std::array<VkWriteDescriptorSet, 4> shellDescriptorWrites = {};
+		//have to be created in the same order that the descriptors appear (ubo, texture, lightingconstants)
+		shellDescriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; //we are writing to the descriptor set so this must be the type of the struct
+		shellDescriptorWrites[0].dstSet = shellDescriptorSets[i]; //the set we are writing to
+		shellDescriptorWrites[0].dstBinding = 0; //the binding of the descriptor in the
+		shellDescriptorWrites[0].dstArrayElement = 0; //starting index of the udpate
+		shellDescriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; //the type of the descriptor (uniform buffer)
+		shellDescriptorWrites[0].descriptorCount = 1; //the number of descriptors to update
+		shellDescriptorWrites[0].pBufferInfo = &bufferInfo; //the buffer we are binding
+
+		shellDescriptorWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;//we are writing to the descriptor set so this must be the type of the struct
+		shellDescriptorWrites[1].dstSet = shellDescriptorSets[i]; //the set we are updating
+		shellDescriptorWrites[1].dstBinding = 1; //the binding of the descpriptor in the set
+		shellDescriptorWrites[1].dstArrayElement = 0; //the starting index of the update
+		shellDescriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; //the type of the descriptor (texture so we specify combined image and sampler)
+		shellDescriptorWrites[1].descriptorCount = 1; //the number of descriptors we are updating
+		shellDescriptorWrites[1].pImageInfo = &imageInfo; //the image we are binding (we are no correctly providing the texture data and sampler)
+
+		shellDescriptorWrites[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;//we are writing to the descriptor set so this must be the type of the struct
+		shellDescriptorWrites[2].dstSet = shellDescriptorSets[i]; //the set we are writing to
+		shellDescriptorWrites[2].dstBinding = 2; //the binding of the descriptor in the set
+		shellDescriptorWrites[2].dstArrayElement = 0; //starting index of the udpate
+		shellDescriptorWrites[2].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; //the type of the descriptor (uniform buffer)
+		shellDescriptorWrites[2].descriptorCount = 1;//the number of descriptors to update
+		shellDescriptorWrites[2].pBufferInfo = &lightingBufferInfo; //the buffer we are binding
+
+		shellDescriptorWrites[3].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		shellDescriptorWrites[3].dstSet = shellDescriptorSets[i]; //the set we are writing to
+		shellDescriptorWrites[3].dstBinding = 3; //the binding of the descriptor in the set
+		shellDescriptorWrites[3].dstArrayElement = 0; //starting index of the udpate
+		shellDescriptorWrites[3].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; //the type of the descriptor (uniform buffer)
+		shellDescriptorWrites[3].descriptorCount = 1;//the number of descriptors to update
+		shellDescriptorWrites[3].pBufferInfo = &shellUBOBufferInfo; //the buffer we are binding
+
+		//vkUpdateDescriptorSets(device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
+		vkUpdateDescriptorSets(device, static_cast<uint32_t>(shellDescriptorWrites.size()), shellDescriptorWrites.data(), 0, nullptr);
 	}
 }
 
@@ -1446,21 +1713,21 @@ void Renderer::createDescriptorSets()
 */
 void Renderer::createCommandBuffers()
 {
-	commandBuffers.resize(swapChainFramebuffers.size()); //create a buffer for each frame buffer
+	commandBuffersBase.resize(swapChainFramebuffers.size()); //create a buffer for each frame buffer
 	VkCommandBufferAllocateInfo allocInfo = {}; //command buffer allocation info
 	allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO; //struct type
 	allocInfo.commandPool = commandPool; //the command pool from which we will allocate the buffer
 	//a primary buffer can call a secondary buffer, allows 2-deep function calls for example
 	//we don't need secondary command buffers
 	allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY; //specifies if the allocated command buffers are primary or secondary command buffers
-	allocInfo.commandBufferCount = (uint32_t)commandBuffers.size(); //the number of command buffers (one for each frame buffer)
+	allocInfo.commandBufferCount = (uint32_t)commandBuffersBase.size(); //the number of command buffers (one for each frame buffer)
 
-	if (vkAllocateCommandBuffers(device, &allocInfo, commandBuffers.data()) != VK_SUCCESS) { //create the command buffers by providing the logical device, the allocation information and the out parameter to store the handles to the buffers
+	if (vkAllocateCommandBuffers(device, &allocInfo, commandBuffersBase.data()) != VK_SUCCESS) { //create the command buffers by providing the logical device, the allocation information and the out parameter to store the handles to the buffers
 		throw std::runtime_error("failed to allocate command buffers!");//throw an error if we were unsuccessful
 	}
 
 	//begin recording commands for the command buffer ( we want to draw a triangle )
-	for (size_t i = 0; i < commandBuffers.size(); i++) {//for all command buffers
+	for (size_t i = 0; i < commandBuffersBase.size(); i++) {//for all command buffers
 		VkCommandBufferBeginInfo beginInfo = {}; //information needed to tell the command buffer to begin recording
 		beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO; //struct type
 		beginInfo.flags = 0; // Optional - specifies how we're going to use the command buffer
@@ -1470,7 +1737,7 @@ void Renderer::createCommandBuffers()
 			If the command buffer was already recorded once, then a call to vkBeginCommandBuffer will implicitly reset it.
 			It's not possible to append commands to a buffer at a later time.
 		*/
-		if (vkBeginCommandBuffer(commandBuffers[i], &beginInfo) != VK_SUCCESS) {// begin recording
+		if (vkBeginCommandBuffer(commandBuffersBase[i], &beginInfo) != VK_SUCCESS) {// begin recording
 			throw std::runtime_error("failed to begin recording command buffer!"); //if we didn't successfully begin recording throw an error
 		}
 
@@ -1491,35 +1758,34 @@ void Renderer::createCommandBuffers()
 		//command buffer to record the command to
 		//specifies the details of the render pass we've just provided
 		//controls how the drawing commands within the render pass will be provided (execute in primary or secondary command buffer)
-		vkCmdBeginRenderPass(commandBuffers[i], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+		vkCmdBeginRenderPass(commandBuffersBase[i], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 		//bind graphics pipeline - we supply the command buffer we wish to feed to the pipeline, where we want to bind, our pipeline is a graphics pipeline
 		//so we bind it to the VK_PIPELINE_BIND_POINT_GRAPHICS and finally we provide the pipeline handle.
-		vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
+		vkCmdBindPipeline(commandBuffersBase[i], VK_PIPELINE_BIND_POINT_GRAPHICS, baseGraphicsPipeline);
 		
 		//bind the buffer of vertices to draw
 		VkBuffer vertexBuffers[] = { vertexBuffer };
 		VkDeviceSize offsets[] = { 0 };
-		vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, vertexBuffers, offsets);
+		vkCmdBindVertexBuffers(commandBuffersBase[i], 0, 1, vertexBuffers, offsets);
 
-		vkCmdBindIndexBuffer(commandBuffers[i], indexBuffer, 0, VK_INDEX_TYPE_UINT32); //bind the index buffer
+		vkCmdBindIndexBuffer(commandBuffersBase[i], indexBuffer, 0, VK_INDEX_TYPE_UINT32); //bind the index buffer
 		
 		//bind the uniform data to the bind point
-		vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[i], 0, nullptr);
+		vkCmdBindDescriptorSets(commandBuffersBase[i], VK_PIPELINE_BIND_POINT_GRAPHICS, basePipelineLayout, 0, 1, &descriptorSets[i], 0, nullptr);
 
-		vkCmdDrawIndexed(commandBuffers[i], static_cast<uint32_t>(indices.size()), 1, 0, 0, 0); //draw using the index buffer
+		vkCmdDrawIndexed(commandBuffersBase[i], static_cast<uint32_t>(indices.size()), 1, 0, 0, 0); //draw using the index buffer
 
-		/*		
-			vkCmdDraw:
-				vertexCount: Even though we don't have a vertex buffer, we technically still have 3 vertices to draw.
-				instanceCount: Used for instanced rendering, use 1 if you're not doing that.
-				firstVertex: Used as an offset into the vertex buffer, defines the lowest value of gl_VertexIndex.
-				firstInstance: Used as an offset for instanced rendering, defines the lowest value of gl_InstanceIndex.
-		*/
-		//vkCmdDraw(commandBuffers[i], 3, 1, 0, 0);
+		vkCmdBindPipeline(commandBuffersBase[i], VK_PIPELINE_BIND_POINT_GRAPHICS, shellGraphicsPipeline);
+
+		vkCmdBindDescriptorSets(commandBuffersBase[i], VK_PIPELINE_BIND_POINT_GRAPHICS, shellPipelineLayout, 0, 1, &shellDescriptorSets[i], 0, nullptr);
+
+		vkCmdDrawIndexed(commandBuffersBase[i], static_cast<uint32_t>(indices.size()), 1, 0, 0, 0); //draw using the index buffer
+
+
 		//end render pass
-		vkCmdEndRenderPass(commandBuffers[i]);
+		vkCmdEndRenderPass(commandBuffersBase[i]);
 		//end recording commands
-		if (vkEndCommandBuffer(commandBuffers[i]) != VK_SUCCESS) {
+		if (vkEndCommandBuffer(commandBuffersBase[i]) != VK_SUCCESS) {
 			throw std::runtime_error("failed to record command buffer!"); //throw an error if are unable to stop recording
 		}
 	}
@@ -1680,12 +1946,14 @@ void Renderer::createSyncObjects()
 	VkSemaphoreCreateInfo semaphoreInfo = {}; //information needed to create a semaphore
 	semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;// struct type
 	imageAvailableSemaphores.resize(MAX_FRAMES_IN_FLIGHT); //create an array to store a semaphore for each frame that is currently available for rendering
-	renderFinishedSemaphores.resize(MAX_FRAMES_IN_FLIGHT); //create an array to store a semaphore for each frame that is currently available for presenting
+	baseRenderFinishedSemaphores.resize(MAX_FRAMES_IN_FLIGHT); //create an array to store a semaphore for each frame that is currently available for presenting
+	shellRenderFinishedSemaphores.resize(MAX_FRAMES_IN_FLIGHT); //create an array to store a semaphore for each frame that is currently available for presenting
 
 	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
 		//semaphores are created by providing the logical device, the semaphore setup information, null allocation callback function, and the out parameter to store the handle
 		if (vkCreateSemaphore(device, &semaphoreInfo, nullptr, &imageAvailableSemaphores[i]) != VK_SUCCESS ||
-			vkCreateSemaphore(device, &semaphoreInfo, nullptr, &renderFinishedSemaphores[i]) != VK_SUCCESS) {//create two semaphores one for each state for each frame buffer
+			vkCreateSemaphore(device, &semaphoreInfo, nullptr, &baseRenderFinishedSemaphores[i]) != VK_SUCCESS ||
+			vkCreateSemaphore(device, &semaphoreInfo, nullptr, &shellRenderFinishedSemaphores[i]) != VK_SUCCESS) {//create two semaphores one for each state for each frame buffer
 			throw std::runtime_error("failed to create semaphores for a frame!"); //throw an error if either fails to be created
 		}
 	}
@@ -1749,7 +2017,9 @@ void Renderer::recreateSwapChain()
 	createSwapChain(); //create a new swap chain with the new window width and height
 	createImageViews(); //create new image views
 	createRenderPass(); //create a new render pass
-	createGraphicsPipeline(); //create a new graphics pipeline
+	createBaseGraphicsPipeline(); //create a new graphics pipeline
+	createShellGraphicsPipeline(); //create a new shell graphics pipeline
+	createFinGraphicsPipeline(); //create a new fin graphics pipeline
 	createDepthResources(); //create the depth stencil
 	createFramebuffers(); //create a new framebuffer
 	createUniformBuffers(); //create the uniform buffers
@@ -1774,11 +2044,14 @@ void Renderer::cleanupSwapChain()
 
 	//do this so we don't need to allocate and new command pool, we can reuse the old one to issue new command buffers
 	//we need to provide the logical device, the pool from which we allocated the buffers and the buffers themselves
-	vkFreeCommandBuffers(device, commandPool, static_cast<uint32_t>(commandBuffers.size()), commandBuffers.data()); //free the command buffers
+	vkFreeCommandBuffers(device, commandPool, static_cast<uint32_t>(commandBuffersBase.size()), commandBuffersBase.data()); //free the command buffers
+	vkFreeCommandBuffers(device, commandPool, static_cast<uint32_t>(commandBuffersShell.size()), commandBuffersShell.data()); //free the command buffers
 
 	//destroy the pipeline by providing the logical device and the pipeline handle
-	vkDestroyPipeline(device, graphicsPipeline, nullptr);
-	vkDestroyPipelineLayout(device, pipelineLayout, nullptr); //destroy any uniforms allocated by destroying the layout, provide the logical device and the pipeline layout handle
+	vkDestroyPipeline(device, baseGraphicsPipeline, nullptr);
+	vkDestroyPipeline(device, shellGraphicsPipeline, nullptr);
+	vkDestroyPipelineLayout(device, basePipelineLayout, nullptr); //destroy any uniforms allocated by destroying the layout, provide the logical device and the pipeline layout handle
+	vkDestroyPipelineLayout(device, shellPipelineLayout, nullptr); //destroy any uniforms allocated by destroying the layout, provide the logical device and the pipeline layout handle
 	vkDestroyRenderPass(device, renderPass, nullptr); //destroy the render pass by providing the logical device and the render pass handle
 
 	for (size_t i = 0; i < swapChainImageViews.size(); i++) {
@@ -1795,6 +2068,9 @@ void Renderer::cleanupSwapChain()
 	//destroy the buffer with lighting constants (only 1)
 	vkDestroyBuffer(device, lightingUniformBuffers, nullptr);
 	vkFreeMemory(device, lightingUniformBuffersMemory, nullptr);
+
+	vkDestroyBuffer(device, shellUBOs, nullptr);
+	vkFreeMemory(device, shellUBOmemory, nullptr);
 
 	//destroy the pool from which we allocated the uniform buffers
 	vkDestroyDescriptorPool(device, descriptorPool, nullptr);
@@ -1851,10 +2127,13 @@ void Renderer::drawFrame()
 
 	//command buffer we are submitting
 	submitInfo.commandBufferCount = 1; //number of command buffers we are submitting
-	submitInfo.pCommandBuffers = &commandBuffers[imageIndex]; //the command buffer(s) to submit, use imageIndex from earlier to find the right one
+	VkCommandBuffer buffers[1] = {};
+	buffers[0] = commandBuffersBase[imageIndex];
+	//buffers[1] = commandBuffersShell[imageIndex];
+	submitInfo.pCommandBuffers = buffers; //the command buffer(s) to submit, use imageIndex from earlier to find the right one
 
 	//which semaphore should we use to signal that rendering is complete
-	VkSemaphore signalSemaphores[] = { renderFinishedSemaphores[currentFrame] };
+	VkSemaphore signalSemaphores[] = { baseRenderFinishedSemaphores[currentFrame] };
 	submitInfo.signalSemaphoreCount = 1; //the number of semaphores we should signal when complete
 	submitInfo.pSignalSemaphores = signalSemaphores; //the semaphore we will use to signal that rendering is complete
 
@@ -1881,7 +2160,7 @@ void Renderer::drawFrame()
 	presentInfo.pResults = nullptr; // Optional allows you to specify an array of VkResult values to check for every individual swap chain if presentation was successful
 
 	VkResult result1 = vkQueuePresentKHR(presentationQueue, &presentInfo); //submits the request to present an image to the swap chain
-	
+
 	//we have to check the same conditions here and recreate the swapchain if we need to (window management)
 	if (result1 == VK_ERROR_OUT_OF_DATE_KHR || result1 == VK_SUBOPTIMAL_KHR || framebufferResized) {
 		//if the result of presentation is either a out of date or suboptimal or we have a window resize event we need to recreate the swap chain
@@ -1891,7 +2170,7 @@ void Renderer::drawFrame()
 	else if (result1 != VK_SUCCESS) { //otherwise we have not successfully presented the image
 		throw std::runtime_error("failed to present swap chain image!"); //throw an error
 	}
-	
+
 	//increment the frame we're rendering
 	currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT; //increment to the next frame to render to (circular as we are using the modulo)
 }
@@ -1952,9 +2231,12 @@ void Renderer::createUniformBuffers()
 {
 	VkDeviceSize bufferSize = sizeof(UniformBufferObject); //size of in bytes of the uniform buffer object struct
 	VkDeviceSize lightingBufferSize = sizeof(LightingConstants); //size of in bytes of the lighting constants struct
+	VkDeviceSize shellBufferSize = sizeof(ShellUniformBufferObject);
+	// TODO add line in here to allocate space for the shell UBO
 
 	uniformBuffers.resize(swapChainImages.size()); //allocate space to hold all the handles for the uniform buffer
 	uniformBuffersMemory.resize(swapChainImages.size()); //allocate space to hold handles to the associated memory of uniform buffer
+	// TODO add line in here to allocate the device memory for the shell UBO
 
 	//create buffers
 	for (size_t i = 0; i < swapChainImages.size(); i++) {
@@ -1962,6 +2244,9 @@ void Renderer::createUniformBuffers()
 	}
 
 	createBuffer(lightingBufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, lightingUniformBuffers, lightingUniformBuffersMemory);
+	 
+	//TODO create the buffers for the shell pipeline
+	createBuffer(shellBufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, shellUBOs, shellUBOmemory);
 }
 
 //method to update the uniform buffers (pass in the index of the image we are rendering to)
@@ -1992,6 +2277,14 @@ void Renderer::updateUniformBuffer(uint32_t index)
 	vkMapMemory(device, lightingUniformBuffersMemory, 0, sizeof(LightingConstants), 0, &dataLight);
 	memcpy(dataLight, &lighting, sizeof(LightingConstants));
 	vkUnmapMemory(device, lightingUniformBuffersMemory);
+
+	ShellUniformBufferObject shellUBO = {};
+	shellUBO.data = glm::vec2(1, 0.5);
+
+	void* dataShell;
+	vkMapMemory(device, shellUBOmemory, 0, sizeof(ShellUniformBufferObject), 0, &dataShell);
+	memcpy(dataShell, &shellUBO, sizeof(ShellUniformBufferObject));
+	vkUnmapMemory(device, shellUBOmemory);
 }
 
 /*

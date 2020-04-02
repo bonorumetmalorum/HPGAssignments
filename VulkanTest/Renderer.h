@@ -69,7 +69,9 @@ private:
 	void createSwapChain();
 	void createRenderPass();
 	void createImageViews();
-	void createGraphicsPipeline();
+	void createBaseGraphicsPipeline();
+	void createShellGraphicsPipeline();
+	void createFinGraphicsPipeline();
 	void createFramebuffers();
 	void createCommandPool();
 	void createTextureImage();
@@ -209,9 +211,12 @@ private:
 	VkImageView depthImageView;
 
 	VkRenderPass renderPass;
-	VkDescriptorSetLayout descriptorSetLayout;
-	VkPipelineLayout pipelineLayout;
-	VkPipeline graphicsPipeline;
+	VkDescriptorSetLayout descriptorSetLayoutBase;
+	VkDescriptorSetLayout descriptorSetLayoutShell;
+	VkPipelineLayout basePipelineLayout;
+	VkPipelineLayout shellPipelineLayout;
+	VkPipeline baseGraphicsPipeline;
+	VkPipeline shellGraphicsPipeline;
 	/*
 		a frame buffer wraps an attachment
 		an attachment is represented in the pipeline by an image returned by the swap chain
@@ -230,11 +235,14 @@ private:
 	*/
 	VkDescriptorPool descriptorPool;
 	std::vector<VkDescriptorSet> descriptorSets; //the descriptor sets, 1 for each uniform, so 1 for each image in the swap chain
+	std::vector<VkDescriptorSet> shellDescriptorSets;
 
 	/*
 		per framebuffer recording of commands
 	*/
-	std::vector<VkCommandBuffer> commandBuffers;
+	std::vector<VkCommandBuffer> commandBuffersBase;
+	std::vector<VkCommandBuffer> commandBuffersShell;
+
 
 	///*
 	//	vertex buffer stuff
@@ -281,9 +289,12 @@ private:
 	std::vector<VkBuffer> uniformBuffers;
 	std::vector<VkDeviceMemory> uniformBuffersMemory;
 
+	VkBuffer shellUBOs;
+	VkDeviceMemory shellUBOmemory;
+
 	VkBuffer lightingUniformBuffers;
 	VkDeviceMemory lightingUniformBuffersMemory;
-	
+	 
 	void createUniformBuffers();
 
 	void updateUniformBuffer(uint32_t index);
@@ -308,6 +319,10 @@ private:
 		alignas(16) glm::vec2 lightSpecularExponent;
 	};
 
+	struct ShellUniformBufferObject {
+		alignas(16) glm::vec2 data;
+	};
+
 	LightingConstants lighting;
 
 
@@ -316,7 +331,8 @@ private:
 
 	//synchronization with render operations
 	std::vector<VkSemaphore> imageAvailableSemaphores; //is the image available to render to? we use this to make sure we do not render to a frame that is being presented
-	std::vector<VkSemaphore> renderFinishedSemaphores; //is the rendering finished? we use this to make sure that we do not render to an image that is already being rendered to
+	std::vector<VkSemaphore> baseRenderFinishedSemaphores; //is the rendering finished? we use this to make sure that we do not render to an image that is already being rendered to
+	std::vector<VkSemaphore> shellRenderFinishedSemaphores; //is the rendering finished? we use this to make sure that we do not render to an image that is already being rendered to
 	std::vector<VkFence> inFlightFences; //used to sync CPU-GPU so we don't use in-flight frames
 	std::vector<VkFence> imagesInFlight; //used to track which images are in flight
 	const int MAX_FRAMES_IN_FLIGHT = 2; //number of frames that can be processed concurrently
