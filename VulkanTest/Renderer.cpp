@@ -1633,9 +1633,9 @@ void Renderer::createDescriptorSets()
 		imageInfo.sampler = textureSampler; //the sampler (before we said we would update it later, here we are providing the sampler to use with the texture)
 
 		VkDescriptorBufferInfo shellUBOBufferInfo = {};
-		shellUBOBufferInfo.buffer = shellUBOs;
+		shellUBOBufferInfo.buffer = shellUBOBuffer;
 		shellUBOBufferInfo.offset = 0;
-		shellUBOBufferInfo.range = sizeof(ShellUniformBufferObject);
+		shellUBOBufferInfo.range = sizeof(glm::vec2);
 
 		//array to hold info of updates to the descriptor sets
 		std::array<VkWriteDescriptorSet, 3> descriptorWrites = {};
@@ -1697,7 +1697,7 @@ void Renderer::createDescriptorSets()
 		shellDescriptorWrites[3].dstSet = shellDescriptorSets[i]; //the set we are writing to
 		shellDescriptorWrites[3].dstBinding = 3; //the binding of the descriptor in the set
 		shellDescriptorWrites[3].dstArrayElement = 0; //starting index of the udpate
-		shellDescriptorWrites[3].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; //the type of the descriptor (uniform buffer)
+		shellDescriptorWrites[3].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC; //the type of the descriptor (uniform buffer)
 		shellDescriptorWrites[3].descriptorCount = 1;//the number of descriptors to update
 		shellDescriptorWrites[3].pBufferInfo = &shellUBOBufferInfo; //the buffer we are binding
 
@@ -1777,11 +1777,14 @@ void Renderer::createCommandBuffers()
 
 		vkCmdBindPipeline(commandBuffersBase[i], VK_PIPELINE_BIND_POINT_GRAPHICS, shellGraphicsPipeline);
 
-		vkCmdBindDescriptorSets(commandBuffersBase[i], VK_PIPELINE_BIND_POINT_GRAPHICS, shellPipelineLayout, 0, 1, &shellDescriptorSets[i], 0, nullptr);
+		for (size_t j = 0; j < SHELLS; j++)
+		{
+			uint32_t offset = j * static_cast<uint32_t>(alignedMemory);
+			vkCmdBindDescriptorSets(commandBuffersBase[i], VK_PIPELINE_BIND_POINT_GRAPHICS, shellPipelineLayout, 0, 1, &shellDescriptorSets[i], 1, &offset);
 
-		vkCmdDrawIndexed(commandBuffersBase[i], static_cast<uint32_t>(indices.size()), 1, 0, 0, 0); //draw using the index buffer
-
-
+			vkCmdDrawIndexed(commandBuffersBase[i], static_cast<uint32_t>(indices.size()), 1, 0, 0, 0); //draw using the index buffer
+		}
+		
 		//end render pass
 		vkCmdEndRenderPass(commandBuffersBase[i]);
 		//end recording commands
@@ -2045,7 +2048,7 @@ void Renderer::cleanupSwapChain()
 	//do this so we don't need to allocate and new command pool, we can reuse the old one to issue new command buffers
 	//we need to provide the logical device, the pool from which we allocated the buffers and the buffers themselves
 	vkFreeCommandBuffers(device, commandPool, static_cast<uint32_t>(commandBuffersBase.size()), commandBuffersBase.data()); //free the command buffers
-	vkFreeCommandBuffers(device, commandPool, static_cast<uint32_t>(commandBuffersShell.size()), commandBuffersShell.data()); //free the command buffers
+	//vkFreeCommandBuffers(device, commandPool, static_cast<uint32_t>(commandBuffersShell.size()), commandBuffersShell.data()); //free the command buffers
 
 	//destroy the pipeline by providing the logical device and the pipeline handle
 	vkDestroyPipeline(device, baseGraphicsPipeline, nullptr);
@@ -2069,7 +2072,7 @@ void Renderer::cleanupSwapChain()
 	vkDestroyBuffer(device, lightingUniformBuffers, nullptr);
 	vkFreeMemory(device, lightingUniformBuffersMemory, nullptr);
 
-	vkDestroyBuffer(device, shellUBOs, nullptr);
+	vkDestroyBuffer(device, shellUBOBuffer, nullptr);
 	vkFreeMemory(device, shellUBOmemory, nullptr);
 
 	//destroy the pool from which we allocated the uniform buffers
@@ -2238,12 +2241,11 @@ void Renderer::createUniformBuffers()
 	alignedMemory = sizeof(glm::vec2);
 	if (minAlignment > 0) 
 	{
-		alignedMemory = (alignedMemory + minAlignment - 1) & ~(alignedMemory - 1);
+		alignedMemory = (alignedMemory + minAlignment - 1) & ~(minAlignment - 1);
 	}
 	//allocate the array
-	VkDeviceSize shellBufferSize = SHELLS * alignedMemory;
+	shellBufferSize = SHELLS * alignedMemory;
 	shellUBO.data = (glm::vec2*)_aligned_malloc(shellBufferSize, alignedMemory);
-	// TODO add line in here to allocate space for the shell UBO
 
 	uniformBuffers.resize(swapChainImages.size()); //allocate space to hold all the handles for the uniform buffer
 	uniformBuffersMemory.resize(swapChainImages.size()); //allocate space to hold handles to the associated memory of uniform buffer
@@ -2291,18 +2293,26 @@ void Renderer::updateUniformBuffer(uint32_t index)
 
 	float levelOpacity = 0.9;
 	float levelWeight = 0.9;
-	for (int i = 0; i < SHELLS; i++)
+	for (uint32_t i = 0; i < SHELLS; i++)
 	{
 		size_t offset = i * alignedMemory;
 		levelOpacity -= 0.1;
-		levelWeight -= 0.1;
-		*(shellUBO.data + offset) = glm::vec2(levelWeight, levelOpacity);
+		levelWeight += 0.2;
+		glm::vec2* current = (glm::vec2*)(((size_t)shellUBO.data) + offset);
+		*(current) = glm::vec2(levelWeight, levelOpacity);
 	}
-
-	//TODO need to update the shell data correctly here and flush
 	void* dataShell;
-	vkMapMemory(device, shellUBOmemory, 0, sizeof(ShellUniformBufferObject), 0, &dataShell);
-	memcpy(dataShell, &shellUBO, sizeof(ShellUniformBufferObject));
+	vkMapMemory(device, shellUBOmemory, 0, shellBufferSize, 0, &dataShell);
+	memcpy(dataShell, shellUBO.data, shellBufferSize);
+
+	//flush memory
+	VkMappedMemoryRange  memoryRange = {};
+	memoryRange.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
+	memoryRange.memory = shellUBOmemory;
+	memoryRange.size = shellBufferSize;
+
+	vkFlushMappedMemoryRanges(device, 1, &memoryRange);
+	
 	vkUnmapMemory(device, shellUBOmemory);
 }
 

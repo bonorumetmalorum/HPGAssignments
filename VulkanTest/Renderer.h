@@ -292,6 +292,7 @@ private:
 	std::vector<VkDeviceMemory> uniformBuffersMemory;
 
 	size_t alignedMemory;
+	VkDeviceSize shellBufferSize;
 	VkBuffer shellUBOBuffer;
 	VkDeviceMemory shellUBOmemory;
 

@@ -37,7 +37,7 @@ layout(binding = 2) uniform LightingConstants {
 } lighting;
 
 void main() {
-	vec3 shellVert = inPosition + (inNormal * shellUbo.data[0]);
+	vec3 shellVert = inPosition + (inNormal * shellUbo.data.x);
 	vec4 VCS_position = ubo.view * ubo.model * vec4(shellVert, 1.0);
 	//already in world coords so no need to multiply by model
 	fragLightVector = (ubo.view * lighting.lightPos) - VCS_position;
