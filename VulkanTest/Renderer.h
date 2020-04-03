@@ -17,10 +17,12 @@
 #include "ObjLoader.h"
 #include "Ball.h"
 #include <glm/gtc/type_ptr.hpp>
-
+#include <vulkan/vulkan_core.h>
 
 #define DEBUG
 #define BLEND true
+
+#define SHELLS 8
 
 /*
 	helper struct to hold the indices for the queues that support the graphics family and present family
@@ -289,7 +291,8 @@ private:
 	std::vector<VkBuffer> uniformBuffers;
 	std::vector<VkDeviceMemory> uniformBuffersMemory;
 
-	VkBuffer shellUBOs;
+	size_t alignedMemory;
+	VkBuffer shellUBOBuffer;
 	VkDeviceMemory shellUBOmemory;
 
 	VkBuffer lightingUniformBuffers;
@@ -320,11 +323,12 @@ private:
 	};
 
 	struct ShellUniformBufferObject {
-		alignas(16) glm::vec2 data;
+		glm::vec2 * data;
 	};
 
 	LightingConstants lighting;
 
+	ShellUniformBufferObject shellUBO;
 
 	//index buffer data
 	std::vector<uint32_t> indices;

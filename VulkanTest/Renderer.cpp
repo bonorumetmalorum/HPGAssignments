@@ -1527,7 +1527,7 @@ void Renderer::createDescriptorSetLayout()
 		//TODO create a descriptor for the UBO to be used in the shell pipeline
 	VkDescriptorSetLayoutBinding uboShellLayoutBinding = {};
 	uboShellLayoutBinding.binding = 3;
-	uboShellLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	uboShellLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
 	uboShellLayoutBinding.descriptorCount = 1;
 	uboShellLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 
@@ -1566,9 +1566,9 @@ void Renderer::createDescriptorPool()
 	poolSizes[1].descriptorCount = static_cast<uint32_t>(swapChainImages.size() * 3); //the max number of descriptors we can allocate from this pool
 	poolSizes[2].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; //type of the buffer
 	poolSizes[2].descriptorCount = static_cast<uint32_t>(swapChainImages.size() * 3); //the max number of descriptors we can allocate from this pool
-	poolSizes[3].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; //type of the buffer
+	poolSizes[3].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC; //type of the buffer
 	poolSizes[3].descriptorCount = static_cast<uint32_t>(swapChainImages.size()); //the max number of descriptors we can allocate from this pool
-	//create the pool
+	//create the pool 
 	VkDescriptorPoolCreateInfo poolInfo = {};
 	poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO; //type of struct
 	poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size()); //number of different pool sizes
@@ -2231,7 +2231,18 @@ void Renderer::createUniformBuffers()
 {
 	VkDeviceSize bufferSize = sizeof(UniformBufferObject); //size of in bytes of the uniform buffer object struct
 	VkDeviceSize lightingBufferSize = sizeof(LightingConstants); //size of in bytes of the lighting constants struct
-	VkDeviceSize shellBufferSize = sizeof(ShellUniformBufferObject);
+	VkPhysicalDeviceProperties props;
+	vkGetPhysicalDeviceProperties(physicalDevice, &props);
+	//create an aligned array of vec2s to access from dynamically when binding the descriptor
+	size_t minAlignment = props.limits.minUniformBufferOffsetAlignment;
+	alignedMemory = sizeof(glm::vec2);
+	if (minAlignment > 0) 
+	{
+		alignedMemory = (alignedMemory + minAlignment - 1) & ~(alignedMemory - 1);
+	}
+	//allocate the array
+	VkDeviceSize shellBufferSize = SHELLS * alignedMemory;
+	shellUBO.data = (glm::vec2*)_aligned_malloc(shellBufferSize, alignedMemory);
 	// TODO add line in here to allocate space for the shell UBO
 
 	uniformBuffers.resize(swapChainImages.size()); //allocate space to hold all the handles for the uniform buffer
@@ -2245,8 +2256,8 @@ void Renderer::createUniformBuffers()
 
 	createBuffer(lightingBufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, lightingUniformBuffers, lightingUniformBuffersMemory);
 	 
-	//TODO create the buffers for the shell pipeline
-	createBuffer(shellBufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, shellUBOs, shellUBOmemory);
+	//dynamic buffer for the shell ubo
+	createBuffer(shellBufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, shellUBOBuffer, shellUBOmemory);
 }
 
 //method to update the uniform buffers (pass in the index of the image we are rendering to)
@@ -2278,9 +2289,17 @@ void Renderer::updateUniformBuffer(uint32_t index)
 	memcpy(dataLight, &lighting, sizeof(LightingConstants));
 	vkUnmapMemory(device, lightingUniformBuffersMemory);
 
-	ShellUniformBufferObject shellUBO = {};
-	shellUBO.data = glm::vec2(1, 0.5);
+	float levelOpacity = 0.9;
+	float levelWeight = 0.9;
+	for (int i = 0; i < SHELLS; i++)
+	{
+		size_t offset = i * alignedMemory;
+		levelOpacity -= 0.1;
+		levelWeight -= 0.1;
+		*(shellUBO.data + offset) = glm::vec2(levelWeight, levelOpacity);
+	}
 
+	//TODO need to update the shell data correctly here and flush
 	void* dataShell;
 	vkMapMemory(device, shellUBOmemory, 0, sizeof(ShellUniformBufferObject), 0, &dataShell);
 	memcpy(dataShell, &shellUBO, sizeof(ShellUniformBufferObject));
