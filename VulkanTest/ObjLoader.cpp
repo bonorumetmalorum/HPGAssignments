@@ -358,3 +358,7 @@ void ObjLoader::package(OBJ& object)
 
 	}
 }
+
+void ObjLoader::packageAdjacency(OBJ& obj)
+{
+}

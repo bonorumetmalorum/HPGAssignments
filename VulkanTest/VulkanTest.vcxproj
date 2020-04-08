@@ -162,6 +162,7 @@
     <ClCompile Include="Ball.cpp" />
     <ClCompile Include="BallAux.cpp" />
     <ClCompile Include="BallMath.cpp" />
+    <ClCompile Include="Diredge.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="ObjLoader.cpp" />
     <ClCompile Include="Renderer.cpp" />
@@ -170,6 +171,7 @@
     <ClInclude Include="Ball.h" />
     <ClInclude Include="BallAux.h" />
     <ClInclude Include="BallMath.h" />
+    <ClInclude Include="Diredge.h" />
     <ClInclude Include="ObjLoader.h" />
     <ClInclude Include="Renderer.h" />
   </ItemGroup>

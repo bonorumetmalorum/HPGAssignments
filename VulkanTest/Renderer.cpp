@@ -12,6 +12,7 @@ Renderer::Renderer()
 Renderer::Renderer(OBJ & model, Texture & texture, Mtl & mtl)
 {
 	this->indices = model.indices;
+	this->adjacencyInidices = model.adjacencyIndices;
 	this->vertices = model.vertexList;
 	this->texture = texture;
 	this->lighting.lightAmbient = mtl.ambient;
@@ -1160,6 +1161,219 @@ void Renderer::createShellGraphicsPipeline()
 
 void Renderer::createFinGraphicsPipeline()
 {
+	//read in shader programs in binary format (pre compiled)
+	auto vertShaderCode = readFile("../shaders/finVert.spv");
+	auto fragShaderCode = readFile("../shaders/finFrag.spv");
+	auto geomShaderCode = readFile("../shaders/finGeom.spv");
+
+	//create shader modules using read in code
+	VkShaderModule vertShaderModule = createShaderModule(vertShaderCode);
+	VkShaderModule fragShaderModule = createShaderModule(fragShaderCode);
+	VkShaderModule geomShaderModule = createShaderModule(geomShaderCode);
+
+	//now that the shader modules have been created we need to assign them to specific stages in the pipeline
+	VkPipelineShaderStageCreateInfo vertShaderStageInfo = {};
+	vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO; //type of struct
+	vertShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT; //pipeline stage we are assigning the module to
+	vertShaderStageInfo.module = vertShaderModule; //shader module containing the code 
+	vertShaderStageInfo.pName = "main"; //entry point to shader program
+
+	//same thing but now for the fragment shader
+	VkPipelineShaderStageCreateInfo fragShaderStageInfo = {};
+	fragShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO; //type of the struct
+	fragShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT; //stage we are assigning the shader program to
+	fragShaderStageInfo.module = fragShaderModule; //the shader module containing the code
+	fragShaderStageInfo.pName = "main"; //entry point to the program
+
+	VkPipelineShaderStageCreateInfo geomShaderStageInfo = {};
+	geomShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+	geomShaderStageInfo.stage = VK_SHADER_STAGE_GEOMETRY_BIT;
+	geomShaderStageInfo.module = geomShaderModule;
+	geomShaderStageInfo.pName = "main";
+
+	VkPipelineShaderStageCreateInfo shaderStages[] = { vertShaderStageInfo, fragShaderStageInfo, geomShaderStageInfo}; // store the shader stages in an array
+
+	//enable depth testing 
+	VkPipelineDepthStencilStateCreateInfo depthStencil = {};
+	depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO; //truct type
+	depthStencil.depthTestEnable = VK_TRUE; //enable depth test
+	depthStencil.depthWriteEnable = VK_TRUE; //enable ability to write values to the depth buffer
+	depthStencil.depthCompareOp = VK_COMPARE_OP_LESS; // keep fragments with lesser depth
+	depthStencil.depthBoundsTestEnable = VK_FALSE; //special test to check if depth buffer values are within a range, disabled here
+	depthStencil.stencilTestEnable = VK_FALSE; //no stencil test to do after depth test
+
+
+	//describing the configuration of the newly created pipeline vertex input state -  
+	//what we are doing here is describing the layout of geometric data in memory and then having Vulkan fetch it and then feed it to the shader
+	auto bindingDescription = Vertex::getBindingDescription(); //get the binding description
+	auto attributeDescriptions = Vertex::getAttributeDescriptions(); //get the attribute description
+	VkPipelineVertexInputStateCreateInfo vertexInputInfo = {};
+	vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO; //type of struct
+
+	vertexInputInfo.vertexBindingDescriptionCount = 1; // number of vertex bindings used by the pipeline
+	vertexInputInfo.pVertexBindingDescriptions = &bindingDescription; // binding description
+	vertexInputInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(attributeDescriptions.size()); //type of the attributes passed to the vertex shader, which binding to load them from and at which offset
+	vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions.data(); // also not binding any attributes for the vertices
+
+	//this stage will take vertex input data and groups them into primitives ready for processing
+	VkPipelineInputAssemblyStateCreateInfo inputAssembly = {};
+	inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO; //type of the struct
+	inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST_WITH_ADJACENCY; //type of the primitive that vertices will be grouped into, in this case a triangle
+	inputAssembly.primitiveRestartEnable = VK_FALSE; //used to allow strips and fan primitives topologies to be cut and restarted (use for optimizing draw calls) - we don't need this
+
+	//define the viewport (area to which we will render)
+	VkViewport viewport = {};
+	viewport.x = 0.0f; //origin
+	viewport.y = 0.0f; //origin
+	viewport.width = (float)swapChainExtent.width; //max width (here we are matching the swap chain width)
+	viewport.height = (float)swapChainExtent.height; //max height (here we are matching the swap chain height)
+	viewport.minDepth = 0.0f; //frame buffer depth values - we don't really use them at the moment
+	viewport.maxDepth = 1.0f; //frame buffer depth values - we don't really use them at the moment
+
+	//filter that discards pixels, we want to draw the entire image so we have a scissor angle to cover it entirely
+	VkRect2D scissor = {}; //VkRect2D is a type that defines a rectangle in vulkan, it can be used for other things as well
+	scissor.offset = { 0, 0 }; //screen offset (in our case it starts at the origin)
+	scissor.extent = swapChainExtent; // the dimensions of the swap chain image (so here we are not discarding any pixels, it covers the full extent of the swap chain image)
+
+	//combine the viewport and scissor configuration into viewport state
+	VkPipelineViewportStateCreateInfo viewportState = {};
+	viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO; //type of the struct
+	viewportState.viewportCount = 1; //number of view ports we want to use
+	viewportState.pViewports = &viewport; //the viewport(s)
+	viewportState.scissorCount = 1; //the number of scissors we want to use
+	viewportState.pScissors = &scissor; //the scissor(s)
+
+	//setup rasterization stage
+	/*
+		important stage that converts primitives into fragments that are going to be shaded by the fragment shader
+	*/
+	VkPipelineRasterizationStateCreateInfo rasterizer = {};
+	rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+	rasterizer.depthClampEnable = VK_FALSE; //fragments beyond the near and far plane are culled - (not needed here, this way we don't need to process these fragments)
+	rasterizer.rasterizerDiscardEnable = VK_FALSE; //when this is enabled the rasterizer will not run
+	rasterizer.polygonMode = VK_POLYGON_MODE_FILL; //turns triangles into points or lines - in this case triangles are solid, filled in
+	rasterizer.lineWidth = 1.0f; //thickness of lines
+	//these have changed to accommodate for the y flip in the projection matrix
+	rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;  //which faces should we cull (here we choose to cull back faces, we could also do both)
+	rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE; //how to iterate over vertices (determines which faces are front and back) can be CC or C
+	//the following parameters can be used to fix issues with z-fighting by allowing fragments to be offset in depth
+	rasterizer.depthBiasEnable = VK_FALSE; // can be modified based on slope but we don't want that here so it is disabled
+	rasterizer.depthBiasConstantFactor = 0.0f; // Optional - depth bias equation
+	rasterizer.depthBiasClamp = 0.0f; // Optional - puts an upper bound on the depth bias equation output if positive and non zero and lower bound if non zero and negative
+	rasterizer.depthBiasSlopeFactor = 0.0f; // Optional - param in depth bias equation
+	//depth bias is calculated by finding m which is steepest descent in z direction and then multiplying it by depthBiasSlopeFactor and depthBiasConstantFactor
+
+	//multisampling
+	/*
+		process of generating samples for each pixel in an image
+		Anti-Aliasing is a for of multi-sampling, there are different kinds, MSAA...
+	*/
+	VkPipelineMultisampleStateCreateInfo multisampling = {};
+	multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO; //struct type
+	multisampling.sampleShadingEnable = VK_FALSE; //disable MS on the shading
+	multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT; //number of samples to use, use 1 sample in this case
+	multisampling.minSampleShading = 1.0f; // Optional - minimum number of times the shader will be run per pixel (value is between 0 - 1, 1 means each pixel will receive its own data by another invocation of the frag shader)
+	multisampling.pSampleMask = nullptr; // Optional - used to update only a subset of the samples produced (bitmaps)
+	multisampling.alphaToCoverageEnable = VK_FALSE; // Optional - use the alpha channel to store coverage values which will be used for easy transparency
+	multisampling.alphaToOneEnable = VK_FALSE; // Optional - what do we do with actual alpha values, set the alpha to one as if the fragment shader has not produced an alpha value
+
+	//depth stencil testing not being used so its create info is omitted
+
+	//colour-blending specification
+	//configuration per colour attachment (we only have one colour attachment)
+	VkPipelineColorBlendAttachmentState colorBlendAttachment = {};
+	colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT; //the channels we are writing to
+	if (BLEND) {
+		colorBlendAttachment.blendEnable = VK_TRUE; //if we want to blend the colours
+		colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA; //use the source image alpha channel to determine how much of src colours we use
+		colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA; //use the destination image alpha channel to determine how much of dst colours we use
+		colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD; //add the two colours together
+		colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE; //use the source images alpha
+		colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO; //don't use the destination images alpha
+		colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD; //add the alphas together to determine final alpha of new image
+	}
+	else {
+		colorBlendAttachment.blendEnable = VK_FALSE; //do we blend, not in this case,  we simply overwrite the contents of the buffer the parameters below are ignored
+		colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_ONE; // Optional - we treat the src as opaque and replace everything in the dst
+		colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO; // Optional - we are not using any amount of the destination images colour
+		colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD; // Optional - we add the colours (essentially replacing them)
+		colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE; // Optional - use all of the source images alpha value
+		colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO; // Optional - don't use any of the destination images alpha
+		colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD; // Optional - add the alphas together to determine final alpha value
+	}
+
+	//references the array of structures for all of the framebuffers and allows you to set blend constants that you can use as blend factors in the blend calculations
+	//final stage in the graphics pipeline is the colour blend stage
+	//this is responsible for writing fragments into color attachments
+	VkPipelineColorBlendStateCreateInfo colorBlending = {};
+	colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO; //struct type
+	colorBlending.logicOpEnable = VK_FALSE; //specifies if we should perform logical operation between the output of the frag shader and the colour attachment
+	colorBlending.logicOp = VK_LOGIC_OP_COPY; // Optional - we have chosen not to do any operations so the data is written unmodified to the colour attachment from the frag shader
+	colorBlending.attachmentCount = 1; //number of attachments, we only have 1 which the colour attachment
+	colorBlending.pAttachments = &colorBlendAttachment; //the colour blend attachment
+	//4 constants used for RGBA blending depending on blend factor
+	colorBlending.blendConstants[0] = 0.0f; // Optional - R
+	colorBlending.blendConstants[1] = 0.0f; // Optional - G
+	colorBlending.blendConstants[2] = 0.0f; // Optional - B
+	colorBlending.blendConstants[3] = 0.0f; // Optional - A
+
+	//dynamic state - what parameters can we change at runtime (can be nullptr if we don't have any)
+	VkDynamicState dynamicStates[] = {
+		VK_DYNAMIC_STATE_VIEWPORT, //we would like to change the viewport dimensions
+		VK_DYNAMIC_STATE_LINE_WIDTH //we would also like to change the line width on the fly
+	};
+
+	/*
+		It is possible to make particular parts of the graphics pipeline dynamic
+		this means that they can be updated using commands in side the command buffer rather than through an object
+	*/
+	VkPipelineDynamicStateCreateInfo dynamicState = {};
+	dynamicState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO; //type of struct
+	dynamicState.dynamicStateCount = 2; //the number of states we wish to make dynamic
+	dynamicState.pDynamicStates = dynamicStates; //the states
+
+	//pipeline layout - specifies uniform layout information - which we are not using here so the struct is blank, but we still need to provide it
+	VkPipelineLayoutCreateInfo pipelineLayoutInfo = {};
+	pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO; //struct type
+	pipelineLayoutInfo.setLayoutCount = 1; // Optional - number of different uniform layouts
+	pipelineLayoutInfo.pSetLayouts = &descriptorSetLayoutShell; // Optional - the uniform layouts
+	pipelineLayoutInfo.pushConstantRangeCount = 0; // Optional - a push constant is uniform variable in a shader and is used similarly, but it is vulkan owned and managed, it is set through the command buffer (number of push constant ranges)
+	pipelineLayoutInfo.pPushConstantRanges = nullptr; // Optional - the push constant ranges that specify what stage of the pipeline will access the uniform and it also specifies the start offset and size of the uniform
+
+	if (vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &finPipelineLayout) != VK_SUCCESS) { //create the pipeline layout by passing the logical device, the pipeline layout information, nullptr allocation callbacks and finally an out parameter to hold a handle to the pipeline layout, if not successful
+		throw std::runtime_error("failed to create pipeline layout!"); //throw an error
+	}
+
+	//create graphics pipeline
+	VkGraphicsPipelineCreateInfo pipelineInfo = {};
+	pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO; //struct type
+	pipelineInfo.stageCount = 3; //the number of stages we have (2, shader and frag)
+	pipelineInfo.pStages = shaderStages; // array of shader stages
+
+	pipelineInfo.pVertexInputState = &vertexInputInfo; //vertex stage
+	pipelineInfo.pInputAssemblyState = &inputAssembly; //input assembly stage
+	pipelineInfo.pViewportState = &viewportState; //view port state
+	pipelineInfo.pRasterizationState = &rasterizer; //rasterizer stage
+	pipelineInfo.pMultisampleState = &multisampling; //MS stage
+	pipelineInfo.pDepthStencilState = &depthStencil;// Optional - depth stencil stage
+	pipelineInfo.pColorBlendState = &colorBlending; //colour blending stage
+	pipelineInfo.pDynamicState = nullptr; // Optional - the state which are treating as dynamic, we don't use this either
+	pipelineInfo.layout = shellPipelineLayout; // pipeline layout, we are not using any uniforms and other constants in our pipeline
+	pipelineInfo.renderPass = renderPass; // the render passes associating operations and images
+	pipelineInfo.subpass = 0; // we are not using any subpasses
+	pipelineInfo.basePipelineHandle = VK_NULL_HANDLE; // Optional - vulkan allows you to derive from another pipeline
+	pipelineInfo.basePipelineIndex = -1; // Optional - no base pipeline so init to -1 as per spec
+
+	//more parameters are used here as multiple graphics pipelines can be created in one go by providing a list of create info structs
+	//second param is a cache which can be used to reuse data relevant to pipeline creation across multiple class
+	//the third param is the count of create info structs, in our case we only have one and only one pipeline is created
+	if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &finGraphicsPipeline) != VK_SUCCESS) { //make the graphics pipeline
+		throw std::runtime_error("failed to create graphics pipeline!"); //throw an error if it was unsuccessful
+	}
+
+	vkDestroyShaderModule(device, fragShaderModule, nullptr); //destroy the shader modules since they have been loaded in the pipeline
+	vkDestroyShaderModule(device, vertShaderModule, nullptr); //destroy the shader modules since they have been loaded in the pipeline
+	vkDestroyShaderModule(device, geomShaderModule, nullptr); //destroy the shader modules since they have been loaded in the pipeline
 }
 
 //here we are going to submit commands to copy data from the staging buffer to the device local vert buff
@@ -1495,6 +1709,24 @@ void Renderer::createIndexBuffer()
 	//destroy the staging buffer and free its memory
 	vkDestroyBuffer(device, stagingBuffer, nullptr);
 	vkFreeMemory(device, stagingBufferMemory, nullptr);
+
+	//adjacency index buffer
+	VkDeviceSize adjacencyBufferSize = sizeof(adjacencyIndices[0] * adjacencyIndices.size());
+	//staging buffer
+	VkBuffer adjStagingBuffer;
+	VkDeviceMemory adjacencyStagingBufferMemory;
+	createBuffer(adjacencyBufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, adjStagingBuffer, adjacencyStagingBufferMemory);
+	//device local buffer
+	createBuffer(adjacencyBufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, adjacencyIndexBuffer, adjacencyIndexBufferMemory);
+	//setup staging buffer
+	vkMapMemory(device, adjacencyStagingBufferMemory, 0, adjacencyBufferSize, 0, &data);
+	memcpy(data, adjacencyIndices.data(), (size_t)adjacencyBufferSize);
+	vkUnmapMemory(device, adjacencyStagingBufferMemory);
+	//copy staging buffer to device local buffer
+	copyBuffer(adjStagingBuffer, adjacencyIndexBuffer, adjacencyBufferSize);
+
+	vkDestroyBuffer(device, adjStagingBuffer, nullptr);
+	vkFreeMemory(device, adjacencyStagingBufferMemory, nullptr);
 }
 
 //a descriptor set is a set of resources thar are bound into the pipeline together

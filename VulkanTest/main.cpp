@@ -11,6 +11,8 @@
 
 #include "ObjLoader.h"
 
+#include "Diredge.h"
+
 int main() {
 	ObjLoader loader;
 	try {
@@ -23,15 +25,22 @@ int main() {
 	OBJ model = loader.createObj();
 	Texture texture;
 	Mtl mtl;
+	
 	try {
-		texture = loader.loadTexturePpm("../models/bunny/shell_noise.ppm");
+		texture = loader.loadTexturePpm("../models/bunny/fur-bump.ppm");
 		mtl = loader.loadMtl("../models/duck/12248_Bird_v1_L2.mtl");
 	}
 	catch (std::exception e) {
 		std::cout << "exception: " << e.what() << std::endl;
 		return -1;
 	}
- 	Renderer app(model, texture, mtl);
+
+	auto halfedges = diredge::createMesh(model);
+
+	diredge::createLineAdjacency(model, halfedges);
+ 	
+	Renderer app(model, texture, mtl);
+	
 	try {
 		app.run();
 	}

@@ -8,6 +8,7 @@
 #include <glm/vec2.hpp>
 #include <vulkan/vulkan.h>
 #include <array>
+#include "Diredge.h"
 
 #define GLM_ENABLE_EXPERIMENTAL
 #include <glm/gtx/hash.hpp>
@@ -56,7 +57,7 @@ struct Vertex {
 enum ReadMode
 {
 	TRIANGLES,
-	QUADS
+	QUADS,
 };
 
 //implement hashing so we can use the vertex in a std::map
@@ -74,6 +75,7 @@ namespace std {
 struct OBJ {
 	std::vector<Vertex> vertexList; //unique vertices
 	std::vector<uint32_t> indices; //grouped in triplets
+	std::vector<uint32_t> adjacencyIndices; //indices but with adjacency info
 };
 
 //texture struct to hold all information regarding a texture image
@@ -100,6 +102,7 @@ public:
 	ObjLoader();
 	//load obj
 	void loadObj(std::string path, ReadMode mode);
+	
 	//load mtl
 	Mtl loadMtl(std::string path);
 	//load texture
@@ -127,5 +130,6 @@ private:
 
 	void triangulate(OBJ & obj);
 	void package(OBJ & obj);
+	void packageAdjacency(OBJ& obj);
 };
 
