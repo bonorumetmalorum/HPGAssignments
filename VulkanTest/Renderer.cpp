@@ -12,7 +12,7 @@ Renderer::Renderer()
 Renderer::Renderer(OBJ & model, Texture & texture, Mtl & mtl)
 {
 	this->indices = model.indices;
-	this->adjacencyInidices = model.adjacencyIndices;
+	this->adjacencyIndices = model.adjacencyIndices;
 	this->vertices = model.vertexList;
 	this->texture = texture;
 	this->lighting.lightAmbient = mtl.ambient;
