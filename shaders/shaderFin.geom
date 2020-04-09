@@ -28,13 +28,15 @@ void main()
     vec3 N1, N2;
 
     N1 = normalize(cross(VCS_position2.xyz - VCS_position1.xyz, VCS_position0.xyz - VCS_position1.xyz));
-    N2 = normalize(cross(VCS_position2.xyz - VCS_position1.xyz, VCS_position3.xyz - VCS_position1.xyz));
+    N2 = normalize(cross(VCS_position3.xyz - VCS_position1.xyz, VCS_position2.xyz - VCS_position1.xyz));
     
     float eyeDotN1, eyeDotN2;
     eyeDotN1 = dot(N1, eyeVector);
     eyeDotN2 = dot(N2, eyeVector);
 
-    //emit vertices
+    if(eyeDotN1 * eyeDotN2 < 0)
+    {
+         //emit vertices
     //top left
     vec3 tl = gl_in[1].gl_Position.xyz + (fragNormal[1].xyz * 3.0);
     vec4 temp = geomProj[1] *  geomView[1] * geomModel[1] * vec4(tl, 1.0);
@@ -81,8 +83,7 @@ void main()
     //     //emit vertices
     //     return;
     // }
-    
-    
+    }
     //test code
     // vec3 pointAOff = gl_in[0].gl_Position.xyz + (fragNormal[0].xyz * 3.0);
     // vec3 pointBOff = gl_in[1].gl_Position.xyz + (fragNormal[1].xyz * 3.0);
