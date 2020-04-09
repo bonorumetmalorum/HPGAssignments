@@ -24,11 +24,13 @@ int main() {
 	}
 	OBJ model = loader.createObj();
 	Texture texture;
+	Texture fin;
 	Mtl mtl;
 	
 	try {
 		texture = loader.loadTexturePpm("../models/bunny/fur-bump.ppm");
 		mtl = loader.loadMtl("../models/duck/12248_Bird_v1_L2.mtl");
+		fin = loader.loadTexturePpm("../models/bunny/Fin.ppm");
 	}
 	catch (std::exception e) {
 		std::cout << "exception: " << e.what() << std::endl;
@@ -39,7 +41,7 @@ int main() {
 
 	diredge::createLineAdjacency(model, halfedges);
  	
-	Renderer app(model, texture, mtl);
+	Renderer app(model, texture, fin, mtl);
 	
 	try {
 		app.run();

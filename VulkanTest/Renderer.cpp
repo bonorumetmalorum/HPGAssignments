@@ -9,12 +9,13 @@ Renderer::Renderer()
 {
 }
 
-Renderer::Renderer(OBJ & model, Texture & texture, Mtl & mtl)
+Renderer::Renderer(OBJ & model, Texture & textureShell, Texture & textureFin, Mtl & mtl)
 {
 	this->indices = model.indices;
 	this->adjacencyIndices = model.adjacencyIndices;
 	this->vertices = model.vertexList;
-	this->texture = texture;
+	this->textureShell = textureShell;
+	this->textureFin = textureFin;
 	this->lighting.lightAmbient = mtl.ambient;
 	this->lighting.lightDiffuse = mtl.diffuse;
 	this->lighting.lightSpecular = mtl.specular;
@@ -58,8 +59,10 @@ void Renderer::initVulkan()
 	createShellGraphicsPipeline(); //shell rendering pipeline
 	createFinGraphicsPipeline(); //fin rendering pipeline
 	createCommandPool(); //create a command pool to manage allocation of command buffers
-	createTextureImage(); //load the image texture into gpu memory
-	createTextureImageView(); //create the image view to access the texture
+	createTextureImage(this->textureShell, this->textureImageShell, this->textureImageShellMemory); //load the shell image texture into gpu memory
+	createTextureImage(this->textureFin, this->textureImageFin, this->textureImageFinMemory); //load the fin image texture into gpu memory
+	createTextureImageView(this->textureImageShellView, this->textureImageShell); //create the image view to access the texture
+	createTextureImageView(this->textureImageFinView, this->textureImageFin); //create the image view to access the texture
 	createTextureSampler(); //the sampler function used on GPU shader to access the texture values
 	createDepthResources(); //setup depth resources
 	createFramebuffers(); //create a framebuffer to represent the set of images the graphics pipeline will render to
@@ -221,10 +224,13 @@ void Renderer::cleanup()
 	cleanupSwapChain(); //first we clean up the swap chain and all related resources
 	
 	vkDestroySampler(device, textureSampler, nullptr);
-	vkDestroyImageView(device, textureImageView, nullptr);
+	vkDestroyImageView(device, textureImageShellView, nullptr);
+	vkDestroyImageView(device, textureImageFinView, nullptr);
 
-	vkDestroyImage(device, textureImage, nullptr);
-	vkFreeMemory(device, textureImageMemory, nullptr);
+	vkDestroyImage(device, textureImageShell, nullptr);
+	vkDestroyImage(device, textureImageFin, nullptr);
+	vkFreeMemory(device, textureImageShellMemory, nullptr);
+	vkFreeMemory(device, textureImageFinMemory, nullptr);
 
 	vkDestroyDescriptorSetLayout(device, descriptorSetLayoutBase, nullptr);
 	vkDestroyDescriptorSetLayout(device, descriptorSetLayoutShell, nullptr);
@@ -1191,7 +1197,8 @@ void Renderer::createFinGraphicsPipeline()
 	geomShaderStageInfo.module = geomShaderModule;
 	geomShaderStageInfo.pName = "main";
 
-	VkPipelineShaderStageCreateInfo shaderStages[] = { vertShaderStageInfo, fragShaderStageInfo, geomShaderStageInfo}; // store the shader stages in an array
+	VkPipelineShaderStageCreateInfo shaderStages[] = { vertShaderStageInfo, geomShaderStageInfo, fragShaderStageInfo };
+ // store the shader stages in an array
 
 	//enable depth testing 
 	VkPipelineDepthStencilStateCreateInfo depthStencil = {};
@@ -1218,7 +1225,7 @@ void Renderer::createFinGraphicsPipeline()
 	//this stage will take vertex input data and groups them into primitives ready for processing
 	VkPipelineInputAssemblyStateCreateInfo inputAssembly = {};
 	inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO; //type of the struct
-	inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST_WITH_ADJACENCY; //type of the primitive that vertices will be grouped into, in this case a triangle
+	inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST_WITH_ADJACENCY; //type of the primitive that vertices will be grouped into, in this case a triangle
 	inputAssembly.primitiveRestartEnable = VK_FALSE; //used to allow strips and fan primitives topologies to be cut and restarted (use for optimizing draw calls) - we don't need this
 
 	//define the viewport (area to which we will render)
@@ -1254,7 +1261,7 @@ void Renderer::createFinGraphicsPipeline()
 	rasterizer.polygonMode = VK_POLYGON_MODE_FILL; //turns triangles into points or lines - in this case triangles are solid, filled in
 	rasterizer.lineWidth = 1.0f; //thickness of lines
 	//these have changed to accommodate for the y flip in the projection matrix
-	rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;  //which faces should we cull (here we choose to cull back faces, we could also do both)
+	rasterizer.cullMode = VK_CULL_MODE_NONE;  //which faces should we cull (here we choose to cull back faces, we could also do both)
 	rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE; //how to iterate over vertices (determines which faces are front and back) can be CC or C
 	//the following parameters can be used to fix issues with z-fighting by allowing fragments to be offset in depth
 	rasterizer.depthBiasEnable = VK_FALSE; // can be modified based on slope but we don't want that here so it is disabled
@@ -1330,7 +1337,7 @@ void Renderer::createFinGraphicsPipeline()
 	VkPipelineDynamicStateCreateInfo dynamicState = {};
 	dynamicState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO; //type of struct
 	dynamicState.dynamicStateCount = 2; //the number of states we wish to make dynamic
-	dynamicState.pDynamicStates = dynamicStates; //the states
+	dynamicState.pDynamicStates = dynamicStates; //the states              
 
 	//pipeline layout - specifies uniform layout information - which we are not using here so the struct is blank, but we still need to provide it
 	VkPipelineLayoutCreateInfo pipelineLayoutInfo = {};
@@ -1591,7 +1598,7 @@ void Renderer::createCommandPool()
 }
 
 //create the texture
-void Renderer::createTextureImage()
+void Renderer::createTextureImage(Texture & texture, VkImage & textureImage, VkDeviceMemory & textureImageMemory)
 {
 	VkBuffer stagingBuffer; //intermediary buffer needed to load data to GPU only accessible memory
 	VkDeviceMemory stagingBufferMemory; //the memory associated with the staging buffer handle
@@ -1620,7 +1627,7 @@ void Renderer::createTextureImage()
 	vkFreeMemory(device, stagingBufferMemory, nullptr);
 }
 
-void Renderer::createTextureImageView()
+void Renderer::createTextureImageView(VkImageView & textureImageView, VkImage & textureImage)
 {
 	textureImageView = createImageView(textureImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT);
 }
@@ -1711,7 +1718,7 @@ void Renderer::createIndexBuffer()
 	vkFreeMemory(device, stagingBufferMemory, nullptr);
 
 	//adjacency index buffer
-	VkDeviceSize adjacencyBufferSize = sizeof(adjacencyIndices[0] * adjacencyIndices.size());
+	VkDeviceSize adjacencyBufferSize = sizeof(adjacencyIndices[0]) * adjacencyIndices.size();
 	//staging buffer
 	VkBuffer adjStagingBuffer;
 	VkDeviceMemory adjacencyStagingBufferMemory;
@@ -1756,26 +1763,33 @@ void Renderer::createDescriptorSetLayout()
 	samplerLayoutBinding.pImmutableSamplers = nullptr; //this field needs to be included because the type of this binding is combined image sampler (we set this later, nullptr makes it dynamic)
 	samplerLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT; //which stage of the pipeline will access this binding
 
-		//TODO create a descriptor for the UBO to be used in the shell pipeline
+	//TODO create a descriptor for the UBO to be used in the shell pipeline
 	VkDescriptorSetLayoutBinding uboShellLayoutBinding = {};
 	uboShellLayoutBinding.binding = 3;
 	uboShellLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
 	uboShellLayoutBinding.descriptorCount = 1;
 	uboShellLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 
-	//group the descriptor set layout bindings
+	//group the descriptor set layout bindings for the base pipeline
 	std::array<VkDescriptorSetLayoutBinding, 3> bindings = { uboLayoutBinding, samplerLayoutBinding, lightingLayoutBinding};
 	VkDescriptorSetLayoutCreateInfo layoutInfoBase = {}; //create the descriptor set layout
 	layoutInfoBase.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
 	layoutInfoBase.bindingCount = static_cast<uint32_t>(bindings.size()); //the number of bindings
 	layoutInfoBase.pBindings = bindings.data(); //the bindings
 
-	//group the descriptor set layout bindings
+	//group the descriptor set layout bindings for shells pipeline
 	std::array<VkDescriptorSetLayoutBinding, 4> shellBindings = { uboLayoutBinding, samplerLayoutBinding, lightingLayoutBinding, uboShellLayoutBinding};
 	VkDescriptorSetLayoutCreateInfo layoutInfoShell = {}; //create the descriptor set layout
 	layoutInfoShell.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
 	layoutInfoShell.bindingCount = static_cast<uint32_t>(shellBindings.size()); //the number of bindings
 	layoutInfoShell.pBindings = shellBindings.data(); //the bindings
+
+	//group the descriptor set layout bindings for fins pipeline
+	std::array<VkDescriptorSetLayoutBinding, 4> finBindings = { uboLayoutBinding, samplerLayoutBinding, lightingLayoutBinding, uboShellLayoutBinding };
+	VkDescriptorSetLayoutCreateInfo layoutInfoFins = {}; //create the descriptor set layout
+	layoutInfoFins.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+	layoutInfoFins.bindingCount = static_cast<uint32_t>(finBindings.size()); //the number of bindings
+	layoutInfoFins.pBindings = finBindings.data(); //the bindings
 
 	//create the descriptor set
 	if (vkCreateDescriptorSetLayout(device, &layoutInfoBase, nullptr, &descriptorSetLayoutBase) != VK_SUCCESS) {
@@ -1783,6 +1797,10 @@ void Renderer::createDescriptorSetLayout()
 	}
 
 	if (vkCreateDescriptorSetLayout(device, &layoutInfoShell, nullptr, &descriptorSetLayoutShell) != VK_SUCCESS) {
+		throw std::runtime_error("failed to create descriptor set layout!");
+	}
+
+	if (vkCreateDescriptorSetLayout(device, &layoutInfoFins, nullptr, &descriptorSetLayoutFins) != VK_SUCCESS) {
 		throw std::runtime_error("failed to create descriptor set layout!");
 	}
 }
@@ -1799,7 +1817,7 @@ void Renderer::createDescriptorPool()
 	poolSizes[2].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; //type of the buffer
 	poolSizes[2].descriptorCount = static_cast<uint32_t>(swapChainImages.size() * 3); //the max number of descriptors we can allocate from this pool
 	poolSizes[3].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC; //type of the buffer
-	poolSizes[3].descriptorCount = static_cast<uint32_t>(swapChainImages.size()); //the max number of descriptors we can allocate from this pool
+	poolSizes[3].descriptorCount = static_cast<uint32_t>(swapChainImages.size() * 3); //the max number of descriptors we can allocate from this pool
 	//create the pool 
 	VkDescriptorPoolCreateInfo poolInfo = {};
 	poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO; //type of struct
@@ -1819,6 +1837,7 @@ void Renderer::createDescriptorSets()
 	//create an array to hold handles to all the descriptor sets, one for each image in the swap chain ( we have the same descriptor for each image)
 	std::vector<VkDescriptorSetLayout> layouts(swapChainImages.size(), descriptorSetLayoutBase);
 	std::vector<VkDescriptorSetLayout> layoutsShell(swapChainImages.size(), descriptorSetLayoutShell);
+	std::vector<VkDescriptorSetLayout> layoutsFins(swapChainImages.size(), descriptorSetLayoutFins);
 	//allocation info for descriptor sets
 	VkDescriptorSetAllocateInfo allocInfo = {};
 	allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO; //struct type
@@ -1836,6 +1855,7 @@ void Renderer::createDescriptorSets()
 	//resize to hold all handles to descriptor sets
 	descriptorSets.resize(swapChainImages.size()); //for the base pipeline
 	shellDescriptorSets.resize(swapChainImages.size()); //for the shell pipeline
+	finDescriptorSets.resize(swapChainImages.size()); //for the shell pipeline
 	//create the descriptor sets
 	if (vkAllocateDescriptorSets(device, &allocInfo, descriptorSets.data()) != VK_SUCCESS) {
 		throw std::runtime_error("failed to allocate descriptor sets!");
@@ -1843,6 +1863,11 @@ void Renderer::createDescriptorSets()
 	
 	//allocate descriptor set for the shell pipeline
 	if (vkAllocateDescriptorSets(device, &allocInfoShell, shellDescriptorSets.data()) != VK_SUCCESS) {
+		throw std::runtime_error("failed to allocate descriptor sets!");
+	}
+
+	//allocate descriptor set for the shell pipeline
+	if (vkAllocateDescriptorSets(device, &allocInfoShell, finDescriptorSets.data()) != VK_SUCCESS) {
 		throw std::runtime_error("failed to allocate descriptor sets!");
 	}
 
@@ -1859,10 +1884,15 @@ void Renderer::createDescriptorSets()
 		lightingBufferInfo.offset = 0; //start at offset 0 within the buffer
 		lightingBufferInfo.range = sizeof(LightingConstants); //the size of each element in the buffer
 		//struct to use when updating the image associated with a descriptor set
-		VkDescriptorImageInfo imageInfo = {}; 
-		imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL; //the image layout
-		imageInfo.imageView = textureImageView; //the image view of the texture
-		imageInfo.sampler = textureSampler; //the sampler (before we said we would update it later, here we are providing the sampler to use with the texture)
+		VkDescriptorImageInfo imageInfoShell = {}; 
+		imageInfoShell.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL; //the image layout
+		imageInfoShell.imageView = textureImageShellView; //the image view of the texture
+		imageInfoShell.sampler = textureSampler; //the sampler (before we said we would update it later, here we are providing the sampler to use with the texture)
+
+		VkDescriptorImageInfo imageInfoFin = {};
+		imageInfoFin.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL; //the image layout
+		imageInfoFin.imageView = textureImageFinView; //the image view of the texture
+		imageInfoFin.sampler = textureSampler; //the sampler (before we said we would update it later, here we are providing the sampler to use with the texture)
 
 		VkDescriptorBufferInfo shellUBOBufferInfo = {};
 		shellUBOBufferInfo.buffer = shellUBOBuffer;
@@ -1886,7 +1916,7 @@ void Renderer::createDescriptorSets()
 		descriptorWrites[1].dstArrayElement = 0; //the starting index of the update
 		descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; //the type of the descriptor (texture so we specify combined image and sampler)
 		descriptorWrites[1].descriptorCount = 1; //the number of descriptors we are updating
-		descriptorWrites[1].pImageInfo = &imageInfo; //the image we are binding (we are no correctly providing the texture data and sampler)
+		descriptorWrites[1].pImageInfo = &imageInfoShell; //the image we are binding (we are no correctly providing the texture data and sampler)
 
 		descriptorWrites[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;//we are writing to the descriptor set so this must be the type of the struct
 		descriptorWrites[2].dstSet = descriptorSets[i]; //the set we are writing to
@@ -1915,7 +1945,7 @@ void Renderer::createDescriptorSets()
 		shellDescriptorWrites[1].dstArrayElement = 0; //the starting index of the update
 		shellDescriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; //the type of the descriptor (texture so we specify combined image and sampler)
 		shellDescriptorWrites[1].descriptorCount = 1; //the number of descriptors we are updating
-		shellDescriptorWrites[1].pImageInfo = &imageInfo; //the image we are binding (we are no correctly providing the texture data and sampler)
+		shellDescriptorWrites[1].pImageInfo = &imageInfoShell; //the image we are binding (we are no correctly providing the texture data and sampler)
 
 		shellDescriptorWrites[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;//we are writing to the descriptor set so this must be the type of the struct
 		shellDescriptorWrites[2].dstSet = shellDescriptorSets[i]; //the set we are writing to
@@ -1935,6 +1965,44 @@ void Renderer::createDescriptorSets()
 
 		//vkUpdateDescriptorSets(device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
 		vkUpdateDescriptorSets(device, static_cast<uint32_t>(shellDescriptorWrites.size()), shellDescriptorWrites.data(), 0, nullptr);
+
+		//fin pipeline descriptor sets
+		std::array<VkWriteDescriptorSet, 4> finDescriptorWrites = {};
+		//have to be created in the same order that the descriptors appear (ubo, texture, lightingconstants)
+		finDescriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; //we are writing to the descriptor set so this must be the type of the struct
+		finDescriptorWrites[0].dstSet = finDescriptorSets[i]; //the set we are writing to
+		finDescriptorWrites[0].dstBinding = 0; //the binding of the descriptor in the
+		finDescriptorWrites[0].dstArrayElement = 0; //starting index of the udpate
+		finDescriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; //the type of the descriptor (uniform buffer)
+		finDescriptorWrites[0].descriptorCount = 1; //the number of descriptors to update
+		finDescriptorWrites[0].pBufferInfo = &bufferInfo; //the buffer we are binding
+
+		finDescriptorWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;//we are writing to the descriptor set so this must be the type of the struct
+		finDescriptorWrites[1].dstSet = finDescriptorSets[i]; //the set we are updating
+		finDescriptorWrites[1].dstBinding = 1; //the binding of the descpriptor in the set
+		finDescriptorWrites[1].dstArrayElement = 0; //the starting index of the update
+		finDescriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; //the type of the descriptor (texture so we specify combined image and sampler)
+		finDescriptorWrites[1].descriptorCount = 1; //the number of descriptors we are updating
+		finDescriptorWrites[1].pImageInfo = &imageInfoFin; //the image we are binding (we are no correctly providing the texture data and sampler)
+
+		finDescriptorWrites[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;//we are writing to the descriptor set so this must be the type of the struct
+		finDescriptorWrites[2].dstSet = finDescriptorSets[i]; //the set we are writing to
+		finDescriptorWrites[2].dstBinding = 2; //the binding of the descriptor in the set
+		finDescriptorWrites[2].dstArrayElement = 0; //starting index of the udpate
+		finDescriptorWrites[2].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; //the type of the descriptor (uniform buffer)
+		finDescriptorWrites[2].descriptorCount = 1;//the number of descriptors to update
+		finDescriptorWrites[2].pBufferInfo = &lightingBufferInfo; //the buffer we are binding
+
+		finDescriptorWrites[3].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		finDescriptorWrites[3].dstSet = finDescriptorSets[i]; //the set we are writing to
+		finDescriptorWrites[3].dstBinding = 3; //the binding of the descriptor in the set
+		finDescriptorWrites[3].dstArrayElement = 0; //starting index of the udpate
+		finDescriptorWrites[3].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC; //the type of the descriptor (uniform buffer)
+		finDescriptorWrites[3].descriptorCount = 1;//the number of descriptors to update
+		finDescriptorWrites[3].pBufferInfo = &shellUBOBufferInfo; //the buffer we are binding
+
+		//vkUpdateDescriptorSets(device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
+		vkUpdateDescriptorSets(device, static_cast<uint32_t>(finDescriptorWrites.size()), finDescriptorWrites.data(), 0, nullptr);
 	}
 }
 
@@ -2016,7 +2084,16 @@ void Renderer::createCommandBuffers()
 
 			vkCmdDrawIndexed(commandBuffersBase[i], static_cast<uint32_t>(indices.size()), 1, 0, 0, 0); //draw using the index buffer
 		}
-		
+
+		vkCmdBindIndexBuffer(commandBuffersBase[i], adjacencyIndexBuffer, 0, VK_INDEX_TYPE_UINT32);
+
+		vkCmdBindPipeline(commandBuffersBase[i], VK_PIPELINE_BIND_POINT_GRAPHICS, finGraphicsPipeline);
+
+		//TODO insert draw commands for the new fin pipeline
+		uint32_t finOffset = (SHELLS - 1) * static_cast<uint32_t>(alignedMemory); //last ubo has the right shell offset
+		vkCmdBindDescriptorSets(commandBuffersBase[i], VK_PIPELINE_BIND_POINT_GRAPHICS, finPipelineLayout, 0, 1, &finDescriptorSets[i], 1, &finOffset);
+		vkCmdDrawIndexed(commandBuffersBase[i], static_cast<uint32_t>(adjacencyIndices.size()), 1, 0, 0, 0); //draw using the index buffer
+
 		//end render pass
 		vkCmdEndRenderPass(commandBuffersBase[i]);
 		//end recording commands

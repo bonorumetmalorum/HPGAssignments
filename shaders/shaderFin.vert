@@ -5,18 +5,11 @@ layout(location = 0) in vec3 inPosition;
 layout(location = 1) in vec3 inNormal;
 layout(location = 2) in vec2 uv;
 
-//layout(location = 0) out vec3 fragColor;
-layout(location = 2) out vec2 fragTexCoord; //keep this one
-//layout(location = 2) out vec4 fragLightVector; //get rid
-layout(location = 0) out vec4 eyeVector; //keep this one
-//dont need lighting stuff for this pipeline
-//layout(location = 4) out vec3 fragSpecularLighting; 
-//layout(location = 5) out vec3 fragDiffuseLighting;
-//layout(location = 6) out vec3 fragAmbientLighting;
-//layout(location = 7) out float fragSpecularCoefficient;
-layout(location = 1) out vec4 normal;
-//layout(location = 9) out vec3 renderFlags; get rid
-
+layout(location = 1) out vec4 fragNormal;
+layout(location = 2) out float weight;
+layout(location = 3) out mat4 geomProj;
+layout(location = 7) out mat4 geomModel;
+layout(location = 11) out mat4 geomView;
 
 
 layout(binding = 0) uniform UniformBufferObject {
@@ -25,6 +18,10 @@ layout(binding = 0) uniform UniformBufferObject {
     mat4 proj;
 	vec3 renderFlags;
 } ubo;
+
+layout(binding = 3) uniform ShellUniformBufferObject {
+	vec2 data;
+} shellUbo;
 
 layout(binding = 2) uniform LightingConstants {
 	vec4 lightPos;
@@ -35,15 +32,20 @@ layout(binding = 2) uniform LightingConstants {
 } lighting;
 
 void main() {
-	vec4 VCS_position = ubo.view * ubo.model * vec4(inPosition, 1.0);
+	//vec3 shellVert = inPosition + (inNormal * 3.0);
+	//vec4 VCS_position = ubo.view * ubo.model * vec4(shellVert, 1.0);
 	// //already in world coords so no need to multiply by model
 	// fragLightVector = (ubo.view * lighting.lightPos) - VCS_position;
-	normal = ubo.view * ubo.model * vec4(inNormal, 0.0);
-	eyeVector = - VCS_position;
-	gl_Position = ubo.proj * VCS_position;
+	//fragNormal = ubo.view * ubo.model * vec4(inNormal, 0.0);
+	fragNormal = vec4(inNormal, 0.0);
+	//fragEyeVector = - VCS_position;
+	gl_Position = vec4(inPosition, 1.0);//ubo.proj * VCS_position;
+	geomProj = ubo.proj;
+	geomModel = ubo.model;
+	geomView = ubo.view;
 	
 	//fragColor = vec3(1.0, 1.0, 1.0);
-	fragTexCoord = uv;
+	//fragTexCoord = uv;
 
 	// fragSpecularLighting = lighting.lightSpecular;
 	// fragDiffuseLighting = lighting.lightDiffuse;

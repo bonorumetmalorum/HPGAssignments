@@ -52,7 +52,7 @@ class Renderer
 public:
 
 	Renderer();
-	Renderer(OBJ &model, Texture & texture, Mtl & mtl);// - store the reference to the OBJ, so you can set up the buffers
+	Renderer(OBJ &model, Texture & shell, Texture & fin, Mtl & mtl);// - store the reference to the OBJ, so you can set up the buffers
 	~Renderer();
 	
 	void run();
@@ -76,8 +76,8 @@ private:
 	void createFinGraphicsPipeline();
 	void createFramebuffers();
 	void createCommandPool();
-	void createTextureImage();
-	void createTextureImageView();
+	void createTextureImage(Texture & texture, VkImage & textureImage, VkDeviceMemory & textureImageMemory);
+	void createTextureImageView(VkImageView& textureImageView, VkImage & textureImage);
 	void createTextureSampler();
 	void createVertexBuffer();
 	void createIndexBuffer();
@@ -201,11 +201,17 @@ private:
 	//image views: how to access and how to and which part to access
 	std::vector<VkImageView> swapChainImageViews;
 
-	//texture image and related memory
-	VkImage textureImage;
-	VkDeviceMemory textureImageMemory;
-	VkImageView textureImageView;
+	//texture image and related memory  for shells
+	VkImage textureImageShell;
+	VkDeviceMemory textureImageShellMemory;
+	VkImageView textureImageShellView;
 	VkSampler textureSampler;
+
+	//texture image and related memory for fins
+	VkImage textureImageFin;
+	VkDeviceMemory textureImageFinMemory;
+	VkImageView textureImageFinView;
+	VkSampler finTextureSampler;
 
 	//images to do with depth calculations
 	VkImage depthImage;
@@ -215,6 +221,7 @@ private:
 	VkRenderPass renderPass;
 	VkDescriptorSetLayout descriptorSetLayoutBase;
 	VkDescriptorSetLayout descriptorSetLayoutShell;
+	VkDescriptorSetLayout descriptorSetLayoutFins;
 	VkPipelineLayout basePipelineLayout;
 	VkPipelineLayout shellPipelineLayout;
 	VkPipelineLayout finPipelineLayout;
@@ -240,6 +247,7 @@ private:
 	VkDescriptorPool descriptorPool;
 	std::vector<VkDescriptorSet> descriptorSets; //the descriptor sets, 1 for each uniform, so 1 for each image in the swap chain
 	std::vector<VkDescriptorSet> shellDescriptorSets;
+	std::vector<VkDescriptorSet> finDescriptorSets;
 
 	/*
 		per framebuffer recording of commands
@@ -247,7 +255,8 @@ private:
 	std::vector<VkCommandBuffer> commandBuffersBase;
 	std::vector<VkCommandBuffer> commandBuffersShell;
 
-	Texture texture;
+	Texture textureShell;
+	Texture textureFin;
 	//buffer handle
 	VkBuffer vertexBuffer;
 	//memory handle
