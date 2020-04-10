@@ -2075,6 +2075,17 @@ void Renderer::createCommandBuffers()
 
 		vkCmdDrawIndexed(commandBuffersBase[i], static_cast<uint32_t>(indices.size()), 1, 0, 0, 0); //draw using the index buffer
 
+		vkCmdBindIndexBuffer(commandBuffersBase[i], adjacencyIndexBuffer, 0, VK_INDEX_TYPE_UINT32);
+
+		vkCmdBindPipeline(commandBuffersBase[i], VK_PIPELINE_BIND_POINT_GRAPHICS, finGraphicsPipeline);
+
+		//TODO insert draw commands for the new fin pipeline
+		uint32_t finOffset = (SHELLS - 1) * static_cast<uint32_t>(alignedMemory); //last ubo has the right shell offset
+		vkCmdBindDescriptorSets(commandBuffersBase[i], VK_PIPELINE_BIND_POINT_GRAPHICS, finPipelineLayout, 0, 1, &finDescriptorSets[i], 1, &finOffset);
+		vkCmdDrawIndexed(commandBuffersBase[i], static_cast<uint32_t>(adjacencyIndices.size()), 1, 0, 0, 0); //draw using the index buffer
+
+		vkCmdBindIndexBuffer(commandBuffersBase[i], indexBuffer, 0, VK_INDEX_TYPE_UINT32); //bind the index buffer
+
 		vkCmdBindPipeline(commandBuffersBase[i], VK_PIPELINE_BIND_POINT_GRAPHICS, shellGraphicsPipeline);
 
 		for (size_t j = 0; j < SHELLS; j++)
@@ -2085,14 +2096,7 @@ void Renderer::createCommandBuffers()
 			vkCmdDrawIndexed(commandBuffersBase[i], static_cast<uint32_t>(indices.size()), 1, 0, 0, 0); //draw using the index buffer
 		}
 
-		vkCmdBindIndexBuffer(commandBuffersBase[i], adjacencyIndexBuffer, 0, VK_INDEX_TYPE_UINT32);
-
-		vkCmdBindPipeline(commandBuffersBase[i], VK_PIPELINE_BIND_POINT_GRAPHICS, finGraphicsPipeline);
-
-		//TODO insert draw commands for the new fin pipeline
-		uint32_t finOffset = (SHELLS - 1) * static_cast<uint32_t>(alignedMemory); //last ubo has the right shell offset
-		vkCmdBindDescriptorSets(commandBuffersBase[i], VK_PIPELINE_BIND_POINT_GRAPHICS, finPipelineLayout, 0, 1, &finDescriptorSets[i], 1, &finOffset);
-		vkCmdDrawIndexed(commandBuffersBase[i], static_cast<uint32_t>(adjacencyIndices.size()), 1, 0, 0, 0); //draw using the index buffer
+		
 
 		//end render pass
 		vkCmdEndRenderPass(commandBuffersBase[i]);
