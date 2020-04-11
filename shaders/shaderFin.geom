@@ -1,7 +1,7 @@
 #version 450
 
 layout (lines_adjacency) in;
-layout (triangle_strip, max_vertices = 4) out;
+layout (triangle_strip, max_vertices = 6) out;
 
 layout(location = 1) in vec4 fragNormal[];
 layout(location = 2) in float weight[];
@@ -35,55 +35,52 @@ void main()
     eyeDotN2 = dot(N2, eyeVector);
 
     if(eyeDotN1 * eyeDotN2 < 0)
-    {
-         //emit vertices
-    //top left
-    vec3 tl = gl_in[1].gl_Position.xyz + (fragNormal[1].xyz * 3.0);
-    vec4 temp = geomProj[1] *  geomView[1] * geomModel[1] * vec4(tl, 1.0);
+    { //1 is right and 2 is left
+
+    vec3 tr = gl_in[1].gl_Position.xyz + (fragNormal[1].xyz * weight[0]);
+    vec4 temp = geomProj[1] *  geomView[1] * geomModel[1] * vec4(tr, 1.0);
     gl_Position = temp;
     normalOut = geomModel[1] * geomView[1] * fragNormal[1];
-    texCoord = vec2(0, 1);
+    texCoord = vec2(0, 0); 
     EmitVertex();
-    //top right
-    vec3 tr = gl_in[2].gl_Position.xyz + (fragNormal[2].xyz * 3.0);
-    temp = geomProj[1] *  geomView[1] * geomModel[1] * vec4(tr, 1.0);;
-    gl_Position = temp;
-    normalOut = geomModel[1] * geomView[1] * fragNormal[2];
-    texCoord = vec2(1, 1);
-    EmitVertex();
-    //original left
     temp = geomProj[1] *  geomView[1] * geomModel[1] * gl_in[1].gl_Position;
     gl_Position = temp;
-    texCoord = vec2(0,0);
+    texCoord = vec2(0,1);
     normalOut = geomModel[0] * geomView[0] * fragNormal[1];
-    EmitVertex();
-    EndPrimitive();
-    // //top right
-    // temp = geomProj[1] *  geomView[1] * geomModel[1] * vec4(tr, 1.0);;
-    // gl_Position = temp;
-    // normalOut = geomModel[0] * geomView[0] * fragNormal[2];
-    // texCoord = vec2(1, 1);
-    // EmitVertex();
-    // //original left
-    // temp = geomProj[1] *  geomView[1] * geomModel[1] * gl_in[1].gl_Position;
-    // gl_Position = temp;
-    // texCoord = vec2(0,0);
-    // normalOut = geomModel[0] * geomView[0] * fragNormal[1];
-    // EmitVertex();
-      //original right
+    EmitVertex(); 
     temp = geomProj[1] *  geomView[1] * geomModel[1] * gl_in[2].gl_Position;
     gl_Position = temp;
-    texCoord = vec2(1,0);
+    texCoord = vec2(1,1); 
+    normalOut = geomModel[0] * geomView[0] * fragNormal[2];
+    EmitVertex();
+    
+  //  	vec4 colorTest = vec4(0,1,1,1);
+	// vec4 colorTest = vec4(1,1,1,1);
+	// vec4 colorTest = vec4(0,0,1,1);
+	// vec4 colorTest = vec4(1,0,1,1);
+
+    EndPrimitive(); //---------------------------------------------------------------------
+    //top left
+    vec3 tl = gl_in[2].gl_Position.xyz + (fragNormal[2].xyz * weight[0]);
+    temp = geomProj[1] *  geomView[1] * geomModel[1] * vec4(tl, 1.0);;
+    gl_Position = temp;
+    normalOut = geomModel[1] * geomView[1] * fragNormal[2];
+    texCoord = vec2(1, 0); 
+    EmitVertex();
+    //top right
+    temp = geomProj[1] *  geomView[1] * geomModel[1] * vec4(tr, 1.0);
+    gl_Position = temp;
+    normalOut = geomModel[1] * geomView[1] * fragNormal[1];
+    texCoord = vec2(0,0); 
+    EmitVertex();
+    //original left
+    temp = geomProj[1] *  geomView[1] * geomModel[1] * gl_in[2].gl_Position;
+    gl_Position = temp;
+    texCoord = vec2(1,1); 
     normalOut = geomModel[0] * geomView[0] * fragNormal[2];
     EmitVertex();
 
-    // EndPrimitive();
-    // else if((abs(eyeDotN1) < 0.3) || (abs(eyeDotN2) < 0.3))
-    // {
-    //     //emit vertices
-    //     return;
-    // }
-    }
+    EndPrimitive();
     //test code
     // vec3 pointAOff = gl_in[0].gl_Position.xyz + (fragNormal[0].xyz * 3.0);
     // vec3 pointBOff = gl_in[1].gl_Position.xyz + (fragNormal[1].xyz * 3.0);
@@ -106,4 +103,5 @@ void main()
     // gl_PointSize = 10.0;
     // EmitVertex();
     // EndPrimitive();
+  }
 }

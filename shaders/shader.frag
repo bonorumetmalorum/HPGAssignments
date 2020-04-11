@@ -17,7 +17,7 @@ layout(location = 0) out vec4 outColor;
 layout(binding = 1) uniform sampler2D texSampler;
 
 void main() {
-	vec4 skinColor = vec4(1.0, 0.702, 0.0, 1.0);//texture(texSampler, fragTexCoord);
+	vec4 skinColor = vec4(0.0, 0.0, 0.0, 1.0);//texture(texSampler, fragTexCoord);
 
 	float ambI = 0.25;
 	float diffI = 0.9;

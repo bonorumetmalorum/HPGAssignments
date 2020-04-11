@@ -23,5 +23,6 @@ layout(binding = 1) uniform sampler2D texSampler;
 void main() {
 	vec4 tex = texture(texSampler, texCoord);
 	outColor = tex;
+
 }
 

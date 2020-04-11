@@ -1261,7 +1261,7 @@ void Renderer::createFinGraphicsPipeline()
 	rasterizer.polygonMode = VK_POLYGON_MODE_FILL; //turns triangles into points or lines - in this case triangles are solid, filled in
 	rasterizer.lineWidth = 1.0f; //thickness of lines
 	//these have changed to accommodate for the y flip in the projection matrix
-	rasterizer.cullMode = VK_CULL_MODE_NONE;  //which faces should we cull (here we choose to cull back faces, we could also do both)
+	rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;  //which faces should we cull (here we choose to cull back faces, we could also do both)
 	rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE; //how to iterate over vertices (determines which faces are front and back) can be CC or C
 	//the following parameters can be used to fix issues with z-fighting by allowing fragments to be offset in depth
 	rasterizer.depthBiasEnable = VK_FALSE; // can be modified based on slope but we don't want that here so it is disabled

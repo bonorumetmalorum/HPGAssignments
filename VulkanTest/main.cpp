@@ -28,7 +28,7 @@ int main() {
 	Mtl mtl;
 	
 	try {
-		texture = loader.loadTexturePpm("../models/bunny/fur-bump.ppm");
+		texture = loader.loadTexturePpm("../models/bunny/shell_noise.ppm");
 		mtl = loader.loadMtl("../models/duck/12248_Bird_v1_L2.mtl");
 		fin = loader.loadTexturePpm("../models/bunny/Fin.ppm");
 	}

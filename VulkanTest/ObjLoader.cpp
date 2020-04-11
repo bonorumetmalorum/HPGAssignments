@@ -141,7 +141,7 @@ Texture ObjLoader::loadTextureJpg(std::string path)
 Texture ObjLoader::loadTexturePpm(std::string path)
 {
 	Texture t = {};
-	std::ifstream instream(path.c_str(), std::ios::binary | std::ios::in);
+	std::ifstream instream(path.c_str(), std::ios::binary|std::ios::in);
 	if (!instream.is_open()) {
 		throw std::runtime_error("unable to open ppm file");
 	}
@@ -151,29 +151,32 @@ Texture ObjLoader::loadTexturePpm(std::string path)
 	if (magicL == 'P' && magicN == '6') { //check if binary format, if not throw error
 		char comment;
 		instream >> comment;
-		//if (comment = '#') {
-		//	instream.ignore(100, '\r\n');
-		//}
+		if (comment == '#') {
+			char commentline[256];
+			instream.getline(commentline, 256);
+		}
 		int height, width, maxVal = 0;
 		instream >> height;
 		instream >> width;
 		instream >> maxVal;
 		std::cout << maxVal << std::endl;
-		//instream >> height >> width >> maxVal;
 		t.height = height;
 		t.width = width;
 		t.imageSize = height * width * 4;
 		t.pixels = new unsigned char[(size_t)t.imageSize];
 		instream.get();
 		for (size_t i = 0; i < t.imageSize / 4; i++) {
-			char r, g, b, a = (unsigned char)255;
-			instream.read(&r, sizeof(char));
-			instream.read(&g, sizeof(char));
-			instream.read(&b, sizeof(char));
+			unsigned char r, g, b, a = (unsigned char)255;
+			instream.read((char*)&r, sizeof(char));
+			instream.read((char*)&g, sizeof(char));
+			instream.read((char*)&b, sizeof(char));
 			t.pixels[(i * 4)] = r;
 			t.pixels[(i * 4) + 1] = g;
 			t.pixels[(i * 4) + 2] = b;
-			t.pixels[(i * 4) + 3] = a;
+			if (r == 0 && g == 0 && b == 0)
+				t.pixels[(i * 4) + 3] = 0;
+			else
+				t.pixels[(i * 4) + 3] = a;
 		}
 		return t;
 	}
@@ -194,11 +197,13 @@ Texture ObjLoader::loadTexturePpm(std::string path)
 		t.pixels = new unsigned char[(size_t)t.imageSize];
 		instream.get();
 		for (size_t i = 0; i < t.imageSize / 4; i++) {
-			char r, g, b, a = (unsigned char)255;
-			instream.read(&r, sizeof(char));
-			instream.read(&g, sizeof(char));
-			instream.read(&b, sizeof(char));
-			instream.read(&a, sizeof(char));
+			unsigned int r, g, b, a = 255;
+			instream.read((char*)&r, sizeof(char));
+			instream.read((char*)&g, sizeof(char));
+			instream.read((char*)&b, sizeof(char));
+			//instream.read(&a, sizeof(char));
+			if (r == (char)0 || g == (char)0 || b == (char)0)
+				a = 0;
 			t.pixels[(i * 4)] = r;
 			t.pixels[(i * 4) + 1] = g;
 			t.pixels[(i * 4) + 2] = b;

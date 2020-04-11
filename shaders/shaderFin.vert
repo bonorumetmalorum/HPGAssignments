@@ -43,6 +43,7 @@ void main() {
 	geomProj = ubo.proj;
 	geomModel = ubo.model;
 	geomView = ubo.view;
+	weight = shellUbo.data.x;
 	
 	//fragColor = vec3(1.0, 1.0, 1.0);
 	//fragTexCoord = uv;
