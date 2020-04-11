@@ -990,7 +990,7 @@ void Renderer::createShellGraphicsPipeline()
 	VkPipelineDepthStencilStateCreateInfo depthStencil = {};
 	depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO; //truct type
 	depthStencil.depthTestEnable = VK_TRUE; //enable depth test
-	depthStencil.depthWriteEnable = VK_TRUE; //enable ability to write values to the depth buffer
+	depthStencil.depthWriteEnable = VK_FALSE; //enable ability to write values to the depth buffer
 	depthStencil.depthCompareOp = VK_COMPARE_OP_LESS; // keep fragments with lesser depth
 	depthStencil.depthBoundsTestEnable = VK_FALSE; //special test to check if depth buffer values are within a range, disabled here
 	depthStencil.stencilTestEnable = VK_FALSE; //no stencil test to do after depth test
@@ -1082,7 +1082,7 @@ void Renderer::createShellGraphicsPipeline()
 		colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA; //use the destination image alpha channel to determine how much of dst colours we use
 		colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD; //add the two colours together
 		colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE; //use the source images alpha
-		colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO; //don't use the destination images alpha
+		colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE; //don't use the destination images alpha
 		colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD; //add the alphas together to determine final alpha of new image
 	}
 	else {
@@ -1207,7 +1207,7 @@ void Renderer::createFinGraphicsPipeline()
 	VkPipelineDepthStencilStateCreateInfo depthStencil = {};
 	depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO; //truct type
 	depthStencil.depthTestEnable = VK_TRUE; //enable depth test
-	depthStencil.depthWriteEnable = VK_TRUE; //enable ability to write values to the depth buffer
+	depthStencil.depthWriteEnable = VK_FALSE; //enable ability to write values to the depth buffer
 	depthStencil.depthCompareOp = VK_COMPARE_OP_LESS; // keep fragments with lesser depth
 	depthStencil.depthBoundsTestEnable = VK_FALSE; //special test to check if depth buffer values are within a range, disabled here
 	depthStencil.stencilTestEnable = VK_FALSE; //no stencil test to do after depth test
@@ -1299,7 +1299,7 @@ void Renderer::createFinGraphicsPipeline()
 		colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA; //use the destination image alpha channel to determine how much of dst colours we use
 		colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD; //add the two colours together
 		colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE; //use the source images alpha
-		colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO; //don't use the destination images alpha
+		colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE; //don't use the destination images alpha
 		colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD; //add the alphas together to determine final alpha of new image
 	}
 	else {
@@ -2586,7 +2586,7 @@ void Renderer::updateUniformBuffer(uint32_t index)
 	UniformBufferObject ubo = {}; //ubo object that we will load into buffer
 	
 	glm::mat4 model = glm::translate(glm::mat4(1.0), translation); //model matrix
-	model = glm::scale(model, { 0.05,0.05,0.05 }); //scale the duck so its not so big
+	model = glm::scale(model, { 13.0,13.0,13.0 }); //scale the duck so its not so big
 
 	float mNow[16]; //the rotation matrix from the arcball controller
 	Ball_Value(&arcBall, mNow); //get the current rotation matrix
@@ -2610,12 +2610,12 @@ void Renderer::updateUniformBuffer(uint32_t index)
 	vkUnmapMemory(device, lightingUniformBuffersMemory);
 
 	float levelOpacity = 0.9;
-	float levelWeight = 0.9;
+	float levelWeight = 0.001;
 	for (uint32_t i = 0; i < SHELLS; i++)
 	{
 		size_t offset = i * alignedMemory;
 		levelOpacity -= 0.1;
-		levelWeight += 0.2;
+		levelWeight += 0.001;
 		glm::vec2* current = (glm::vec2*)(((size_t)shellUBO.data) + offset);
 		*(current) = glm::vec2(levelWeight, levelOpacity);
 	}

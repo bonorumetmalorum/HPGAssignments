@@ -16,7 +16,7 @@
 int main() {
 	ObjLoader loader;
 	try {
-		loader.loadObj("../models/bunny/sphere.obj", ReadMode::TRIANGLES);
+		loader.loadObj("../models/bunny/bunny.obj", ReadMode::TRIANGLES);
 	}
 	catch (std::exception e) {
 		std::cout << "exception reading obj: " << e.what() << std::endl;
