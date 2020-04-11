@@ -234,9 +234,12 @@ void Renderer::cleanup()
 
 	vkDestroyDescriptorSetLayout(device, descriptorSetLayoutBase, nullptr);
 	vkDestroyDescriptorSetLayout(device, descriptorSetLayoutShell, nullptr);
+	vkDestroyDescriptorSetLayout(device, descriptorSetLayoutFins, nullptr);
 
 	vkDestroyBuffer(device, indexBuffer, nullptr);
+	vkDestroyBuffer(device, adjacencyIndexBuffer, nullptr);
 	vkFreeMemory(device, indexBufferMemory, nullptr);
+	vkFreeMemory(device, adjacencyIndexBufferMemory, nullptr);
 
 	vkDestroyBuffer(device, vertexBuffer, nullptr);
 	vkFreeMemory(device, vertexBufferMemory, nullptr);
@@ -2366,8 +2369,10 @@ void Renderer::cleanupSwapChain()
 	//destroy the pipeline by providing the logical device and the pipeline handle
 	vkDestroyPipeline(device, baseGraphicsPipeline, nullptr);
 	vkDestroyPipeline(device, shellGraphicsPipeline, nullptr);
+	vkDestroyPipeline(device, finGraphicsPipeline, nullptr);
 	vkDestroyPipelineLayout(device, basePipelineLayout, nullptr); //destroy any uniforms allocated by destroying the layout, provide the logical device and the pipeline layout handle
 	vkDestroyPipelineLayout(device, shellPipelineLayout, nullptr); //destroy any uniforms allocated by destroying the layout, provide the logical device and the pipeline layout handle
+	vkDestroyPipelineLayout(device, finPipelineLayout, nullptr); //destroy any uniforms allocated by destroying the layout, provide the logical device and the pipeline layout handle
 	vkDestroyRenderPass(device, renderPass, nullptr); //destroy the render pass by providing the logical device and the render pass handle
 
 	for (size_t i = 0; i < swapChainImageViews.size(); i++) {
