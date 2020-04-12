@@ -16,6 +16,7 @@ layout(location = 7) out float fragSpecularCoefficient;
 layout(location = 8) out vec4 fragNormal;
 layout(location = 9) out vec3 renderFlags;
 layout(location = 10) out float opacity;
+layout(location = 11) out vec4 tangent;
 
 layout(binding = 0) uniform UniformBufferObject {
     mat4 model;
@@ -37,7 +38,10 @@ layout(binding = 2) uniform LightingConstants {
 } lighting;
 
 void main() {
-	vec3 shellVert = inPosition + (inNormal * shellUbo.data.x);
+	vec3 normNormal = normalize(inNormal);
+	vec3 shellVert = inPosition + (normNormal * shellUbo.data.x);
+	vec3 tangentVert = shellVert - inPosition;
+	tangent = ubo.view * ubo.model * vec4(tangentVert, 1.0);
 	vec4 VCS_position = ubo.view * ubo.model * vec4(shellVert, 1.0);
 	//already in world coords so no need to multiply by model
 	fragLightVector = (ubo.view * lighting.lightPos) - VCS_position;
@@ -53,5 +57,5 @@ void main() {
 	fragAmbientLighting = lighting.lightAmbient;
 	fragSpecularCoefficient = lighting.lightSpecularExponent.x;
 	renderFlags = ubo.renderFlags;
-	opacity = shellUbo.data[1];
+	opacity = shellUbo.data.y;
 }

@@ -30,12 +30,12 @@
 struct QueueFamilyIndices {
 	std::optional<uint32_t> graphicsFamily; //queue with graphics family capabilities
 	std::optional<uint32_t> presentFamily; //queue with present family capabilities
-
+	std::optional<uint32_t> computeFamily; //queue with compute family capabilities
 	/*
 		helper method to see if we have found a queue for both of these capabilities
 	*/
 	bool isComplete() {
-		return graphicsFamily.has_value() && presentFamily.has_value();
+		return graphicsFamily.has_value() && presentFamily.has_value() && computeFamily.has_value();
 	}
 };
 
@@ -73,6 +73,7 @@ private:
 	void createImageViews();
 	void createBaseGraphicsPipeline();
 	void createShellGraphicsPipeline();
+	void createComputePipeline(); //TODO
 	void createFinGraphicsPipeline();
 	void createFramebuffers();
 	void createCommandPool();
@@ -82,6 +83,7 @@ private:
 	void createVertexBuffer();
 	void createIndexBuffer();
 	void createDescriptorSetLayout();
+	void createComputeDescriptorSetLayout();
 	void createDescriptorPool();
 	void createDescriptorSets();
 	void createCommandBuffers();
@@ -175,6 +177,8 @@ private:
 
 	//queue handle
 	VkQueue graphicsQueue;
+	//compute Queue
+	VkQueue computeQueue;
 
 	//debug messenger handle
 	VkDebugUtilsMessengerEXT debugMessenger;
@@ -222,12 +226,15 @@ private:
 	VkDescriptorSetLayout descriptorSetLayoutBase;
 	VkDescriptorSetLayout descriptorSetLayoutShell;
 	VkDescriptorSetLayout descriptorSetLayoutFins;
+	VkDescriptorSetLayout descriptorSetLayoutCompute;
 	VkPipelineLayout basePipelineLayout;
 	VkPipelineLayout shellPipelineLayout;
+	VkPipelineLayout computePipelineLayout;
 	VkPipelineLayout finPipelineLayout;
 	VkPipeline baseGraphicsPipeline;
 	VkPipeline shellGraphicsPipeline;
 	VkPipeline finGraphicsPipeline;
+	VkPipeline computePipeline;
 	/*
 		a frame buffer wraps an attachment
 		an attachment is represented in the pipeline by an image returned by the swap chain
@@ -240,6 +247,7 @@ private:
 		batch
 	*/
 	VkCommandPool commandPool;
+	VkCommandPool computeCommandPool;
 
 	/*
 		pool used to bind uniforms to buffers
@@ -248,6 +256,7 @@ private:
 	std::vector<VkDescriptorSet> descriptorSets; //the descriptor sets, 1 for each uniform, so 1 for each image in the swap chain
 	std::vector<VkDescriptorSet> shellDescriptorSets;
 	std::vector<VkDescriptorSet> finDescriptorSets;
+	VkDescriptorSet computeDescriptorSet;
 
 	/*
 		per framebuffer recording of commands

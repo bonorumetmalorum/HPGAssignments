@@ -17,34 +17,25 @@ layout(location = 0) out vec4 outColor;
 layout(binding = 1) uniform sampler2D texSampler;
 
 void main() {
-	vec4 skinColor = vec4(1.0, 1.0, 1.0, 1.0);//texture(texSampler, fragTexCoord);
+	vec4 skinColor = vec4(0.4941, 0.0392, 0.0392, 1.0);//texture(texSampler, fragTexCoord);
 
-	float ambI = 0.25;
-	float diffI = 0.9;
-	float specI = 4.0;
+	float ambI = 0.8;
+	float diffI = 0.2;
 
-	vec3 ambientLight = fragAmbientLighting * fragColor * ambI;
+	vec3 ambientLight = fragColor * ambI;
 	vec4 normEyeVector = normalize(fragEyeVector);
 	vec4 normLightVector = normalize(fragLightVector);
 	vec4 normNormal = normalize(fragNormal);
 
 	float diffuseDotProd = max(dot(normLightVector, normNormal), 0.0);
-	vec3 diffuseLight = fragDiffuseLighting * diffuseDotProd * diffI;
-
-	vec4 halfAngle = normalize((normEyeVector + normLightVector)/2.0);
-	float specularDotProd = max(dot(halfAngle, normNormal), 0.0);
-	float specularPower = pow(specularDotProd, fragSpecularCoefficient);
-	vec3 specularLight = fragSpecularLighting * fragColor * specularPower * specI;
+	float diffuseLight = diffuseDotProd * diffI;
 
 	vec4 lighting = vec4(0);
 	if(abs(renderFlags.x) > 0.5){
 		lighting += vec4(ambientLight, 1.0) * vec4(fragColor, 1.0);
 	}
 	if(abs(renderFlags.y) > 0.5){
-		lighting += vec4(diffuseLight, 1.0) * vec4(fragColor, 1.0);
-	}
-	if(abs(renderFlags.z) > 0.5){
-		lighting += vec4(specularLight,1.0) * vec4(fragColor, 1.0);
+		lighting += diffuseLight * vec4(fragColor, 1.0);
 	}
 	
 	//outColor = vec4(renderFlags, 1.0);

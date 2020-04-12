@@ -171,16 +171,9 @@ Texture ObjLoader::loadTexturePpm(std::string path)
 			instream.read((char*)&g, sizeof(char));
 			instream.read((char*)&b, sizeof(char));
 			t.pixels[(i * 4)] = r;
-			t.pixels[(i * 4) + 1] = g;
+			t.pixels[(i * 4) + 1] = g; 
 			t.pixels[(i * 4) + 2] = b;
-			if (r == 255 && g == 255 && b == 255)
-			{
-				t.pixels[(i * 4) + 3] = 255;
-			}
-			else 
-			{
-				t.pixels[(i * 4) + 3] = 0;
-			}
+			t.pixels[(i * 4) + 3] = b;
 		}
 		return t;
 	}

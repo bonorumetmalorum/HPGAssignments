@@ -3,8 +3,11 @@
 
 layout(location = 0) in vec3 fragColor;
 layout(location = 1) in vec2 fragTexCoord;
+
 layout(location = 2) in vec4 fragLightVector;
 layout(location = 3) in vec4 fragEyeVector;
+layout(location = 11) in vec4 tangent;
+
 layout(location = 4) in vec3 fragSpecularLighting;
 layout(location = 5) in vec3 fragDiffuseLighting;
 layout(location = 6) in vec3 fragAmbientLighting;
@@ -19,36 +22,26 @@ layout(binding = 1) uniform sampler2D texSampler;
 
 void main() {
 	vec4 textureColor = texture(texSampler, fragTexCoord);
+	textureColor.rgb = vec3(0.4941, 0.0392, 0.0392);
 	textureColor.a *= opacity;
-	float ambI = 0.25;
-	float diffI = 0.9;
-	float specI = 4.0;
+	float ambI = 0.3;
+	float diffI = 0.7;
+	float specI = 0.3;
 
-	vec3 ambientLight = fragAmbientLighting * fragColor * ambI;
 	vec4 normEyeVector = normalize(fragEyeVector);
 	vec4 normLightVector = normalize(fragLightVector);
 	vec4 normNormal = normalize(fragNormal);
+	vec3 normTangent = normalize(tangent.xyz);
 
-	float diffuseDotProd = max(dot(normLightVector, normNormal), 0.0);
-	vec3 diffuseLight = fragDiffuseLighting * diffuseDotProd * diffI;
+	float TdotL = dot( normTangent , normLightVector.xyz);
+    float TdotE = dot( normTangent , normEyeVector.xyz);
+    float sinTL = sqrt( 1 - TdotL*TdotL );
+    float sinTE = sqrt( 1 - TdotE*TdotE );
 
-	vec4 halfAngle = normalize((normEyeVector + normLightVector)/2.0);
-	float specularDotProd = max(dot(halfAngle, normNormal), 0.0);
-	float specularPower = pow(specularDotProd, fragSpecularCoefficient);
-	vec3 specularLight = fragSpecularLighting * fragColor * specularPower * specI;
-
-	vec3 lighting = vec3(0);
-	if(abs(renderFlags.x) > 0.5){
-		lighting += ambientLight * fragColor;
-	}
-	if(abs(renderFlags.y) > 0.5){
-		lighting += diffuseLight * fragColor;
-	}
-	if(abs(renderFlags.z) > 0.5){
-		lighting += specularLight * fragColor;
-	}
-	
+	textureColor.xyz = (ambI*textureColor.xyz) + (diffI*sinTL*textureColor.xyz) + 
+        (specI*pow( abs((TdotL*TdotE + sinTL*sinTE)),20.0));
 	//outColor = vec4(renderFlags, 1.0);
+
 	outColor = textureColor;
 }
 

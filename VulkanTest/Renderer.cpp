@@ -20,7 +20,7 @@ Renderer::Renderer(OBJ & model, Texture & textureShell, Texture & textureFin, Mt
 	this->lighting.lightDiffuse = mtl.diffuse;
 	this->lighting.lightSpecular = mtl.specular;
 	this->lighting.lightSpecularExponent = glm::vec2(mtl.specularExponent, 0.0);
-	this->lighting.lightPos = glm::vec4(0, -1.0, 5.0, 1.0);
+	this->lighting.lightPos = glm::vec4(-1.0, -2.0, 5.0, 1.0);
 	Ball_Init(&arcBall);
 	Ball_Place(&arcBall, { 0.0,0.0,0.0,1.0 }, 0.80);
 }
@@ -55,9 +55,11 @@ void Renderer::initVulkan()
 	createRenderPass(); //create a render pass that specifies all the stages of the render
 	createDescriptorSetLayout(); //create the descriptor sets TODO
 	//^add to the descriptor above
+	createComputeDescriptorSetLayout();
 	createBaseGraphicsPipeline(); //create a graphics pipeline to process drawing commands and render to the surface
 	createShellGraphicsPipeline(); //shell rendering pipeline
 	createFinGraphicsPipeline(); //fin rendering pipeline
+	createComputePipeline(); //create the compute pipeline
 	createCommandPool(); //create a command pool to manage allocation of command buffers
 	createTextureImage(this->textureShell, this->textureImageShell, this->textureImageShellMemory); //load the shell image texture into gpu memory
 	createTextureImage(this->textureFin, this->textureImageFin, this->textureImageFinMemory); //load the fin image texture into gpu memory
@@ -185,6 +187,7 @@ void Renderer::createLogicalDevice()
 
 	vkGetDeviceQueue(device, indices.graphicsFamily.value(), 0, &graphicsQueue); //store a reference to the graphics queue that was created on the device
 	vkGetDeviceQueue(device, indices.presentFamily.value(), 0, &presentationQueue); //store a reference to the presentation queue that was created on the device
+	vkGetDeviceQueue(device, indices.computeFamily.value(), 0, &computeQueue); //store a reference to the presentation queue that was created on the device
 }
 
 /*
@@ -336,6 +339,9 @@ QueueFamilyIndices Renderer::findQueueFamilies(VkPhysicalDevice device)
 		vkGetPhysicalDeviceSurfaceSupportKHR(device, i, surface, &presentSupport); //query if the queue has presentation operations supported
 		if (presentSupport) { //if it does
 			indices.presentFamily = i; //we found the queue we will use to render frames (usually the same as the graphics queue)
+		}
+		if (queueFamily.queueFlags & VK_QUEUE_COMPUTE_BIT) {
+			indices.computeFamily = i;
 		}
 		if (indices.isComplete()) { //if we have found all the queues we want
 			break; //break early
@@ -1168,6 +1174,40 @@ void Renderer::createShellGraphicsPipeline()
 	vkDestroyShaderModule(device, vertShaderModule, nullptr); //destroy the shader modules since they have been loaded in the pipeline
 }
 
+void Renderer::createComputePipeline()
+{
+	auto computeShaderCode = readFile("../shaders/compute.spv");
+	VkShaderModule compute = createShaderModule(computeShaderCode);
+
+	VkPipelineShaderStageCreateInfo computeShaderCreateInfo = {};
+	computeShaderCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+	computeShaderCreateInfo.module = compute;
+	computeShaderCreateInfo.stage = VK_SHADER_STAGE_COMPUTE_BIT;
+	computeShaderCreateInfo.pName = "main";
+
+	VkPipelineLayoutCreateInfo pipelineLayoutInfo = {};
+	pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO; //struct type
+	pipelineLayoutInfo.setLayoutCount = 1; // Optional - number of different uniform layouts
+	pipelineLayoutInfo.pSetLayouts = &descriptorSetLayoutCompute; // Optional - the uniform layouts
+	pipelineLayoutInfo.pushConstantRangeCount = 0; // Optional - a push constant is uniform variable in a shader and is used similarly, but it is vulkan owned and managed, it is set through the command buffer (number of push constant ranges)
+	pipelineLayoutInfo.pPushConstantRanges = nullptr; // Optional - the push constant ranges that specify what stage of the pipeline will access the uniform and it also specifies the start offset and size of the uniform
+	 
+	if (vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &computePipelineLayout) != VK_SUCCESS) {
+		throw std::runtime_error("unable to create compute pipeline layout");
+	}
+
+	VkComputePipelineCreateInfo computePipelineCreateInfo = {};
+	computePipelineCreateInfo.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
+	computePipelineCreateInfo.basePipelineHandle = VK_NULL_HANDLE;
+	computePipelineCreateInfo.basePipelineIndex = -1;
+	computePipelineCreateInfo.layout = computePipelineLayout;
+	computePipelineCreateInfo.stage = computeShaderCreateInfo;
+
+	if (vkCreateComputePipelines(device, nullptr, 1, &computePipelineCreateInfo, nullptr, &computePipeline) != VK_SUCCESS) {
+		throw std::runtime_error("failed to create compute pipeline!");
+	}
+}
+
 void Renderer::createFinGraphicsPipeline()
 {
 	//read in shader programs in binary format (pre compiled)
@@ -1598,6 +1638,13 @@ void Renderer::createCommandPool()
 		throw std::runtime_error("failed to create command pool!"); //if we are unsuccessful throw an error
 	}
 
+	//create the command pool for the compute queue
+	poolInfo.queueFamilyIndex = queueFamilyIndices.computeFamily.value();
+
+	if (vkCreateCommandPool(device, &poolInfo, nullptr, &computeCommandPool) != VK_SUCCESS) { //create the pool
+		throw std::runtime_error("failed to create command pool!"); //if we are unsuccessful throw an error
+	}
+
 }
 
 //create the texture
@@ -1808,11 +1855,33 @@ void Renderer::createDescriptorSetLayout()
 	}
 }
 
+void Renderer::createComputeDescriptorSetLayout()
+{
+	//binding to describe the uniform buffer
+	VkDescriptorSetLayoutBinding uboLayoutBinding = {};
+	uboLayoutBinding.binding = 0; //the number we are binding to (shader access will use this number)
+	uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; //type of the binding, uniform buffer because that is what we are binding
+	uboLayoutBinding.descriptorCount = 1; //number of descriptors contained in the binding
+	uboLayoutBinding.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT; //which stage of the pipeline will access this binding
+
+	//group the descriptor set layout bindings for the base pipeline
+	std::array<VkDescriptorSetLayoutBinding, 1> bindings = { uboLayoutBinding };
+	VkDescriptorSetLayoutCreateInfo layoutInfoCompute = {}; //create the descriptor set layout
+	layoutInfoCompute.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+	layoutInfoCompute.bindingCount = static_cast<uint32_t>(bindings.size()); //the number of bindings
+	layoutInfoCompute.pBindings = bindings.data(); //the bindings
+
+	//create the descriptor set
+	if (vkCreateDescriptorSetLayout(device, &layoutInfoCompute, nullptr, &descriptorSetLayoutCompute) != VK_SUCCESS) {
+		throw std::runtime_error("failed to create compute descriptor set layout!");
+	}
+}
+
 //the descriptor pool used to allocate the descriptor set. Good for memory optimization as the structs use similar memory
 void Renderer::createDescriptorPool()
 {
 	//we need to create the pool sizes for each type of descriptor binding
-	std::array<VkDescriptorPoolSize, 4> poolSizes = {};
+	std::array<VkDescriptorPoolSize, 5> poolSizes = {};
 	poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; //type of the buffer
 	poolSizes[0].descriptorCount = static_cast<uint32_t>(swapChainImages.size() * 3);  //the max number of descriptors we can allocate from this pool
 	poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; //type of the buffer
@@ -1821,12 +1890,14 @@ void Renderer::createDescriptorPool()
 	poolSizes[2].descriptorCount = static_cast<uint32_t>(swapChainImages.size() * 3); //the max number of descriptors we can allocate from this pool
 	poolSizes[3].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC; //type of the buffer
 	poolSizes[3].descriptorCount = static_cast<uint32_t>(swapChainImages.size() * 3); //the max number of descriptors we can allocate from this pool
+	poolSizes[4].type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE; //type of the buffer - for compute pipeline
+	poolSizes[4].descriptorCount = static_cast<uint32_t>(2); //the max number of descriptors we can allocate from this pool
 	//create the pool 
 	VkDescriptorPoolCreateInfo poolInfo = {};
 	poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO; //type of struct
 	poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size()); //number of different pool sizes
 	poolInfo.pPoolSizes = poolSizes.data(); //the sizes
-	poolInfo.maxSets = static_cast<uint32_t>(swapChainImages.size()*3); //max number of descriptor sets we can allocate
+	poolInfo.maxSets = static_cast<uint32_t>(swapChainImages.size()*3) + 2; //max number of descriptor sets we can allocate
 
 	//create the pool
 	if (vkCreateDescriptorPool(device, &poolInfo, nullptr, &descriptorPool) != VK_SUCCESS) {
@@ -1841,6 +1912,7 @@ void Renderer::createDescriptorSets()
 	std::vector<VkDescriptorSetLayout> layouts(swapChainImages.size(), descriptorSetLayoutBase);
 	std::vector<VkDescriptorSetLayout> layoutsShell(swapChainImages.size(), descriptorSetLayoutShell);
 	std::vector<VkDescriptorSetLayout> layoutsFins(swapChainImages.size(), descriptorSetLayoutFins);
+	VkDescriptorSetLayout computeLayout;
 	//allocation info for descriptor sets
 	VkDescriptorSetAllocateInfo allocInfo = {};
 	allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO; //struct type
@@ -1854,6 +1926,13 @@ void Renderer::createDescriptorSets()
 	allocInfoShell.descriptorPool = descriptorPool; //the pool we are going to allocate from
 	allocInfoShell.descriptorSetCount = static_cast<uint32_t>(swapChainImages.size()); //the number of descriptors to allcoate (same as max number)
 	allocInfoShell.pSetLayouts = layoutsShell.data(); //the descriptor set layout structs
+
+	//compute descriptors
+	VkDescriptorSetAllocateInfo allocInfoCompute = {};
+	allocInfoCompute.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO; //struct type
+	allocInfoCompute.descriptorPool = descriptorPool; //the pool we are going to allocate from
+	allocInfoCompute.descriptorSetCount = static_cast<uint32_t>(1); //the number of descriptors to allcoate (same as max number)
+	allocInfoCompute.pSetLayouts = &computeLayout; //the descriptor set layout structs
 
 	//resize to hold all handles to descriptor sets
 	descriptorSets.resize(swapChainImages.size()); //for the base pipeline
@@ -1873,6 +1952,18 @@ void Renderer::createDescriptorSets()
 	if (vkAllocateDescriptorSets(device, &allocInfoShell, finDescriptorSets.data()) != VK_SUCCESS) {
 		throw std::runtime_error("failed to allocate descriptor sets!");
 	}
+
+	//allocate descriptor set for the shell pipeline
+	if (vkAllocateDescriptorSets(device, &allocInfoCompute, &computeDescriptorSet) != VK_SUCCESS) {
+		throw std::runtime_error("failed to allocate compute descriptor sets!");
+	}
+
+	VkWriteDescriptorSet computeWrite = {};
+	computeWrite.descriptorCount = 1;
+	computeWrite.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+	computeWrite.dstBinding = 0;
+	computeWrite.dstSet = computeDescriptorSet;
+	//computeWrite.pImageInfo = //TODO
 
 	//we now need to associate the right buffers with the descriptor sets we have just created
 	for (size_t i = 0; i < swapChainImages.size(); i++) {
@@ -2053,7 +2144,8 @@ void Renderer::createCommandBuffers()
 		renderPassInfo.renderArea.extent = swapChainExtent; //dimensions of the buffer - matches swap chain images
 		//clear values to use for VK_ATTACHMENT_LOAD_OP_CLEAR, which we used as load operation for the color attachment
 		std::array<VkClearValue, 2> clearColors = {};
-		clearColors[0].color = { 0.7f, 0.5f, 0.6f, 1.0f };
+		clearColors[0].color = { 0.0f, 0.0f, 0.0f, 1.0f };
+//		clearColors[0].color = { 0.7f, 0.5f, 0.6f, 1.0f };
 		clearColors[1].depthStencil = { 1.0f, 0 };
 		renderPassInfo.clearValueCount = static_cast<uint32_t>(clearColors.size()); //one clear value
 		renderPassInfo.pClearValues = clearColors.data(); //clear value
@@ -2614,9 +2706,9 @@ void Renderer::updateUniformBuffer(uint32_t index)
 	for (uint32_t i = 0; i < SHELLS; i++)
 	{
 		size_t offset = i * alignedMemory;
-		levelOpacity -= 0.1;
-		levelWeight += 0.001;
 		glm::vec2* current = (glm::vec2*)(((size_t)shellUBO.data) + offset);
+		levelOpacity -= 0.05;
+		levelWeight += 0.001;
 		*(current) = glm::vec2(levelWeight, levelOpacity);
 	}
 	void* dataShell;
