@@ -78,7 +78,7 @@ private:
 	void createFramebuffers();
 	void createCommandPool();
 	void createTextureImage(Texture & texture, VkImage & textureImage, VkDeviceMemory & textureImageMemory);
-	void createTextureImageView(VkImageView& textureImageView, VkImage & textureImage);
+	void createTextureImageView(VkImageView& textureImageView, VkFormat format, VkImage & textureImage);
 	void createTextureSampler();
 	void createVertexBuffer();
 	void createIndexBuffer();
@@ -87,9 +87,10 @@ private:
 	void createDescriptorPool();
 	void createDescriptorSets();
 	void createCommandBuffers();
+	void createComputeCommandBuffers();
 	void createDepthResources();
 	void copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height);
-	void createImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage & image, VkDeviceMemory & imageMemory);
+	void createImage(uint32_t width, uint32_t height, uint32_t depth, VkImageType type, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage & image, VkDeviceMemory & imageMemory);
 	VkImageView createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags);
 	VkCommandBuffer beginSingleTimeCommands();
 	void endSingleTimeCommands(VkCommandBuffer commandBuffer);
@@ -263,6 +264,7 @@ private:
 	*/
 	std::vector<VkCommandBuffer> commandBuffersBase;
 	std::vector<VkCommandBuffer> commandBuffersShell;
+	VkCommandBuffer computeCommandBuffer;
 
 	Texture textureShell;
 	Texture textureFin;

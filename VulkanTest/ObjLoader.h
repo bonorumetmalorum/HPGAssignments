@@ -64,7 +64,8 @@ enum ReadMode
 namespace std {
 	template<> struct hash<Vertex> {
 		size_t operator()(Vertex const& vertex) const {
-			return ((hash<glm::vec3>()(vertex.position)));
+			return ((hash<glm::vec3>()(vertex.position) ^
+				(hash<glm::vec2>()(vertex.uv) << 1)) >> 1);
 		}
 	};
 };
@@ -80,7 +81,7 @@ struct OBJ {
 struct Texture {
 	VkDeviceSize imageSize;
 	unsigned char* pixels;
-	int width, height;
+	int width, height, depth;
 };
 
 //mtl struct to hold all information needed for blinn-phong lighting

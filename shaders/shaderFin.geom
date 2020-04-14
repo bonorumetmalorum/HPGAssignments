@@ -32,7 +32,7 @@ void main()
     if(eyeDotN1 * eyeDotN2 < 0)
     { //1 is right and 2 is left
 
-      vec3 tr = gl_in[1].gl_Position.xyz + (fragNormal[1].xyz * weight[0]);
+      vec3 tr = gl_in[1].gl_Position.xyz + (normalize(fragNormal[1].xyz) * weight[0]);
       vec4 temp = geomProj[1] *  geomView[1] * geomModel[1] * vec4(tr, 1.0);
       gl_Position = temp;
       normalOut = geomModel[1] * geomView[1] * fragNormal[1];
@@ -51,7 +51,7 @@ void main()
 
       EndPrimitive(); //---------------------------------------------------------------------
       //top left
-      vec3 tl = gl_in[2].gl_Position.xyz + (fragNormal[2].xyz * weight[0]);
+      vec3 tl = gl_in[2].gl_Position.xyz + (normalize(fragNormal[2].xyz) * weight[0]);
       temp = geomProj[1] *  geomView[1] * geomModel[1] * vec4(tl, 1.0);;
       gl_Position = temp;
       normalOut = geomModel[1] * geomView[1] * fragNormal[2];

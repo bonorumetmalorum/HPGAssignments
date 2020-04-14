@@ -26,21 +26,20 @@ void main() {
 	textureColor.a *= opacity;
 	float ambI = 0.3;
 	float diffI = 0.7;
-	float specI = 0.3;
+	float specI = 0.2;
 
 	vec4 normEyeVector = normalize(fragEyeVector);
 	vec4 normLightVector = normalize(fragLightVector);
 	vec4 normNormal = normalize(fragNormal);
 	vec3 normTangent = normalize(tangent.xyz);
 
-	float TdotL = dot( normTangent , normLightVector.xyz);
-    float TdotE = dot( normTangent , normEyeVector.xyz);
+	float TdotL = max(dot( normTangent , normLightVector.xyz), 0.0);
+    float TdotE = max(dot( normTangent , normEyeVector.xyz), 0.0);
     float sinTL = sqrt( 1 - TdotL*TdotL );
     float sinTE = sqrt( 1 - TdotE*TdotE );
 
-	textureColor.xyz = (ambI*textureColor.xyz) + (diffI*sinTL*textureColor.xyz) + 
-        (specI*pow( abs((TdotL*TdotE + sinTL*sinTE)),20.0));
-	//outColor = vec4(renderFlags, 1.0);
+	textureColor.xyz += vec3(1.0,1.0,1.0) * (ambI*textureColor.xyz) + (diffI*sinTL*textureColor.xyz) + 
+       (specI*pow( abs((TdotL*TdotE + sinTL*sinTE)),20.0));
 
 	outColor = textureColor;
 }

@@ -15,7 +15,9 @@ Renderer::Renderer(OBJ & model, Texture & textureShell, Texture & textureFin, Mt
 	this->adjacencyIndices = model.adjacencyIndices;
 	this->vertices = model.vertexList;
 	this->textureShell = textureShell;
+	this->textureShell.depth = 1;
 	this->textureFin = textureFin;
+	this->textureFin.depth = 1;
 	this->lighting.lightAmbient = mtl.ambient;
 	this->lighting.lightDiffuse = mtl.diffuse;
 	this->lighting.lightSpecular = mtl.specular;
@@ -63,8 +65,8 @@ void Renderer::initVulkan()
 	createCommandPool(); //create a command pool to manage allocation of command buffers
 	createTextureImage(this->textureShell, this->textureImageShell, this->textureImageShellMemory); //load the shell image texture into gpu memory
 	createTextureImage(this->textureFin, this->textureImageFin, this->textureImageFinMemory); //load the fin image texture into gpu memory
-	createTextureImageView(this->textureImageShellView, this->textureImageShell); //create the image view to access the texture
-	createTextureImageView(this->textureImageFinView, this->textureImageFin); //create the image view to access the texture
+	createTextureImageView(this->textureImageShellView, VK_FORMAT_R8G8B8A8_SRGB, this->textureImageShell); //create the image view to access the texture
+	createTextureImageView(this->textureImageFinView, VK_FORMAT_R8G8B8A8_SRGB,this->textureImageFin); //create the image view to access the texture
 	createTextureSampler(); //the sampler function used on GPU shader to access the texture values
 	createDepthResources(); //setup depth resources
 	createFramebuffers(); //create a framebuffer to represent the set of images the graphics pipeline will render to
@@ -75,6 +77,7 @@ void Renderer::initVulkan()
 	createDescriptorPool(); //create a descriptor pool from which we can allocate uniforms
 	createDescriptorSets(); //create descriptor sets to describe the resources that will be bound to the pipeline
 	createCommandBuffers(); //create the command buffer from the pool with the appropriate commands
+	createComputeCommandBuffers(); //create the command buffer for the compute pipeline work
 	createSyncObjects(); //create synchronization primitives to control rendering
 }
 
@@ -1176,7 +1179,7 @@ void Renderer::createShellGraphicsPipeline()
 
 void Renderer::createComputePipeline()
 {
-	auto computeShaderCode = readFile("../shaders/compute.spv");
+	auto computeShaderCode = readFile("../shaders/computeShader.spv");
 	VkShaderModule compute = createShaderModule(computeShaderCode);
 
 	VkPipelineShaderStageCreateInfo computeShaderCreateInfo = {};
@@ -1662,7 +1665,11 @@ void Renderer::createTextureImage(Texture & texture, VkImage & textureImage, VkD
 
 	//stbi_image_free(texture.pixels); - this is how we would do it using the stbi image loading lib
 	//create the image and its memory
-	createImage(texture.width, texture.height, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, textureImage, textureImageMemory);
+	if(texture.depth > 1)
+		createImage(texture.width, texture.height, texture.depth, VK_IMAGE_TYPE_2D, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, textureImage, textureImageMemory);
+	else
+		createImage(texture.width, texture.height, 1, VK_IMAGE_TYPE_2D, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, textureImage, textureImageMemory);
+
 
 	//transition the image layout from undefined to image layout transfer dst optimal so we can copy data to it
 	//provide the texture image we are transitioning layouts, the format of the image, src layout, dst layout
@@ -1677,11 +1684,12 @@ void Renderer::createTextureImage(Texture & texture, VkImage & textureImage, VkD
 	vkFreeMemory(device, stagingBufferMemory, nullptr);
 }
 
-void Renderer::createTextureImageView(VkImageView & textureImageView, VkImage & textureImage)
+void Renderer::createTextureImageView(VkImageView& textureImageView, VkFormat format, VkImage& textureImage)
 {
-	textureImageView = createImageView(textureImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT);
+	textureImageView = createImageView(textureImage, format, VK_IMAGE_ASPECT_COLOR_BIT);
 }
 
+//TODO create two different samplers, one for the shells and one for the fins (maybe okay actually for both fins and shells)
 void Renderer::createTextureSampler()
 {
 	VkSamplerCreateInfo samplerInfo = {};
@@ -1860,7 +1868,7 @@ void Renderer::createComputeDescriptorSetLayout()
 	//binding to describe the uniform buffer
 	VkDescriptorSetLayoutBinding uboLayoutBinding = {};
 	uboLayoutBinding.binding = 0; //the number we are binding to (shader access will use this number)
-	uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; //type of the binding, uniform buffer because that is what we are binding
+	uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE; //type of the binding, uniform buffer because that is what we are binding
 	uboLayoutBinding.descriptorCount = 1; //number of descriptors contained in the binding
 	uboLayoutBinding.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT; //which stage of the pipeline will access this binding
 
@@ -1912,7 +1920,7 @@ void Renderer::createDescriptorSets()
 	std::vector<VkDescriptorSetLayout> layouts(swapChainImages.size(), descriptorSetLayoutBase);
 	std::vector<VkDescriptorSetLayout> layoutsShell(swapChainImages.size(), descriptorSetLayoutShell);
 	std::vector<VkDescriptorSetLayout> layoutsFins(swapChainImages.size(), descriptorSetLayoutFins);
-	VkDescriptorSetLayout computeLayout;
+	VkDescriptorSetLayout computeLayout = descriptorSetLayoutCompute;
 	//allocation info for descriptor sets
 	VkDescriptorSetAllocateInfo allocInfo = {};
 	allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO; //struct type
@@ -1958,12 +1966,20 @@ void Renderer::createDescriptorSets()
 		throw std::runtime_error("failed to allocate compute descriptor sets!");
 	}
 
+	VkDescriptorImageInfo shellTexBuffer = {};
+	shellTexBuffer.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+	shellTexBuffer.imageView = textureImageShellView;
+	shellTexBuffer.sampler = textureSampler;
+
 	VkWriteDescriptorSet computeWrite = {};
+	computeWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 	computeWrite.descriptorCount = 1;
 	computeWrite.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
 	computeWrite.dstBinding = 0;
 	computeWrite.dstSet = computeDescriptorSet;
-	//computeWrite.pImageInfo = //TODO
+	computeWrite.pImageInfo = &shellTexBuffer;
+
+	vkUpdateDescriptorSets(device, 1, &computeWrite, 0, 0); //update the compute descriptor set
 
 	//we now need to associate the right buffers with the descriptor sets we have just created
 	for (size_t i = 0; i < swapChainImages.size(); i++) {
@@ -2202,12 +2218,36 @@ void Renderer::createCommandBuffers()
 	}
 }
 
+void Renderer::createComputeCommandBuffers()
+{
+	VkCommandBufferAllocateInfo commandBufferAllocateInfo = {};
+	commandBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+	commandBufferAllocateInfo.commandBufferCount = 1;
+	commandBufferAllocateInfo.commandPool = computeCommandPool;
+	commandBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+	
+	vkAllocateCommandBuffers(device, &commandBufferAllocateInfo, &computeCommandBuffer);
+
+	VkCommandBufferBeginInfo cmdBeginInfo = {};
+	cmdBeginInfo.pInheritanceInfo = nullptr;
+	cmdBeginInfo.flags = 0;
+
+	vkBeginCommandBuffer(computeCommandBuffer, &cmdBeginInfo);
+
+	vkCmdBindPipeline(computeCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipeline);
+	vkCmdBindDescriptorSets(computeCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipelineLayout, 0, 1, &computeDescriptorSet, 0, nullptr);
+
+	vkCmdDispatch(computeCommandBuffer, textureShell.height, textureShell.width, textureShell.depth);
+
+	vkEndCommandBuffer(computeCommandBuffer);
+}
+
 //create depth stencil resources
 void Renderer::createDepthResources()
 {
 	VkFormat depthFormat = findDepthFormat(); //find the format we need to create a depth buffer
 	//create the image that will be used to store the depth buffer data, it must have the same dimensions as a swap chain image
-	createImage(swapChainExtent.width, swapChainExtent.height, depthFormat, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, depthImage, depthImageMemory);
+	createImage(swapChainExtent.width, swapChainExtent.height, 1, VK_IMAGE_TYPE_2D, depthFormat, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, depthImage, depthImageMemory);
 	depthImageView = createImageView(depthImage, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT); //create the image view so we can access it
 }
 
@@ -2237,13 +2277,13 @@ void Renderer::copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width,
 }
 
 //helper method to make an image (images are more complex than buffers because they are multidimensional, have specific layouts and format info)
-void Renderer::createImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory) {
+void Renderer::createImage(uint32_t width, uint32_t height, uint32_t depth, VkImageType type, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory) {
 	VkImageCreateInfo imageInfo = {}; //image setup
 	imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO; //struct type
-	imageInfo.imageType = VK_IMAGE_TYPE_2D; //image type, here we have a 2D texture, but it can also be a 3d volumetric texture for example
+	imageInfo.imageType = type; //image type, here we have a 2D texture, but it can also be a 3d volumetric texture for example
 	imageInfo.extent.width = width; //width of image image
 	imageInfo.extent.height = height; //height of image image
-	imageInfo.extent.depth = 1; //depth of image, in our case its 1 since we do not have a 3d image
+	imageInfo.extent.depth = depth; //depth of image, in our case its SHELLS many
 	imageInfo.mipLevels = 1; //mip levels for when we want to use multiple levels of MIPMAPPING (which we also need to compute ourselves), 1 in our case since we are not using any mip levels
 	imageInfo.arrayLayers = 1; //layered images, can be used to store different kinds of information, 1 in our case again since we only have a 2D texture
 	imageInfo.format = format; //format of the image
@@ -2678,7 +2718,9 @@ void Renderer::updateUniformBuffer(uint32_t index)
 	UniformBufferObject ubo = {}; //ubo object that we will load into buffer
 	
 	glm::mat4 model = glm::translate(glm::mat4(1.0), translation); //model matrix
-	model = glm::scale(model, { 13.0,13.0,13.0 }); //scale the duck so its not so big
+	model = glm::scale(model, { 13.0,13.0,13.0 }); //scale the bunny so its not so small
+	//model = glm::scale(model, { 0.05,0.05,0.05 }); //scale the sphere so its not so big
+
 
 	float mNow[16]; //the rotation matrix from the arcball controller
 	Ball_Value(&arcBall, mNow); //get the current rotation matrix
@@ -2702,13 +2744,15 @@ void Renderer::updateUniformBuffer(uint32_t index)
 	vkUnmapMemory(device, lightingUniformBuffersMemory);
 
 	float levelOpacity = 0.9;
-	float levelWeight = 0.001;
+	float levelWeight = 0.001; //bunny
+	//float levelWeight = 0.1; //sphere
 	for (uint32_t i = 0; i < SHELLS; i++)
 	{
 		size_t offset = i * alignedMemory;
 		glm::vec2* current = (glm::vec2*)(((size_t)shellUBO.data) + offset);
 		levelOpacity -= 0.05;
-		levelWeight += 0.001;
+		levelWeight += 0.001; //bunny
+		//levelWeight += 0.1; //sphere
 		*(current) = glm::vec2(levelWeight, levelOpacity);
 	}
 	void* dataShell;

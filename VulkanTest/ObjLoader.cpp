@@ -311,6 +311,7 @@ void ObjLoader::triangulate(OBJ & object)
 void ObjLoader::package(OBJ& object)
 {
 	std::unordered_map<Vertex, uint32_t> uniqueVertices; //keep track of unique face vertices
+	std::vector<uint32_t>noNormals;
 	for (long i = 0; i < faceVertices.size() / 3; i++) {
 		//data for 0 vertex
 		glm::vec3 position = vertices[faceVertices[i * 3].v - 1];
@@ -333,31 +334,62 @@ void ObjLoader::package(OBJ& object)
 			uniqueVertices[v0] = object.vertexList.size();
 			iv0 = object.vertexList.size();
 			object.vertexList.push_back(v0);
+			noNormals.push_back(1);
+
 		}
 		else {
 			iv0 = uniqueVertices[v0];
+			object.vertexList[iv0].normal += v0.normal;
+			noNormals[iv0]++;
 		}
 		if (uniqueVertices.count(v1) == 0) {
 			uniqueVertices[v1] = object.vertexList.size();
 			iv1 = object.vertexList.size();
 			object.vertexList.push_back(v1);
+			noNormals.push_back(1);
 		}
 		else {
 			iv1 = uniqueVertices[v1];
+			object.vertexList[iv1].normal += v0.normal;
+			noNormals[iv1]++;
 		}
 		if (uniqueVertices.count(v2) == 0) {
 			uniqueVertices[v2] = object.vertexList.size();
 			iv2 = object.vertexList.size();
 			object.vertexList.push_back(v2);
+			noNormals.push_back(1);
 		}
 		else {
 			iv2 = uniqueVertices[v2];
+			object.vertexList[iv2].normal += v0.normal;
+			noNormals[iv2]++;
 		}
 
 		object.indices.push_back(iv0);
 		object.indices.push_back(iv1);
 		object.indices.push_back(iv2);
-
+	}
+	for (long j = 0; j < object.vertexList.size(); j++)
+	{
+		//object.vertexList[j].normal /= noNormals[j];
+		std::vector<Vertex*> veticesToCorrect;
+		glm::vec3 tempNormal = object.vertexList[j].normal;
+		veticesToCorrect.push_back(&object.vertexList[j]);
+		uint32_t count = 0;
+		for (long y = j; y < object.vertexList.size(); y++)
+		{
+			if (object.vertexList[j].position == object.vertexList[y].position)
+			{
+				tempNormal += object.vertexList[y].normal;
+				veticesToCorrect.push_back(&object.vertexList[y]);
+				count++;
+			}
+		}
+		tempNormal /= count;
+		for (auto vert : veticesToCorrect)
+		{
+			vert->normal = tempNormal;
+		}
 	}
 }
 
