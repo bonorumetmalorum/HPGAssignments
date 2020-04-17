@@ -96,6 +96,8 @@ private:
 	void endSingleTimeCommands(VkCommandBuffer commandBuffer);
 	void createSyncObjects();
 
+	void runComputeShader();
+
 	void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
 	void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory);
 	VkShaderModule createShaderModule(const std::vector<char>& code);
@@ -316,7 +318,7 @@ private:
 	};
 
 	struct ShellUniformBufferObject {
-		glm::vec2 * data;
+		glm::vec3 * data;
 	};
 
 	LightingConstants lighting;
@@ -332,6 +334,7 @@ private:
 	std::vector<VkSemaphore> baseRenderFinishedSemaphores; //is the rendering finished? we use this to make sure that we do not render to an image that is already being rendered to
 	std::vector<VkSemaphore> shellRenderFinishedSemaphores; //is the rendering finished? we use this to make sure that we do not render to an image that is already being rendered to
 	std::vector<VkFence> inFlightFences; //used to sync CPU-GPU so we don't use in-flight frames
+	VkFence computeFence;
 	std::vector<VkFence> imagesInFlight; //used to track which images are in flight
 	const int MAX_FRAMES_IN_FLIGHT = 2; //number of frames that can be processed concurrently
 	size_t currentFrame = 0; //variable to hold which frame we are currently rendering, it is circular so ranges between 0 - 1 (since we only have 2 frames to switch between)

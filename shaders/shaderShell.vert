@@ -17,6 +17,7 @@ layout(location = 8) out vec4 fragNormal;
 layout(location = 9) out vec3 renderFlags;
 layout(location = 10) out float opacity;
 layout(location = 11) out vec4 tangent;
+layout(location = 12) out float shellLevel;
 
 layout(binding = 0) uniform UniformBufferObject {
     mat4 model;
@@ -26,7 +27,7 @@ layout(binding = 0) uniform UniformBufferObject {
 } ubo;
 
 layout(binding = 3) uniform ShellUniformBufferObject {
-	vec2 data;
+	vec3 data;
 } shellUbo;
 
 layout(binding = 2) uniform LightingConstants {
@@ -58,4 +59,5 @@ void main() {
 	fragSpecularCoefficient = lighting.lightSpecularExponent.x;
 	renderFlags = ubo.renderFlags;
 	opacity = shellUbo.data.y;
+	shellLevel = shellUbo.data.z;
 }

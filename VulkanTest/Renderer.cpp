@@ -65,8 +65,8 @@ void Renderer::initVulkan()
 	createCommandPool(); //create a command pool to manage allocation of command buffers
 	createTextureImage(this->textureShell, this->textureImageShell, this->textureImageShellMemory); //load the shell image texture into gpu memory
 	createTextureImage(this->textureFin, this->textureImageFin, this->textureImageFinMemory); //load the fin image texture into gpu memory
-	createTextureImageView(this->textureImageShellView, VK_FORMAT_R8G8B8A8_SRGB, this->textureImageShell); //create the image view to access the texture
-	createTextureImageView(this->textureImageFinView, VK_FORMAT_R8G8B8A8_SRGB,this->textureImageFin); //create the image view to access the texture
+	createTextureImageView(this->textureImageShellView, VK_FORMAT_R8G8B8A8_UNORM, this->textureImageShell); //create the image view to access the texture
+	createTextureImageView(this->textureImageFinView, VK_FORMAT_R8G8B8A8_UNORM,this->textureImageFin); //create the image view to access the texture
 	createTextureSampler(); //the sampler function used on GPU shader to access the texture values
 	createDepthResources(); //setup depth resources
 	createFramebuffers(); //create a framebuffer to represent the set of images the graphics pipeline will render to
@@ -79,6 +79,8 @@ void Renderer::initVulkan()
 	createCommandBuffers(); //create the command buffer from the pool with the appropriate commands
 	createComputeCommandBuffers(); //create the command buffer for the compute pipeline work
 	createSyncObjects(); //create synchronization primitives to control rendering
+
+	runComputeShader();
 }
 
 /*
@@ -695,6 +697,20 @@ void Renderer::transitionImageLayout(VkImage image, VkFormat format, VkImageLayo
 
 		sourceStage = VK_PIPELINE_STAGE_TRANSFER_BIT; //before the barrier we have the transfer stage
 		destinationStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT; //after the barrier we have the fragment shader stage
+	}
+	else if (oldLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL && newLayout == VK_IMAGE_LAYOUT_GENERAL) {
+		barrier.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
+		barrier.dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+
+		sourceStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+		destinationStage = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
+	}
+	else if (oldLayout == VK_IMAGE_LAYOUT_GENERAL && newLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) {
+		barrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+		barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+		sourceStage = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
+		destinationStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
 	}
 	else {
 		throw std::invalid_argument("unsupported layout transition!"); //any other combination of src and dst layout is invalid
@@ -1666,18 +1682,18 @@ void Renderer::createTextureImage(Texture & texture, VkImage & textureImage, VkD
 	//stbi_image_free(texture.pixels); - this is how we would do it using the stbi image loading lib
 	//create the image and its memory
 	if(texture.depth > 1)
-		createImage(texture.width, texture.height, texture.depth, VK_IMAGE_TYPE_2D, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, textureImage, textureImageMemory);
+		createImage(texture.width, texture.height, texture.depth, VK_IMAGE_TYPE_2D, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, textureImage, textureImageMemory);
 	else
-		createImage(texture.width, texture.height, 1, VK_IMAGE_TYPE_2D, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, textureImage, textureImageMemory);
+		createImage(texture.width, texture.height, 1, VK_IMAGE_TYPE_2D, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, textureImage, textureImageMemory);
 
 
 	//transition the image layout from undefined to image layout transfer dst optimal so we can copy data to it
 	//provide the texture image we are transitioning layouts, the format of the image, src layout, dst layout
-	transitionImageLayout(textureImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-	copyBufferToImage(stagingBuffer, textureImage, static_cast<uint32_t>(texture.width), static_cast<uint32_t>(texture.height));
+	transitionImageLayout(textureImage, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+	//copyBufferToImage(stagingBuffer, textureImage, static_cast<uint32_t>(texture.width), static_cast<uint32_t>(texture.height));
 	//transition one more time to a format that is optimal for shader only access
 	//provide the texture image we are transitioning layouts, the format of the image, src layout, dst layout
-	transitionImageLayout(textureImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+	transitionImageLayout(textureImage, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
 	//destroy the staging buffer and memory
 	vkDestroyBuffer(device, stagingBuffer, nullptr);
@@ -2229,6 +2245,7 @@ void Renderer::createComputeCommandBuffers()
 	vkAllocateCommandBuffers(device, &commandBufferAllocateInfo, &computeCommandBuffer);
 
 	VkCommandBufferBeginInfo cmdBeginInfo = {};
+	cmdBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 	cmdBeginInfo.pInheritanceInfo = nullptr;
 	cmdBeginInfo.flags = 0;
 
@@ -2237,7 +2254,7 @@ void Renderer::createComputeCommandBuffers()
 	vkCmdBindPipeline(computeCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipeline);
 	vkCmdBindDescriptorSets(computeCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipelineLayout, 0, 1, &computeDescriptorSet, 0, nullptr);
 
-	vkCmdDispatch(computeCommandBuffer, textureShell.height, textureShell.width, textureShell.depth);
+	vkCmdDispatch(computeCommandBuffer, textureShell.width, textureShell.height, 1); //depth param needs to be checked
 
 	vkEndCommandBuffer(computeCommandBuffer);
 }
@@ -2430,8 +2447,10 @@ void Renderer::createSyncObjects()
 			throw std::runtime_error("failed to create fence for a frame!"); //if it is unsuccessful throw an error
 		}
 	}
-
-
+	
+	if (vkCreateFence(device, &fenceInfo, nullptr, &computeFence) != VK_SUCCESS) {
+		throw std::runtime_error("failed to create fence for compute shader!"); //if it is unsuccessful throw an error
+	}
 	/*
 	we now have an array of semaphores, two for each image in flight, this way we do not submit more work than that which can be processed by the GPU
 	this code is now deprecated
@@ -2441,6 +2460,23 @@ void Renderer::createSyncObjects()
 			throw std::runtime_error("failed to create semaphores!");
 		}
 	*/
+}
+
+void Renderer::runComputeShader()
+{
+	transitionImageLayout(textureImageShell, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL);
+
+	vkWaitForFences(device, 1, &computeFence, VK_TRUE, UINT64_MAX); //we dont need to do this
+	vkResetFences(device, 1, &computeFence);
+
+	VkSubmitInfo submitInfo = {};
+	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+	submitInfo.commandBufferCount = 1;
+	submitInfo.pCommandBuffers = &computeCommandBuffer;
+
+	vkQueueSubmit(computeQueue, 1, &submitInfo, computeFence);
+	
+	transitionImageLayout(textureImageShell, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 }
 
 /*
@@ -2541,7 +2577,8 @@ void Renderer::drawFrame()
 	//before we start drawing again, we have to wait for the previous frame to finish
 	//vkWaitForFences takes an array of fences and waits for either any, or all of them to be signaled before returning
 	//the last parameter is a timeout which we have disabled (so we wait forever, if the frame is never finishing) by setting it to uint64 max value
-	vkWaitForFences(device, 1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX); //provide a logical device, the number of frames to wait on and the array of frames, a boolean if we want to wait on all of the fences
+	VkFence  fences[2] = { inFlightFences[currentFrame] , computeFence };
+	vkWaitForFences(device, 2, fences, VK_TRUE, UINT64_MAX); //provide a logical device, the number of frames to wait on and the array of frames, a boolean if we want to wait on all of the fences
 
 	uint32_t imageIndex; //variable to hold image index we will use to render to
 
@@ -2688,14 +2725,14 @@ void Renderer::createUniformBuffers()
 	vkGetPhysicalDeviceProperties(physicalDevice, &props);
 	//create an aligned array of vec2s to access from dynamically when binding the descriptor
 	size_t minAlignment = props.limits.minUniformBufferOffsetAlignment;
-	alignedMemory = sizeof(glm::vec2);
+	alignedMemory = sizeof(glm::vec3);
 	if (minAlignment > 0) 
 	{
 		alignedMemory = (alignedMemory + minAlignment - 1) & ~(minAlignment - 1);
 	}
 	//allocate the array
 	shellBufferSize = SHELLS * alignedMemory;
-	shellUBO.data = (glm::vec2*)_aligned_malloc(shellBufferSize, alignedMemory);
+	shellUBO.data = (glm::vec3*)_aligned_malloc(shellBufferSize, alignedMemory);
 
 	uniformBuffers.resize(swapChainImages.size()); //allocate space to hold all the handles for the uniform buffer
 	uniformBuffersMemory.resize(swapChainImages.size()); //allocate space to hold handles to the associated memory of uniform buffer
@@ -2718,8 +2755,8 @@ void Renderer::updateUniformBuffer(uint32_t index)
 	UniformBufferObject ubo = {}; //ubo object that we will load into buffer
 	
 	glm::mat4 model = glm::translate(glm::mat4(1.0), translation); //model matrix
-	model = glm::scale(model, { 13.0,13.0,13.0 }); //scale the bunny so its not so small
-	//model = glm::scale(model, { 0.05,0.05,0.05 }); //scale the sphere so its not so big
+	//model = glm::scale(model, { 13.0,13.0,13.0 }); //scale the bunny so its not so small
+	model = glm::scale(model, { 0.05,0.05,0.05 }); //scale the sphere so its not so big
 
 
 	float mNow[16]; //the rotation matrix from the arcball controller
@@ -2744,16 +2781,16 @@ void Renderer::updateUniformBuffer(uint32_t index)
 	vkUnmapMemory(device, lightingUniformBuffersMemory);
 
 	float levelOpacity = 0.9;
-	float levelWeight = 0.001; //bunny
-	//float levelWeight = 0.1; //sphere
+	//float levelWeight = 0.001; //bunny
+	float levelWeight = 0.1; //sphere
 	for (uint32_t i = 0; i < SHELLS; i++)
 	{
 		size_t offset = i * alignedMemory;
-		glm::vec2* current = (glm::vec2*)(((size_t)shellUBO.data) + offset);
+		glm::vec3* current = (glm::vec3*)(((size_t)shellUBO.data) + offset);
 		levelOpacity -= 0.05;
-		levelWeight += 0.001; //bunny
-		//levelWeight += 0.1; //sphere
-		*(current) = glm::vec2(levelWeight, levelOpacity);
+		//levelWeight += 0.001; //bunny
+		levelWeight += 0.1; //sphere
+		*(current) = glm::vec3(levelWeight, levelOpacity, i);
 	}
 	void* dataShell;
 	vkMapMemory(device, shellUBOmemory, 0, shellBufferSize, 0, &dataShell);

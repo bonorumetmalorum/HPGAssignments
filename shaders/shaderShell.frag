@@ -15,6 +15,7 @@ layout(location = 7) in float fragSpecularCoefficient;
 layout(location = 8) in vec4 fragNormal;
 layout(location = 9) in vec3 renderFlags;
 layout(location = 10) in float opacity;
+layout(location = 12) in float shellLevel;
 
 layout(location = 0) out vec4 outColor;
 
@@ -40,6 +41,12 @@ void main() {
 
 	textureColor.xyz += vec3(1.0,1.0,1.0) * (ambI*textureColor.xyz) + (diffI*sinTL*textureColor.xyz) + 
        (specI*pow( abs((TdotL*TdotE + sinTL*sinTE)),20.0));
+
+	//banks selfshadowing:
+    float minShadow = 0.8;
+    float shadow = (float(shellLevel)/float(8))*(1-minShadow) + minShadow;
+
+	textureColor.xyz *= shadow;
 
 	outColor = textureColor;
 }
