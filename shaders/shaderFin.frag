@@ -21,7 +21,7 @@ layout(location = 0) out vec4 outColor;
 layout(binding = 1) uniform sampler2D texSampler;
 
 void main() {
-	vec4 tex = texture(texSampler, texCoord);
+	vec4 tex = texture(texSampler, texCoord, 1);
 	tex.rgb = vec3(0.4941, 0.0392, 0.0392);
 	outColor = tex;
 }

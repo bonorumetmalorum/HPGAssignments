@@ -2,7 +2,7 @@
 #extension GL_ARB_separate_shader_objects : enable
 
 layout(location = 0) in vec3 fragColor;
-layout(location = 1) in vec2 fragTexCoord;
+layout(location = 1) in vec3 fragTexCoord;
 
 layout(location = 2) in vec4 fragLightVector;
 layout(location = 3) in vec4 fragEyeVector;
@@ -19,7 +19,7 @@ layout(location = 12) in float shellLevel;
 
 layout(location = 0) out vec4 outColor;
 
-layout(binding = 1) uniform sampler2D texSampler;
+layout(binding = 1) uniform sampler3D texSampler;
 
 void main() {
 	vec4 textureColor = texture(texSampler, fragTexCoord);

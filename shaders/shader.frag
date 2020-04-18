@@ -14,7 +14,7 @@ layout(location = 9) in vec3 renderFlags;
 
 layout(location = 0) out vec4 outColor;
 
-layout(binding = 1) uniform sampler2D texSampler;
+layout(binding = 1) uniform sampler3D texSampler;
 
 void main() {
 	vec4 skinColor = vec4(0.4941, 0.0392, 0.0392, 1.0);//texture(texSampler, fragTexCoord);

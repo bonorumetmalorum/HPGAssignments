@@ -78,7 +78,7 @@ private:
 	void createFramebuffers();
 	void createCommandPool();
 	void createTextureImage(Texture & texture, VkImage & textureImage, VkDeviceMemory & textureImageMemory);
-	void createTextureImageView(VkImageView& textureImageView, VkFormat format, VkImage & textureImage);
+	void createTextureImageView(VkImageView& textureImageView, VkFormat format, VkImageViewType viewType, VkImage & textureImage);
 	void createTextureSampler();
 	void createVertexBuffer();
 	void createIndexBuffer();
@@ -89,9 +89,9 @@ private:
 	void createCommandBuffers();
 	void createComputeCommandBuffers();
 	void createDepthResources();
-	void copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height);
+	void copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height, uint32_t depth);
 	void createImage(uint32_t width, uint32_t height, uint32_t depth, VkImageType type, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage & image, VkDeviceMemory & imageMemory);
-	VkImageView createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags);
+	VkImageView createImageView(VkImage image, VkFormat format, VkImageViewType viewType, VkImageAspectFlags aspectFlags);
 	VkCommandBuffer beginSingleTimeCommands();
 	void endSingleTimeCommands(VkCommandBuffer commandBuffer);
 	void createSyncObjects();

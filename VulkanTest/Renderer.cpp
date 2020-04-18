@@ -15,7 +15,7 @@ Renderer::Renderer(OBJ & model, Texture & textureShell, Texture & textureFin, Mt
 	this->adjacencyIndices = model.adjacencyIndices;
 	this->vertices = model.vertexList;
 	this->textureShell = textureShell;
-	this->textureShell.depth = 1;
+	this->textureShell.depth = SHELLS;
 	this->textureFin = textureFin;
 	this->textureFin.depth = 1;
 	this->lighting.lightAmbient = mtl.ambient;
@@ -65,8 +65,8 @@ void Renderer::initVulkan()
 	createCommandPool(); //create a command pool to manage allocation of command buffers
 	createTextureImage(this->textureShell, this->textureImageShell, this->textureImageShellMemory); //load the shell image texture into gpu memory
 	createTextureImage(this->textureFin, this->textureImageFin, this->textureImageFinMemory); //load the fin image texture into gpu memory
-	createTextureImageView(this->textureImageShellView, VK_FORMAT_R8G8B8A8_UNORM, this->textureImageShell); //create the image view to access the texture
-	createTextureImageView(this->textureImageFinView, VK_FORMAT_R8G8B8A8_UNORM,this->textureImageFin); //create the image view to access the texture
+	createTextureImageView(this->textureImageShellView, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_VIEW_TYPE_3D, this->textureImageShell); //create the image view to access the texture
+	createTextureImageView(this->textureImageFinView, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_VIEW_TYPE_2D,this->textureImageFin); //create the image view to access the texture
 	createTextureSampler(); //the sampler function used on GPU shader to access the texture values
 	createDepthResources(); //setup depth resources
 	createFramebuffers(); //create a framebuffer to represent the set of images the graphics pipeline will render to
@@ -712,6 +712,13 @@ void Renderer::transitionImageLayout(VkImage image, VkFormat format, VkImageLayo
 		sourceStage = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
 		destinationStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
 	}
+	else if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) {
+		barrier.srcAccessMask = 0;
+		barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+		sourceStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+		destinationStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+	}
 	else {
 		throw std::invalid_argument("unsupported layout transition!"); //any other combination of src and dst layout is invalid
 	} 
@@ -740,7 +747,7 @@ void Renderer::createImageViews()
 	swapChainImageViews.resize(swapChainImages.size());	//set size of image views array to the size of images available in the swap chain
 	//loop over all images in the swap chain and create an image view for each one
 	for (size_t i = 0; i < swapChainImages.size(); i++) {
-		swapChainImageViews[i] = createImageView(swapChainImages[i], swapChainImageFormat, VK_IMAGE_ASPECT_COLOR_BIT);
+		swapChainImageViews[i] = createImageView(swapChainImages[i], swapChainImageFormat, VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT);
 		//all of the following code has been refactored into a separate method "createImageView" which is used above
 		//VkImageViewCreateInfo createInfo = {}; //create info struct that will contain the information for setting up the image view
 		//createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO; //type of the struct - image view
@@ -1669,40 +1676,44 @@ void Renderer::createCommandPool()
 //create the texture
 void Renderer::createTextureImage(Texture & texture, VkImage & textureImage, VkDeviceMemory & textureImageMemory)
 {
-	VkBuffer stagingBuffer; //intermediary buffer needed to load data to GPU only accessible memory
-	VkDeviceMemory stagingBufferMemory; //the memory associated with the staging buffer handle
-
-	//make the buffer
-	createBuffer(texture.imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory);
-	void* data; //map the memory so we can load the texture into it
-	vkMapMemory(device, stagingBufferMemory, 0, texture.imageSize, 0, &data);
-	memcpy(data, texture.pixels, static_cast<size_t>(texture.imageSize));
-	vkUnmapMemory(device, stagingBufferMemory);
-
 	//stbi_image_free(texture.pixels); - this is how we would do it using the stbi image loading lib
 	//create the image and its memory
-	if(texture.depth > 1)
-		createImage(texture.width, texture.height, texture.depth, VK_IMAGE_TYPE_2D, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, textureImage, textureImageMemory);
-	else
-		createImage(texture.width, texture.height, 1, VK_IMAGE_TYPE_2D, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, textureImage, textureImageMemory);
+	if (texture.depth > 1) {
+		createImage(texture.width, texture.height, texture.depth, VK_IMAGE_TYPE_3D, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, textureImage, textureImageMemory);
+		transitionImageLayout(textureImage, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+	}
+	else {
+		createImage(texture.width, texture.height, 1, VK_IMAGE_TYPE_2D, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, textureImage, textureImageMemory);
+	}
 
+	if (texture.pixels) {
+		VkBuffer stagingBuffer; //intermediary buffer needed to load data to GPU only accessible memory
+		VkDeviceMemory stagingBufferMemory; //the memory associated with the staging buffer handle
 
-	//transition the image layout from undefined to image layout transfer dst optimal so we can copy data to it
-	//provide the texture image we are transitioning layouts, the format of the image, src layout, dst layout
-	transitionImageLayout(textureImage, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-	//copyBufferToImage(stagingBuffer, textureImage, static_cast<uint32_t>(texture.width), static_cast<uint32_t>(texture.height));
-	//transition one more time to a format that is optimal for shader only access
-	//provide the texture image we are transitioning layouts, the format of the image, src layout, dst layout
-	transitionImageLayout(textureImage, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+		//make the buffer
+		createBuffer(texture.imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory);
+		void* data; //map the memory so we can load the texture into it
+		vkMapMemory(device, stagingBufferMemory, 0, texture.imageSize, 0, &data);
+		memcpy(data, texture.pixels, static_cast<size_t>(texture.imageSize));
+		vkUnmapMemory(device, stagingBufferMemory);
 
-	//destroy the staging buffer and memory
-	vkDestroyBuffer(device, stagingBuffer, nullptr);
-	vkFreeMemory(device, stagingBufferMemory, nullptr);
+		//transition the image layout from undefined to image layout transfer dst optimal so we can copy data to it
+		//provide the texture image we are transitioning layouts, the format of the image, src layout, dst layout
+		transitionImageLayout(textureImage, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+		copyBufferToImage(stagingBuffer, textureImage, static_cast<uint32_t>(texture.width), static_cast<uint32_t>(texture.height), 1);
+		//transition one more time to a format that is optimal for shader only access
+		//provide the texture image we are transitioning layouts, the format of the image, src layout, dst layout
+		transitionImageLayout(textureImage, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+
+		//destroy the staging buffer and memory
+		vkDestroyBuffer(device, stagingBuffer, nullptr);
+		vkFreeMemory(device, stagingBufferMemory, nullptr);
+	}
 }
 
-void Renderer::createTextureImageView(VkImageView& textureImageView, VkFormat format, VkImage& textureImage)
+void Renderer::createTextureImageView(VkImageView& textureImageView, VkFormat format, VkImageViewType viewType,  VkImage& textureImage)
 {
-	textureImageView = createImageView(textureImage, format, VK_IMAGE_ASPECT_COLOR_BIT);
+	textureImageView = createImageView(textureImage, format, viewType, VK_IMAGE_ASPECT_COLOR_BIT);
 }
 
 //TODO create two different samplers, one for the shells and one for the fins (maybe okay actually for both fins and shells)
@@ -2254,7 +2265,7 @@ void Renderer::createComputeCommandBuffers()
 	vkCmdBindPipeline(computeCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipeline);
 	vkCmdBindDescriptorSets(computeCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipelineLayout, 0, 1, &computeDescriptorSet, 0, nullptr);
 
-	vkCmdDispatch(computeCommandBuffer, textureShell.width, textureShell.height, 1); //depth param needs to be checked
+	vkCmdDispatch(computeCommandBuffer, textureShell.width, textureShell.height, SHELLS); //depth param needs to be checked
 
 	vkEndCommandBuffer(computeCommandBuffer);
 }
@@ -2265,11 +2276,11 @@ void Renderer::createDepthResources()
 	VkFormat depthFormat = findDepthFormat(); //find the format we need to create a depth buffer
 	//create the image that will be used to store the depth buffer data, it must have the same dimensions as a swap chain image
 	createImage(swapChainExtent.width, swapChainExtent.height, 1, VK_IMAGE_TYPE_2D, depthFormat, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, depthImage, depthImageMemory);
-	depthImageView = createImageView(depthImage, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT); //create the image view so we can access it
+	depthImageView = createImageView(depthImage, depthFormat, VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_DEPTH_BIT); //create the image view so we can access it
 }
 
 //helper method to copy a buffer full of data to an image
-void Renderer::copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height) {
+void Renderer::copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height, uint32_t depth) {
 	VkCommandBuffer commandBuffer = beginSingleTimeCommands(); // begine recording single time commands
 
 	VkBufferImageCopy region = {}; //the region to which we are copy the buffer to
@@ -2284,8 +2295,8 @@ void Renderer::copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width,
 	region.imageExtent = {
 		width,
 		height,
-		1
-	};//extent of the image (height and width and depth (2d so z = 1)
+		depth
+	};//extent of the image
 
 	//copy the buffer data to the image buffer by providing the command buffer, the buffer data, the image buffer to copy to and the layout of the data in the image buffer, the number of regions in the image we are copying to and the descriptor of that region
 	vkCmdCopyBufferToImage(commandBuffer, buffer, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
@@ -2297,7 +2308,7 @@ void Renderer::copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width,
 void Renderer::createImage(uint32_t width, uint32_t height, uint32_t depth, VkImageType type, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory) {
 	VkImageCreateInfo imageInfo = {}; //image setup
 	imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO; //struct type
-	imageInfo.imageType = type; //image type, here we have a 2D texture, but it can also be a 3d volumetric texture for example
+	imageInfo.imageType = type; //image type
 	imageInfo.extent.width = width; //width of image image
 	imageInfo.extent.height = height; //height of image image
 	imageInfo.extent.depth = depth; //depth of image, in our case its SHELLS many
@@ -2335,11 +2346,11 @@ void Renderer::createImage(uint32_t width, uint32_t height, uint32_t depth, VkIm
 }
 
 //helper method to create an image view for an image (image view is a way of accessing an image, contains specific information about the image)
-VkImageView Renderer::createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags) {
+VkImageView Renderer::createImageView(VkImage image, VkFormat format, VkImageViewType viewType, VkImageAspectFlags aspectFlags) {
 	VkImageViewCreateInfo viewInfo = {}; //create info for image view
 	viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO; //struct type
 	viewInfo.image = image; //the image we are creating the view for
-	viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D; //the image view type which is 2D in our case
+	viewInfo.viewType = viewType; //the image view type which is 2D in our case
 	viewInfo.format = format; //format of the image view, should be the same as the image
 	viewInfo.subresourceRange.aspectMask = aspectFlags; //the type of data that we are modifying in the image
 	viewInfo.subresourceRange.baseMipLevel = 0; //mip level 0, we dont have levels
@@ -2755,8 +2766,8 @@ void Renderer::updateUniformBuffer(uint32_t index)
 	UniformBufferObject ubo = {}; //ubo object that we will load into buffer
 	
 	glm::mat4 model = glm::translate(glm::mat4(1.0), translation); //model matrix
-	//model = glm::scale(model, { 13.0,13.0,13.0 }); //scale the bunny so its not so small
-	model = glm::scale(model, { 0.05,0.05,0.05 }); //scale the sphere so its not so big
+	model = glm::scale(model, { 13.0,13.0,13.0 }); //scale the bunny so its not so small
+	//model = glm::scale(model, { 0.05,0.05,0.05 }); //scale the sphere so its not so big
 
 
 	float mNow[16]; //the rotation matrix from the arcball controller
@@ -2781,15 +2792,15 @@ void Renderer::updateUniformBuffer(uint32_t index)
 	vkUnmapMemory(device, lightingUniformBuffersMemory);
 
 	float levelOpacity = 0.9;
-	//float levelWeight = 0.001; //bunny
-	float levelWeight = 0.1; //sphere
+	float levelWeight = 0.001; //bunny
+	//float levelWeight = 0.1; //sphere
 	for (uint32_t i = 0; i < SHELLS; i++)
 	{
 		size_t offset = i * alignedMemory;
 		glm::vec3* current = (glm::vec3*)(((size_t)shellUBO.data) + offset);
 		levelOpacity -= 0.05;
-		//levelWeight += 0.001; //bunny
-		levelWeight += 0.1; //sphere
+		levelWeight += 0.001; //bunny
+		//levelWeight += 0.1; //sphere
 		*(current) = glm::vec3(levelWeight, levelOpacity, i);
 	}
 	void* dataShell;
