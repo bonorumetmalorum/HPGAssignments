@@ -243,6 +243,7 @@ void Renderer::cleanup()
 	vkDestroyDescriptorSetLayout(device, descriptorSetLayoutBase, nullptr);
 	vkDestroyDescriptorSetLayout(device, descriptorSetLayoutShell, nullptr);
 	vkDestroyDescriptorSetLayout(device, descriptorSetLayoutFins, nullptr);
+	vkDestroyDescriptorSetLayout(device, descriptorSetLayoutCompute, nullptr);
 
 	vkDestroyBuffer(device, indexBuffer, nullptr);
 	vkDestroyBuffer(device, adjacencyIndexBuffer, nullptr);
@@ -259,7 +260,10 @@ void Renderer::cleanup()
 		vkDestroyFence(device, inFlightFences[i], nullptr);
 	}
 
+	vkDestroyFence(device, computeFence, nullptr);
+
 	vkDestroyCommandPool(device, commandPool, nullptr); //destroy the command pool
+	vkDestroyCommandPool(device, computeCommandPool, nullptr); //destroy the command pool
 
 	//vkDeviceWaitIdle(device); //getting an error when the device is destroyed faster than the buffers (maybe because they are so big)
 
@@ -1232,6 +1236,8 @@ void Renderer::createComputePipeline()
 	if (vkCreateComputePipelines(device, nullptr, 1, &computePipelineCreateInfo, nullptr, &computePipeline) != VK_SUCCESS) {
 		throw std::runtime_error("failed to create compute pipeline!");
 	}
+
+	vkDestroyShaderModule(device, compute, nullptr);
 }
 
 void Renderer::createFinGraphicsPipeline()
@@ -2543,15 +2549,17 @@ void Renderer::cleanupSwapChain()
 	//do this so we don't need to allocate and new command pool, we can reuse the old one to issue new command buffers
 	//we need to provide the logical device, the pool from which we allocated the buffers and the buffers themselves
 	vkFreeCommandBuffers(device, commandPool, static_cast<uint32_t>(commandBuffersBase.size()), commandBuffersBase.data()); //free the command buffers
-	//vkFreeCommandBuffers(device, commandPool, static_cast<uint32_t>(commandBuffersShell.size()), commandBuffersShell.data()); //free the command buffers
+	vkFreeCommandBuffers(device, computeCommandPool, 1, &computeCommandBuffer); //free the command buffers
 
 	//destroy the pipeline by providing the logical device and the pipeline handle
 	vkDestroyPipeline(device, baseGraphicsPipeline, nullptr);
 	vkDestroyPipeline(device, shellGraphicsPipeline, nullptr);
 	vkDestroyPipeline(device, finGraphicsPipeline, nullptr);
+	vkDestroyPipeline(device, computePipeline, nullptr);
 	vkDestroyPipelineLayout(device, basePipelineLayout, nullptr); //destroy any uniforms allocated by destroying the layout, provide the logical device and the pipeline layout handle
 	vkDestroyPipelineLayout(device, shellPipelineLayout, nullptr); //destroy any uniforms allocated by destroying the layout, provide the logical device and the pipeline layout handle
 	vkDestroyPipelineLayout(device, finPipelineLayout, nullptr); //destroy any uniforms allocated by destroying the layout, provide the logical device and the pipeline layout handle
+	vkDestroyPipelineLayout(device, computePipelineLayout, nullptr); //destroy any uniforms allocated by destroying the layout, provide the logical device and the pipeline layout handle
 	vkDestroyRenderPass(device, renderPass, nullptr); //destroy the render pass by providing the logical device and the render pass handle
 
 	for (size_t i = 0; i < swapChainImageViews.size(); i++) {
