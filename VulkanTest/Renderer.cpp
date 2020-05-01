@@ -2910,6 +2910,3 @@ void Renderer::keyboardKeyCallback(GLFWwindow * window, int key, int scancode, i
 		renderFlags.z = renderFlags.z == 1.0 ? 0.0 : 1.0;
 	}
 }
-
- 
-
