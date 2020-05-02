@@ -1862,13 +1862,17 @@ void Renderer::createCommandBuffers()
 		throw std::runtime_error("failed to allocate command buffers!");//throw an error if we were unsuccessful
 	}
 
+	VkCommandBufferBeginInfo beginInfo = {}; //information needed to tell the command buffer to begin recording
+	beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO; //struct type
+	beginInfo.flags = 0; // Optional - specifies how we're going to use the command buffer
+	beginInfo.pInheritanceInfo = nullptr; // Optional - relevant for secondary command buffers
+
+	std::array<VkClearValue, 2> clearColors = {};
+	clearColors[0].depthStencil = { 1.0f, 0 };
+	clearColors[1].color = { 0.7f, 0.5f, 0.6f, 1.0f };
+
 	//begin recording commands for the command buffer ( we want to draw a triangle )
 	for (size_t i = 0; i < commandBuffers.size(); i++) {//for all command buffers
-		VkCommandBufferBeginInfo beginInfo = {}; //information needed to tell the command buffer to begin recording
-		beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO; //struct type
-		beginInfo.flags = 0; // Optional - specifies how we're going to use the command buffer
-		beginInfo.pInheritanceInfo = nullptr; // Optional - relevant for secondary command buffers
-
 		/*
 			If the command buffer was already recorded once, then a call to vkBeginCommandBuffer will implicitly reset it.
 			It's not possible to append commands to a buffer at a later time.
@@ -1876,6 +1880,35 @@ void Renderer::createCommandBuffers()
 		if (vkBeginCommandBuffer(commandBuffers[i], &beginInfo) != VK_SUCCESS) {// begin recording
 			throw std::runtime_error("failed to begin recording command buffer!"); //if we didn't successfully begin recording throw an error
 		}
+
+		VkRenderPassBeginInfo shadowPassInfo = {};
+		shadowPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO; //struct type
+		shadowPassInfo.renderPass = shadowMapRenderPass; //render pass itself
+		shadowPassInfo.framebuffer = shadowMapFramebuffer; //the buffer we want to render to
+		//size of the render area
+		shadowPassInfo.renderArea.offset = { 0, 0 }; //origin of the buffer
+		shadowPassInfo.renderArea.extent = swapChainExtent; //dimensions of the buffer - matches swap chain images
+		//clear values to use for VK_ATTACHMENT_LOAD_OP_CLEAR, which we used as load operation for the color attachment
+		shadowPassInfo.clearValueCount = 1; //one clear value
+		shadowPassInfo.pClearValues = clearColors.data(); //clear value
+
+		vkCmdBeginRenderPass(commandBuffers[i], &shadowPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+
+		vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, shadowMapPipeline);
+
+		vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, shadowMapPipelineLayout, 0, 1, &shadowMapDescriptorSet, 0, nullptr);
+		
+		VkBuffer vertexBuffers[] = { vertexBuffer };
+		VkDeviceSize offsets[] = { 0 };
+		vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, vertexBuffers, offsets);
+
+		vkCmdBindIndexBuffer(commandBuffers[i], indexBuffer, 0, VK_INDEX_TYPE_UINT32); //bind the index buffer
+
+		vkCmdDrawIndexed(commandBuffers[i], static_cast<uint32_t>(indices.size()), 1, 0, 0, 0); //draw using the index buffer
+
+		vkCmdEndRenderPass(commandBuffers[i]);
+
+		///----begin scene rendering after depth pass is done
 
 		VkRenderPassBeginInfo renderPassInfo = {}; //create info needed to begin a render a pass
 		renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO; //struct type
@@ -1885,9 +1918,7 @@ void Renderer::createCommandBuffers()
 		renderPassInfo.renderArea.offset = { 0, 0 }; //origin of the buffer
 		renderPassInfo.renderArea.extent = swapChainExtent; //dimensions of the buffer - matches swap chain images
 		//clear values to use for VK_ATTACHMENT_LOAD_OP_CLEAR, which we used as load operation for the color attachment
-		std::array<VkClearValue, 2> clearColors = {};
-		clearColors[0].color = { 0.7f, 0.5f, 0.6f, 1.0f };
-		clearColors[1].depthStencil = { 1.0f, 0 };
+		
 		renderPassInfo.clearValueCount = static_cast<uint32_t>(clearColors.size()); //one clear value
 		renderPassInfo.pClearValues = clearColors.data(); //clear value
 		//begin render pass
