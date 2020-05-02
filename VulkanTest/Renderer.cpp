@@ -54,6 +54,7 @@ void Renderer::initVulkan()
 	createRenderPass(); //create a render pass that specifies all the stages of the render
 	createShadowMapDescriptorSetLayout();
 	createDescriptorSetLayout(); //create the descriptor sets
+	createShadowMapPipeline();
 	createGraphicsPipeline(); //create a graphics pipeline to process drawing commands and render to the surface
 	createCommandPool(); //create a command pool to manage allocation of command buffers
 	createShadowMapTextureImage(); 
@@ -815,6 +816,174 @@ void Renderer::createImageViews()
 		//	throw std::runtime_error("failed to create image views!"); //throw an error
 		//}
 	}
+}
+
+void Renderer::createShadowMapPipeline() 
+{
+	//read in shader programs in binary format (pre compiled)
+	auto vertShaderCode = readFile("../shaders/shadowVert.spv");
+
+	//create shader modules using read in code
+	VkShaderModule vertShaderModule = createShaderModule(vertShaderCode);
+
+	//now that the shader modules have been created we need to assign them to specific stages in the pipeline
+	VkPipelineShaderStageCreateInfo vertShaderStageInfo = {};
+	vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO; //type of struct
+	vertShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT; //pipeline stage we are assigning the module to
+	vertShaderStageInfo.module = vertShaderModule; //shader module containing the code 
+	vertShaderStageInfo.pName = "main"; //entry point to shader program
+
+	VkPipelineShaderStageCreateInfo shaderStages[] = { vertShaderStageInfo }; // store the shader stages in an array
+
+	//enable depth testing
+	VkPipelineDepthStencilStateCreateInfo depthStencil = {};
+	depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO; //truct type
+	depthStencil.depthTestEnable = VK_TRUE; //enable depth test
+	depthStencil.depthWriteEnable = VK_TRUE; //enable ability to write values to the depth buffer
+	depthStencil.depthCompareOp = VK_COMPARE_OP_LESS_OR_EQUAL; // keep fragments with lesser depth
+	depthStencil.depthBoundsTestEnable = VK_FALSE; //special test to check if depth buffer values are within a range, disabled here
+	depthStencil.stencilTestEnable = VK_FALSE; //no stencil test to do after depth test
+
+
+	//describing the configuration of the newly created pipeline vertex input state -  
+	//what we are doing here is describing the layout of geometric data in memory and then having Vulkan fetch it and then feed it to the shader
+	auto bindingDescription = Vertex::getBindingDescription(); //get the binding description
+	auto attributeDescriptions = Vertex::getAttributeDescriptions(); //get the attribute description
+	VkPipelineVertexInputStateCreateInfo vertexInputInfo = {};
+	vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO; //type of struct
+
+	vertexInputInfo.vertexBindingDescriptionCount = 1; // number of vertex bindings used by the pipeline
+	vertexInputInfo.pVertexBindingDescriptions = &bindingDescription; // binding description
+	vertexInputInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(attributeDescriptions.size()); //type of the attributes passed to the vertex shader, which binding to load them from and at which offset
+	vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions.data(); // also not binding any attributes for the vertices
+
+	//this stage will take vertex input data and groups them into primitives ready for processing
+	VkPipelineInputAssemblyStateCreateInfo inputAssembly = {};
+	inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO; //type of the struct
+	inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST; //type of the primitive that vertices will be grouped into, in this case a triangle
+	inputAssembly.primitiveRestartEnable = VK_FALSE; //used to allow strips and fan primitives topologies to be cut and restarted (use for optimizing draw calls) - we don't need this
+
+	//define the viewport (area to which we will render)
+	VkViewport viewport = {};
+	viewport.x = 0.0f; //origin
+	viewport.y = 0.0f; //origin
+	viewport.width = (float)swapChainExtent.width; //max width (here we are matching the swap chain width)
+	viewport.height = (float)swapChainExtent.height; //max height (here we are matching the swap chain height)
+	viewport.minDepth = 0.0f; //frame buffer depth values - we don't really use them at the moment
+	viewport.maxDepth = 1.0f; //frame buffer depth values - we don't really use them at the moment
+
+	//filter that discards pixels, we want to draw the entire image so we have a scissor angle to cover it entirely
+	VkRect2D scissor = {}; //VkRect2D is a type that defines a rectangle in vulkan, it can be used for other things as well
+	scissor.offset = { 0, 0 }; //screen offset (in our case it starts at the origin)
+	scissor.extent = swapChainExtent; // the dimensions of the swap chain image (so here we are not discarding any pixels, it covers the full extent of the swap chain image)
+
+	//combine the viewport and scissor configuration into viewport state
+	VkPipelineViewportStateCreateInfo viewportState = {};
+	viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO; //type of the struct
+	viewportState.viewportCount = 1; //number of view ports we want to use
+	viewportState.pViewports = &viewport; //the viewport(s)
+	viewportState.scissorCount = 1; //the number of scissors we want to use
+	viewportState.pScissors = &scissor; //the scissor(s)
+
+	//setup rasterization stage
+	/*
+		important stage that converts primitives into fragments that are going to be shaded by the fragment shader
+	*/
+	VkPipelineRasterizationStateCreateInfo rasterizer = {};
+	rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+	rasterizer.depthClampEnable = VK_FALSE; //fragments beyond the near and far plane are culled - (not needed here, this way we don't need to process these fragments)
+	rasterizer.rasterizerDiscardEnable = VK_FALSE; //when this is enabled the rasterizer will not run
+	rasterizer.polygonMode = VK_POLYGON_MODE_FILL; //turns triangles into points or lines - in this case triangles are solid, filled in
+	rasterizer.lineWidth = 1.0f; //thickness of lines
+	//these have changed to accommodate for the y flip in the projection matrix
+	rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;  //which faces should we cull (here we choose to cull back faces, we could also do both)
+	rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE; //how to iterate over vertices (determines which faces are front and back) can be CC or C
+	//the following parameters can be used to fix issues with z-fighting by allowing fragments to be offset in depth
+	rasterizer.depthBiasEnable = VK_FALSE; // can be modified based on slope but we don't want that here so it is disabled
+	rasterizer.depthBiasConstantFactor = 0.0f; // Optional - depth bias equation
+	rasterizer.depthBiasClamp = 0.0f; // Optional - puts an upper bound on the depth bias equation output if positive and non zero and lower bound if non zero and negative
+	rasterizer.depthBiasSlopeFactor = 0.0f; // Optional - param in depth bias equation
+	//depth bias is calculated by finding m which is steepest descent in z direction and then multiplying it by depthBiasSlopeFactor and depthBiasConstantFactor
+
+	//multisampling
+	/*
+		process of generating samples for each pixel in an image
+		Anti-Aliasing is a for of multi-sampling, there are different kinds, MSAA...
+	*/
+	VkPipelineMultisampleStateCreateInfo multisampling = {};
+	multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO; //struct type
+	multisampling.sampleShadingEnable = VK_FALSE; //disable MS on the shading
+	multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT; //number of samples to use, use 1 sample in this case
+	multisampling.minSampleShading = 1.0f; // Optional - minimum number of times the shader will be run per pixel (value is between 0 - 1, 1 means each pixel will receive its own data by another invocation of the frag shader)
+	multisampling.pSampleMask = nullptr; // Optional - used to update only a subset of the samples produced (bitmaps)
+	multisampling.alphaToCoverageEnable = VK_FALSE; // Optional - use the alpha channel to store coverage values which will be used for easy transparency
+	multisampling.alphaToOneEnable = VK_FALSE; // Optional - what do we do with actual alpha values, set the alpha to one as if the fragment shader has not produced an alpha value
+
+	//depth stencil testing not being used so its create info is omitted
+
+	//references the array of structures for all of the framebuffers and allows you to set blend constants that you can use as blend factors in the blend calculations
+	//final stage in the graphics pipeline is the colour blend stage
+	//this is responsible for writing fragments into color attachments
+	VkPipelineColorBlendStateCreateInfo colorBlending = {};
+	colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO; //struct type
+	colorBlending.attachmentCount = 0; //number of attachments, we only have 1 which the colour attachment
+
+	//dynamic state - what parameters can we change at runtime (can be nullptr if we don't have any)
+	VkDynamicState dynamicStates[] = {
+		VK_DYNAMIC_STATE_VIEWPORT, //we would like to change the viewport dimensions
+		VK_DYNAMIC_STATE_LINE_WIDTH //we would also like to change the line width on the fly
+	};
+
+	/*
+		It is possible to make particular parts of the graphics pipeline dynamic
+		this means that they can be updated using commands in side the command buffer rather than through an object
+	*/
+	VkPipelineDynamicStateCreateInfo dynamicState = {};
+	dynamicState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO; //type of struct
+	dynamicState.dynamicStateCount = 2; //the number of states we wish to make dynamic
+	dynamicState.pDynamicStates = dynamicStates; //the states
+
+	//pipeline layout - specifies uniform layout information - which we are not using here so the struct is blank, but we still need to provide it
+	VkPipelineLayoutCreateInfo pipelineLayoutInfo = {};
+	pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO; //struct type
+	pipelineLayoutInfo.setLayoutCount = 1; // Optional - number of different uniform layouts
+	pipelineLayoutInfo.pSetLayouts = &descriptorSetLayout; // Optional - the uniform layouts
+	pipelineLayoutInfo.pushConstantRangeCount = 0; // Optional - a push constant is uniform variable in a shader and is used similarly, but it is vulkan owned and managed, it is set through the command buffer (number of push constant ranges)
+	pipelineLayoutInfo.pPushConstantRanges = nullptr; // Optional - the push constant ranges that specify what stage of the pipeline will access the uniform and it also specifies the start offset and size of the uniform
+
+	if (vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &shadowMapPipelineLayout) != VK_SUCCESS) { //create the pipeline layout by passing the logical device, the pipeline layout information, nullptr allocation callbacks and finally an out parameter to hold a handle to the pipeline layout, if not successful
+		throw std::runtime_error("failed to create pipeline layout!"); //throw an error
+	}
+
+	//create graphics pipeline
+	VkGraphicsPipelineCreateInfo pipelineInfo = {};
+	pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO; //struct type
+	pipelineInfo.stageCount = 1; //the number of stages we have (2, shader and frag)
+	pipelineInfo.pStages = shaderStages; // array of shader stages
+
+	pipelineInfo.pVertexInputState = &vertexInputInfo; //vertex stage
+	pipelineInfo.pInputAssemblyState = &inputAssembly; //input assembly stage
+	pipelineInfo.pViewportState = &viewportState; //view port state
+	pipelineInfo.pRasterizationState = &rasterizer; //rasterizer stage
+	pipelineInfo.pMultisampleState = &multisampling; //MS stage
+	pipelineInfo.pDepthStencilState = &depthStencil;// Optional - depth stencil stage
+	pipelineInfo.pColorBlendState = &colorBlending; //colour blending stage
+	pipelineInfo.pDynamicState = nullptr; // Optional - the state which are treating as dynamic, we don't use this either
+	pipelineInfo.layout = shadowMapPipelineLayout; // pipeline layout, we are not using any uniforms and other constants in our pipeline
+	pipelineInfo.renderPass = shadowMapRenderPass; // the render passes associating operations and images
+	pipelineInfo.subpass = 0; // we are not using any subpasses
+	pipelineInfo.basePipelineHandle = VK_NULL_HANDLE; // Optional - vulkan allows you to derive from another pipeline
+	pipelineInfo.basePipelineIndex = -1; // Optional - no base pipeline so init to -1 as per spec
+
+	//more parameters are used here as multiple graphics pipelines can be created in one go by providing a list of create info structs
+	//second param is a cache which can be used to reuse data relevant to pipeline creation across multiple class
+	//the third param is the count of create info structs, in our case we only have one and only one pipeline is created
+	if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &shadowMapPipeline) != VK_SUCCESS) { //make the graphics pipeline
+		throw std::runtime_error("failed to create graphics pipeline!"); //throw an error if it was unsuccessful
+	}
+
+	vkDestroyShaderModule(device, vertShaderModule, nullptr); //destroy the shader modules since they have been loaded in the pipeline
+
 }
 
 /*
@@ -2164,6 +2333,8 @@ void Renderer::createUniformBuffers()
 {
 	VkDeviceSize bufferSize = sizeof(UniformBufferObject); //size of in bytes of the uniform buffer object struct
 	VkDeviceSize lightingBufferSize = sizeof(LightingConstants); //size of in bytes of the lighting constants struct
+	VkDeviceSize shadowBufferSize = sizeof(ShadowUniformObject); //size of in bytes of the lighting constants struct
+
 
 	uniformBuffers.resize(swapChainImages.size()); //allocate space to hold all the handles for the uniform buffer
 	uniformBuffersMemory.resize(swapChainImages.size()); //allocate space to hold handles to the associated memory of uniform buffer
@@ -2174,6 +2345,8 @@ void Renderer::createUniformBuffers()
 	}
 
 	createBuffer(lightingBufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, lightingUniformBuffers, lightingUniformBuffersMemory);
+	createBuffer(shadowBufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, shadowUniformBuffer, shadowUniformBufferMemory);
+
 }
 
 //method to update the uniform buffers (pass in the index of the image we are rendering to)

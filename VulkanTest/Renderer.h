@@ -70,6 +70,7 @@ private:
 	void createShadowMapRenderPass();
 	void createRenderPass();
 	void createImageViews();
+	void createShadowMapPipeline();
 	void createGraphicsPipeline();
 	void createShadowMapFrameBuffers();
 	void createFramebuffers();
@@ -222,8 +223,10 @@ private:
 	VkRenderPass renderPass;
 	VkDescriptorSetLayout descriptorSetLayout;
 	VkDescriptorSetLayout  shadowMapDescriptorSetLayout;
+	VkPipelineLayout shadowMapPipelineLayout;
 	VkPipelineLayout pipelineLayout;
 	VkPipeline graphicsPipeline;
+	VkPipeline shadowMapPipeline;
 	/*
 		a frame buffer wraps an attachment
 		an attachment is represented in the pipeline by an image returned by the swap chain
@@ -296,6 +299,9 @@ private:
 
 	VkBuffer lightingUniformBuffers;
 	VkDeviceMemory lightingUniformBuffersMemory;
+
+	VkBuffer shadowUniformBuffer;
+	VkDeviceMemory shadowUniformBufferMemory;
 	
 	void createUniformBuffers();
 
@@ -322,6 +328,13 @@ private:
 	};
 
 	LightingConstants lighting;
+
+	struct ShadowUniformObject
+	{
+		alignas(16) glm::mat4 model;
+		alignas(16) glm::mat4 view;
+		alignas(16) glm::mat4 proj;
+	};
 
 
 	//index buffer data
