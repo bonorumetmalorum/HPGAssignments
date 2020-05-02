@@ -2419,6 +2419,11 @@ void Renderer::updateUniformBuffer(uint32_t index)
 	ubo.proj[1][1] *= -1; //invert the y component so things are drawn the right way around
 	ubo.renderFlags = renderFlags; //render flags used to deactivate ambient, diff and spec
 
+	ShadowUniformObject suo = {}; //ubo object that we will load into buffer
+	suo.model = model * rotatioMat; //incorporate it into the model matrix
+	suo.view = glm::lookAt(glm::vec3(lighting.lightPos), translation, glm::vec3(0.0f, 0.0f, 1.0f)); //look direction
+	suo.proj = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float)swapChainExtent.height, 0.1f, 10000.0f); //perspective projection matrix
+
 
 	//map the on GPU memory to main memory so we can load the data, then unmap
 	void* data;
@@ -2430,6 +2435,11 @@ void Renderer::updateUniformBuffer(uint32_t index)
 	vkMapMemory(device, lightingUniformBuffersMemory, 0, sizeof(LightingConstants), 0, &dataLight);
 	memcpy(dataLight, &lighting, sizeof(LightingConstants));
 	vkUnmapMemory(device, lightingUniformBuffersMemory);
+
+	void* shadowData;
+	vkMapMemory(device, shadowUniformBufferMemory, 0, sizeof(ubo), 0, &shadowData);
+	memcpy(shadowData, &suo, sizeof(suo));
+	vkUnmapMemory(device, shadowUniformBufferMemory);
 }
 
 /*
