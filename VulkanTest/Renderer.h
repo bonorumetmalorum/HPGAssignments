@@ -246,7 +246,7 @@ private:
 	*/
 	VkDescriptorPool descriptorPool;
 	std::vector<VkDescriptorSet> descriptorSets; //the descriptor sets, 1 for each uniform, so 1 for each image in the swap chain
-	std::vector<VkDescriptorSet> shadowMapDescriptorSets;
+	VkDescriptorSet shadowMapDescriptorSet;
 	/*
 		per framebuffer recording of commands
 	*/

@@ -33,6 +33,13 @@ layout(binding = 2) uniform LightingConstants {
 	vec2 lightSpecularExponent;
 } lighting;
 
+layout(binding = 3) uniform ShadowUniformObject {
+    mat4 model;
+    mat4 view;
+    mat4 proj;
+	vec3 renderFlags;
+} suo;
+
 void main() {
 	vec4 VCS_position = ubo.view * ubo.model * vec4(inPosition, 1.0);
 	//already in world coords so no need to multiply by model

@@ -1633,23 +1633,9 @@ void Renderer::createShadowMapDescriptorSetLayout()
 	uboLayoutBinding.descriptorCount = 1; //number of descriptors contained in the binding
 	uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT; //which stage of the pipeline will access this binding
 
-	//binding to describe the lighting buffer
-	VkDescriptorSetLayoutBinding lightingLayoutBinding = {};
-	lightingLayoutBinding.binding = 2; //the binding number, this is what we will refer to in our shader program
-	lightingLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; //type of the binding, uniform buffer because that is what we are binding
-	lightingLayoutBinding.descriptorCount = 1; //the number of descriptors contained in the binding
-	lightingLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT; //which stage of the pipeline will access this binding
-
-	//binding to describe the sampler
-	VkDescriptorSetLayoutBinding samplerLayoutBinding = {};
-	samplerLayoutBinding.binding = 1; //the number we are binding to (shader access will use this number)
-	samplerLayoutBinding.descriptorCount = 1; //one descriptor in this binding
-	samplerLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; //the type of this binding, we are using combined sampler, both image and sampler in one
-	samplerLayoutBinding.pImmutableSamplers = nullptr; //this field needs to be included because the type of this binding is combined image sampler (we set this later, nullptr makes it dynamic)
-	samplerLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT; //which stage of the pipeline will access this binding
-
 	//group the descriptor set layout bindings
-	std::array<VkDescriptorSetLayoutBinding, 3> bindings = { uboLayoutBinding, samplerLayoutBinding, lightingLayoutBinding };
+	std::array<VkDescriptorSetLayoutBinding, 1> bindings = { uboLayoutBinding };
+
 	VkDescriptorSetLayoutCreateInfo layoutInfo = {}; //create the descriptor set layout
 	layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
 	layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size()); //the number of bindings
@@ -1673,14 +1659,7 @@ void Renderer::createDescriptorSetLayout()
 	uboLayoutBinding.descriptorCount = 1; //number of descriptors contained in the binding
 	uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT; //which stage of the pipeline will access this binding
 
-	//binding to describe the lighting buffer
-	VkDescriptorSetLayoutBinding lightingLayoutBinding = {};
-	lightingLayoutBinding.binding = 2; //the binding number, this is what we will refer to in our shader program
-	lightingLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; //type of the binding, uniform buffer because that is what we are binding
-	lightingLayoutBinding.descriptorCount = 1; //the number of descriptors contained in the binding
-	lightingLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT; //which stage of the pipeline will access this binding
-
-	//binding to describe the sampler
+		//binding to describe the sampler
 	VkDescriptorSetLayoutBinding samplerLayoutBinding = {};
 	samplerLayoutBinding.binding = 1; //the number we are binding to (shader access will use this number)
 	samplerLayoutBinding.descriptorCount = 1; //one descriptor in this binding
@@ -1688,8 +1667,31 @@ void Renderer::createDescriptorSetLayout()
 	samplerLayoutBinding.pImmutableSamplers = nullptr; //this field needs to be included because the type of this binding is combined image sampler (we set this later, nullptr makes it dynamic)
 	samplerLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT; //which stage of the pipeline will access this binding
 
+	//binding to describe the lighting buffer
+	VkDescriptorSetLayoutBinding lightingLayoutBinding = {};
+	lightingLayoutBinding.binding = 2; //the binding number, this is what we will refer to in our shader program
+	lightingLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; //type of the binding, uniform buffer because that is what we are binding
+	lightingLayoutBinding.descriptorCount = 1; //the number of descriptors contained in the binding
+	lightingLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT; //which stage of the pipeline will access this binding
+
+	//binding to describe the lighting buffer
+	VkDescriptorSetLayoutBinding shadowLayoutBinding = {};
+	shadowLayoutBinding.binding = 3; //the binding number, this is what we will refer to in our shader program
+	shadowLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; //type of the binding, uniform buffer because that is what we are binding
+	shadowLayoutBinding.descriptorCount = 1; //the number of descriptors contained in the binding
+	shadowLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT; //which stage of the pipeline will access this binding
+
+	//binding to describe the sampler
+	VkDescriptorSetLayoutBinding shadowSamplerLayoutBinding = {};
+	shadowSamplerLayoutBinding.binding = 4; //the number we are binding to (shader access will use this number)
+	shadowSamplerLayoutBinding.descriptorCount = 1; //one descriptor in this binding
+	shadowSamplerLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; //the type of this binding, we are using combined sampler, both image and sampler in one
+	shadowSamplerLayoutBinding.pImmutableSamplers = nullptr; //this field needs to be included because the type of this binding is combined image sampler (we set this later, nullptr makes it dynamic)
+	shadowSamplerLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT; //which stage of the pipeline will access this binding
+
+
 	//group the descriptor set layout bindings
-	std::array<VkDescriptorSetLayoutBinding, 3> bindings = { uboLayoutBinding, samplerLayoutBinding, lightingLayoutBinding};
+	std::array<VkDescriptorSetLayoutBinding, 5> bindings = { uboLayoutBinding, samplerLayoutBinding, lightingLayoutBinding, shadowLayoutBinding, shadowSamplerLayoutBinding};
 	VkDescriptorSetLayoutCreateInfo layoutInfo = {}; //create the descriptor set layout
 	layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
 	layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size()); //the number of bindings
@@ -1705,13 +1707,13 @@ void Renderer::createDescriptorSetLayout()
 void Renderer::createDescriptorPool()
 {
 	//we need to create the pool sizes for each type of descriptor binding
-	std::array<VkDescriptorPoolSize, 3> poolSizes = {};
+	std::array<VkDescriptorPoolSize, 2> poolSizes = {};
 	poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; //type of the buffer
-	poolSizes[0].descriptorCount = static_cast<uint32_t>(swapChainImages.size()*2);  //the max number of descriptors we can allocate from this pool
+	poolSizes[0].descriptorCount = static_cast<uint32_t>(swapChainImages.size()*4);  //the max number of descriptors we can allocate from this pool
 	poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; //type of the buffer
-	poolSizes[1].descriptorCount = static_cast<uint32_t>(swapChainImages.size()*2); //the max number of descriptors we can allocate from this pool (extra one for the shadow map sampling)
-	poolSizes[2].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; //type of the buffer
-	poolSizes[2].descriptorCount = static_cast<uint32_t>(swapChainImages.size()*2); //the max number of descriptors we can allocate from this pool
+	poolSizes[1].descriptorCount = static_cast<uint32_t>(swapChainImages.size()*3); //the max number of descriptors we can allocate from this pool (extra one for the shadow map sampling)
+	//poolSizes[2].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; //type of the buffer
+	//poolSizes[2].descriptorCount = static_cast<uint32_t>(swapChainImages.size()*2); //the max number of descriptors we can allocate from this pool
 	//create the pool
 	VkDescriptorPoolCreateInfo poolInfo = {};
 	poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO; //type of struct
@@ -1730,7 +1732,6 @@ void Renderer::createDescriptorSets()
 {
 	//create an array to hold handles to all the descriptor sets, one for each image in the swap chain ( we have the same descriptor for each image)
 	std::vector<VkDescriptorSetLayout> layouts(swapChainImages.size(), descriptorSetLayout);
-	std::vector<VkDescriptorSetLayout> shadowLayouts(swapChainImages.size(), shadowMapDescriptorSetLayout);
 	//allocation info for descriptor sets
 	VkDescriptorSetAllocateInfo allocInfo = {};
 	allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO; //struct type
@@ -1740,18 +1741,40 @@ void Renderer::createDescriptorSets()
 
 	//resize to hold all handles to descriptor sets
 	descriptorSets.resize(swapChainImages.size());
-	shadowMapDescriptorSets.resize((swapChainImages.size()));
 	//create the descriptor sets
 	if (vkAllocateDescriptorSets(device, &allocInfo, descriptorSets.data()) != VK_SUCCESS) {
 		throw std::runtime_error("failed to allocate descriptor sets!");
 	}
 
-	allocInfo.pSetLayouts = shadowLayouts.data(); //the descriptor set layout structs
+	allocInfo.descriptorSetCount = 1;
+	allocInfo.pSetLayouts = &shadowMapDescriptorSetLayout; //the descriptor set layout structs
 
 	//create the descriptor sets
-	if (vkAllocateDescriptorSets(device, &allocInfo, shadowMapDescriptorSets.data()) != VK_SUCCESS) {
+	if (vkAllocateDescriptorSets(device, &allocInfo, &shadowMapDescriptorSet) != VK_SUCCESS) {
 		throw std::runtime_error("failed to allocate descriptor sets!");
 	}
+
+	//image sampler info and ubo for the shadow pass pipeline
+	VkDescriptorBufferInfo ShadowUniformBufferInfo = {};
+	ShadowUniformBufferInfo.buffer = shadowUniformBuffer; //handle to the buffer we wish to bind to the descriptor set
+	ShadowUniformBufferInfo.offset = 0; //start at offset 0 in the buffer
+	ShadowUniformBufferInfo.range = sizeof(ShadowUniformObject); //the size of each element in the buffer
+
+	VkDescriptorImageInfo shadowImageInfo = {};
+	shadowImageInfo.imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL; //the image layout
+	shadowImageInfo.imageView = shadowMapTextureImageView; //the image view of the texture
+	shadowImageInfo.sampler = shadowMapTextureSampler; //the sampler (before we said we would update it later, here we are providing the sampler to use with the texture)
+	
+	std::array<VkWriteDescriptorSet, 1> shadowWrites = {};
+	shadowWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; //we are writing to the descriptor set so this must be the type of the struct
+	shadowWrites[0].dstSet = shadowMapDescriptorSet; //the set we are writing to
+	shadowWrites[0].dstBinding = 0; //the binding of the descriptor in the
+	shadowWrites[0].dstArrayElement = 0; //starting index of the udpate
+	shadowWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; //the type of the descriptor (uniform buffer)
+	shadowWrites[0].descriptorCount = 1; //the number of descriptors to update
+	shadowWrites[0].pBufferInfo = &ShadowUniformBufferInfo; //the buffer we are binding
+
+	vkUpdateDescriptorSets(device, 1, shadowWrites.data(), 0, nullptr);
 
 	//we now need to associate the right buffers with the descriptor sets we have just created
 	for (size_t i = 0; i < swapChainImages.size(); i++) {
@@ -1772,7 +1795,7 @@ void Renderer::createDescriptorSets()
 		imageInfo.sampler = textureSampler; //the sampler (before we said we would update it later, here we are providing the sampler to use with the texture)
 
 		//array to hold info of updates to the descriptor sets
-		std::array<VkWriteDescriptorSet, 3> descriptorWrites = {};
+		std::array<VkWriteDescriptorSet, 5> descriptorWrites = {};
 		//have to be created in the same order that the descriptors appear (ubo, texture, lightingconstants)
 		descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; //we are writing to the descriptor set so this must be the type of the struct
 		descriptorWrites[0].dstSet = descriptorSets[i]; //the set we are writing to
@@ -1798,22 +1821,21 @@ void Renderer::createDescriptorSets()
 		descriptorWrites[2].descriptorCount = 1;//the number of descriptors to update
 		descriptorWrites[2].pBufferInfo = &lightingBufferInfo; //the buffer we are binding
 
-		//update that descriptor set by providing the device (which owns the pool), the number of descriptor writes, the descriptor writes, and 0 and nullptr becuase we are not copying any data from pre exisiting descriptors
-		vkUpdateDescriptorSets(device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
+		descriptorWrites[3].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;//we are writing to the descriptor set so this must be the type of the struct
+		descriptorWrites[3].dstSet = descriptorSets[i]; //the set we are writing to
+		descriptorWrites[3].dstBinding = 3; //the binding of the descriptor in the set
+		descriptorWrites[3].dstArrayElement = 0; //starting index of the udpate
+		descriptorWrites[3].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; //the type of the descriptor (uniform buffer)
+		descriptorWrites[3].descriptorCount = 1;//the number of descriptors to update
+		descriptorWrites[3].pBufferInfo = &ShadowUniformBufferInfo; //the buffer we are binding
 
-		///---------------------------------------------------------------------------------------------
-		
-		std::array<VkWriteDescriptorSet, 3> shadowDescriptorWrites = {};
-
-		imageInfo.imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL; //the image layout
-		imageInfo.imageView = shadowMapTextureImageView; //the image view of the texture
-		imageInfo.sampler = shadowMapTextureSampler; //the sampler (before we said we would update it later, here we are providing the sampler to use with the texture)
-
-		descriptorWrites[0].dstSet = shadowMapDescriptorSets[i]; //the set we are writing to
-	
-		descriptorWrites[1].dstSet = shadowMapDescriptorSets[i]; //the set we are updating
-
-		descriptorWrites[2].dstSet = shadowMapDescriptorSets[i]; //the set we are writing to
+		descriptorWrites[4].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;//we are writing to the descriptor set so this must be the type of the struct
+		descriptorWrites[4].dstSet = descriptorSets[i]; //the set we are updating
+		descriptorWrites[4].dstBinding = 4; //the binding of the descpriptor in the set
+		descriptorWrites[4].dstArrayElement = 0; //the starting index of the update
+		descriptorWrites[4].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; //the type of the descriptor (texture so we specify combined image and sampler)
+		descriptorWrites[4].descriptorCount = 1; //the number of descriptors we are updating
+		descriptorWrites[4].pImageInfo = &shadowImageInfo; //the image we are binding (we are no correctly providing the texture data and sampler)
 
 		//update that descriptor set by providing the device (which owns the pool), the number of descriptor writes, the descriptor writes, and 0 and nullptr becuase we are not copying any data from pre exisiting descriptors
 		vkUpdateDescriptorSets(device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);

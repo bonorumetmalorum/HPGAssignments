@@ -15,6 +15,7 @@ layout(location = 9) in vec3 renderFlags;
 layout(location = 0) out vec4 outColor;
 
 layout(binding = 1) uniform sampler2D texSampler;
+layout(binding = 4) uniform sampler2D shadowSampler;
 
 void main() {
 	vec4 textureColor = texture(texSampler, fragTexCoord);
