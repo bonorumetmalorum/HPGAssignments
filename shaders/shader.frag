@@ -11,6 +11,7 @@ layout(location = 6) in vec3 fragAmbientLighting;
 layout(location = 7) in float fragSpecularCoefficient;
 layout(location = 8) in vec4 fragNormal;
 layout(location = 9) in vec3 renderFlags;
+layout(location = 10) in vec4 fragShadowCoord; 
 
 layout(location = 0) out vec4 outColor;
 
@@ -41,12 +42,18 @@ void main() {
 	if(abs(renderFlags.x) > 0.5){
 		lighting += vec4(ambientLight, 1.0) * vec4(fragColor, 1.0);
 	}
-	if(abs(renderFlags.y) > 0.5){
-		lighting += vec4(diffuseLight, 1.0) * vec4(fragColor, 1.0);
+
+	float depth = fragShadowCoord.z;
+	if(texture(shadowSampler, fragShadowCoord.st).r < depth)
+	{
+		if(abs(renderFlags.y) > 0.5){
+			lighting += vec4(diffuseLight, 1.0) * vec4(fragColor, 1.0);
+		}
+		if(abs(renderFlags.z) > 0.5){
+			lighting += vec4(specularLight,1.0) * vec4(fragColor, 1.0);
+		}
 	}
-	if(abs(renderFlags.z) > 0.5){
-		lighting += vec4(specularLight,1.0) * vec4(fragColor, 1.0);
-	}
+
 	
 	//outColor = vec4(renderFlags, 1.0);
 	outColor = lighting * textureColor;

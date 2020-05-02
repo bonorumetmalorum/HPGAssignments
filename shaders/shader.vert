@@ -15,7 +15,7 @@ layout(location = 6) out vec3 fragAmbientLighting;
 layout(location = 7) out float fragSpecularCoefficient;
 layout(location = 8) out vec4 fragNormal;
 layout(location = 9) out vec3 renderFlags;
-
+layout(location = 10) out vec4 fragShadowCoord;
 
 
 layout(binding = 0) uniform UniformBufferObject {
@@ -42,6 +42,12 @@ layout(binding = 3) uniform ShadowUniformObject {
 
 void main() {
 	vec4 VCS_position = ubo.view * ubo.model * vec4(inPosition, 1.0);
+
+	vec4 WCS_position = ubo.model * vec4(inPosition, 1.0);
+	vec4 LCS_position = suo.view * WCS_position;
+
+	fragShadowCoord = suo.proj * LCS_position;
+
 	//already in world coords so no need to multiply by model
 	fragLightVector = (ubo.view * lighting.lightPos) - VCS_position;
 	fragNormal = ubo.view * ubo.model * vec4(inNormal, 0.0);
