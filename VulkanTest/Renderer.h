@@ -67,16 +67,22 @@ private:
 	void createLogicalDevice();
 	void createSurface();
 	void createSwapChain();
+	void createShadowMapRenderPass();
 	void createRenderPass();
 	void createImageViews();
 	void createGraphicsPipeline();
+	void createShadowMapFrameBuffers();
 	void createFramebuffers();
 	void createCommandPool();
+	void createShadowMapTextureImage();
 	void createTextureImage();
+	void createShadowMapTextureView();
 	void createTextureImageView();
+	void createShadowMapTextureSampler();
 	void createTextureSampler();
 	void createVertexBuffer();
 	void createIndexBuffer();
+	void createShadowMapDescriptorSetLayout();
 	void createDescriptorSetLayout();
 	void createDescriptorPool();
 	void createDescriptorSets();
@@ -199,17 +205,23 @@ private:
 
 	//texture image and related memory
 	VkImage textureImage;
+	VkImage shadowMapTextureImage;
 	VkDeviceMemory textureImageMemory;
+	VkDeviceMemory shadowMapTextureImageMemory;
 	VkImageView textureImageView;
+	VkImageView shadowMapTextureImageView;
 	VkSampler textureSampler;
+	VkSampler shadowMapTextureSampler;
 
 	//images to do with depth calculations
 	VkImage depthImage;
 	VkDeviceMemory depthImageMemory;
 	VkImageView depthImageView;
 
+	VkRenderPass shadowMapRenderPass;
 	VkRenderPass renderPass;
 	VkDescriptorSetLayout descriptorSetLayout;
+	VkDescriptorSetLayout  shadowMapDescriptorSetLayout;
 	VkPipelineLayout pipelineLayout;
 	VkPipeline graphicsPipeline;
 	/*
@@ -219,6 +231,7 @@ private:
 		by the swap chain (double buffered or more so there might be more than one framebuffer to draw to depending on this setup)
 	*/
 	std::vector<VkFramebuffer> swapChainFramebuffers;
+	VkFramebuffer shadowMapFramebuffer;
 	/*
 		pool of commands to execute
 		batch
@@ -230,7 +243,7 @@ private:
 	*/
 	VkDescriptorPool descriptorPool;
 	std::vector<VkDescriptorSet> descriptorSets; //the descriptor sets, 1 for each uniform, so 1 for each image in the swap chain
-
+	std::vector<VkDescriptorSet> shadowMapDescriptorSets;
 	/*
 		per framebuffer recording of commands
 	*/

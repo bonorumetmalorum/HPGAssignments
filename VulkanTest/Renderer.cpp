@@ -50,14 +50,20 @@ void Renderer::initVulkan()
 	createLogicalDevice(); //create a logical device wrapper with the necessary resources around the physical device
 	createSwapChain(); //create a swapchain that we can use to render images to the surface
 	createImageViews(); //create the image views that will hold additional info about the images in the swapchain
+	createShadowMapRenderPass(); //create a render pass that specifies all the stages of the render (shadow map render pass)
 	createRenderPass(); //create a render pass that specifies all the stages of the render
+	createShadowMapDescriptorSetLayout();
 	createDescriptorSetLayout(); //create the descriptor sets
 	createGraphicsPipeline(); //create a graphics pipeline to process drawing commands and render to the surface
 	createCommandPool(); //create a command pool to manage allocation of command buffers
+	createShadowMapTextureImage(); 
 	createTextureImage(); //load the image texture into gpu memory
+	createShadowMapTextureView(); 
 	createTextureImageView(); //create the image view to access the texture
+	createShadowMapTextureSampler();
 	createTextureSampler(); //the sampler function used on GPU shader to access the texture values
 	createDepthResources(); //setup depth resources
+	createShadowMapFrameBuffers();
 	createFramebuffers(); //create a framebuffer to represent the set of images the graphics pipeline will render to
 	createVertexBuffer(); //create the vertex buffer
 	createIndexBuffer(); //create the index buffer so we reuse vertex data
@@ -285,9 +291,10 @@ VkFormat Renderer::findSupportedFormat(const std::vector<VkFormat>& candidates, 
 }
 
 //helper method to find the required format for depth buffer
+//TODO experiment with depth format
 VkFormat Renderer::findDepthFormat() {
 	return findSupportedFormat(
-		{ VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT },
+		{ VK_FORMAT_D16_UNORM, VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT },
 		VK_IMAGE_TILING_OPTIMAL,
 		VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT
 	);
@@ -462,6 +469,88 @@ void Renderer::createSwapChain()
 	vkGetSwapchainImagesKHR(device, swapChain, &imageCount, swapChainImages.data()); // load the swap chain images into memory
 	swapChainImageFormat = surfaceFormat.format; //store a reference to the swap chain image format being used
 	swapChainExtent = extent; //store a reference to the size of the swap chain images
+}
+
+void Renderer::createShadowMapRenderPass()
+{
+
+	//depth attachment to use for the depth test
+	VkAttachmentDescription depthAttachment = {};
+	depthAttachment.format = findDepthFormat();
+	depthAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+	depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+	depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+	depthAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+	depthAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+	depthAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	depthAttachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
+
+	//Subpasses and attachment references
+	/*
+		single render pass can consist of multiple subpasses.
+		Subpasses are subsequent rendering operations that depend on the contents of framebuffers in previous passes,
+		for example a sequence of post-processing effects that are applied one after another
+	*/
+	/*
+		An attachment reference is a structure containing an index into the array of attachments,
+		and what kind of image layout that the attachment is expected to be in at this subpass
+	*/
+
+	VkAttachmentReference depthAttachmentRef = {};
+	depthAttachmentRef.attachment = 0;
+	depthAttachmentRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+	//describe subpass - each subpass references a number of attachments, here we only want 1 subpass.
+	VkSubpassDescription subpass = {};
+	subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS; //bind point of a pipeline object to a command buffer (specifying as a graphics pipeline here, but it could be a compute pipeline)
+	subpass.colorAttachmentCount = 0; //number of color attachments (this is where output is written)
+	subpass.pColorAttachments = 0; //pointer into array containing the attachments (1 in this case so not an array, this is the output)
+	//we don't really have input attachments at the moment, since the triangle we render is defined in the shader itself
+	subpass.pDepthStencilAttachment = &depthAttachmentRef;
+
+	std::array<VkAttachmentDescription, 1> attachments = { depthAttachment };
+
+	//create render pass
+	VkRenderPassCreateInfo renderPassInfo = {}; //render pass information
+	renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO; //type of the struct
+	renderPassInfo.attachmentCount = static_cast<uint32_t>(attachments.size()); //number of attachments
+	renderPassInfo.pAttachments = attachments.data(); //an array containing the attachment information for the number of attachments specified (in this case 1 and its just the color attachment)
+	renderPassInfo.subpassCount = 1; // the number of subpasses
+	renderPassInfo.pSubpasses = &subpass; //the subpass creation info
+
+	//define subpass
+	//first two fields specify the indices of the dependency and the dependent subpass
+	VkSubpassDependency dependency1 = {};
+	dependency1.srcSubpass = VK_SUBPASS_EXTERNAL; //producer of data (in this case is external to this subpass)
+	dependency1.dstSubpass = 0; //this subpass is the destination of the data (that is how the dependency goes)
+	// next two fields specify the operations to wait on and the stages in which these operations occur
+	dependency1.srcStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT; //which pipeline stage of the source subpass produced the data
+	dependency1.srcAccessMask = VK_ACCESS_SHADER_READ_BIT; //how source subpass accesses the data
+	//next two fields specify the operations to wait on and the stages in which these operations occur
+	dependency1.dstStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT; //which stages of the destination subpass will consume the data. 
+	dependency1.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT; //how destination subpass accesses the data
+	dependency1.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+
+	VkSubpassDependency dependency2 = {};
+	dependency2.srcSubpass = VK_SUBPASS_EXTERNAL; //producer of data (in this case is external to this subpass)
+	dependency2.dstSubpass = 0; //this subpass is the destination of the data (that is how the dependency goes)
+	// next two fields specify the operations to wait on and the stages in which these operations occur
+	dependency2.srcStageMask = VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT; //which pipeline stage of the source subpass produced the data
+	dependency2.srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT; //how source subpass accesses the data
+	//next two fields specify the operations to wait on and the stages in which these operations occur
+	dependency2.dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT; //which stages of the destination subpass will consume the data. 
+	dependency2.dstAccessMask = VK_ACCESS_SHADER_READ_BIT; //how destination subpass accesses the data
+	dependency2.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+
+	std::array<VkSubpassDependency, 2> deps = { dependency1, dependency2 };
+
+	//setup the subpass in the renderpassinfo struct
+	renderPassInfo.dependencyCount = deps.size(); //we have 2 dependencies
+	renderPassInfo.pDependencies = deps.data(); //the dependency info
+
+	if (vkCreateRenderPass(device, &renderPassInfo, nullptr, &shadowMapRenderPass) != VK_SUCCESS) { //make the render pass
+		throw std::runtime_error("failed to create render pass!"); //if we were not successful throw an error
+	}
 }
 
 /*
@@ -944,6 +1033,22 @@ void Renderer::createGraphicsPipeline()
 	vkDestroyShaderModule(device, vertShaderModule, nullptr); //destroy the shader modules since they have been loaded in the pipeline
 }
 
+void Renderer::createShadowMapFrameBuffers()
+{
+	VkFramebufferCreateInfo framebufferInfo = {}; //struct to hold framebuffer creation info
+	framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO; //struct type
+	framebufferInfo.renderPass = shadowMapRenderPass; //render pass we are binding framebuffer to
+	framebufferInfo.attachmentCount = 1; //number of attachments
+	framebufferInfo.pAttachments = &shadowMapTextureImageView; //the images that we wish to manage in the frame buffer
+	framebufferInfo.width = swapChainExtent.width; //the width of the image
+	framebufferInfo.height = swapChainExtent.height; //the height of the image
+	framebufferInfo.layers = 1; //number of layers in image array
+
+	if (vkCreateFramebuffer(device, &framebufferInfo, nullptr, &shadowMapFramebuffer) != VK_SUCCESS) { //create the frame buffer object
+		throw std::runtime_error("failed to create framebuffer!"); //throw an error if we are unsuccessful in creating the buffer
+	}
+}
+
 //here we are going to submit commands to copy data from the staging buffer to the device local vert buff
 void Renderer::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size)
 {
@@ -1183,6 +1288,13 @@ void Renderer::createCommandPool()
 
 }
 
+void Renderer::createShadowMapTextureImage()
+{
+	//stbi_image_free(texture.pixels); - this is how we would do it using the stbi image loading lib
+	//create the image and its memory
+	createImage(swapChainExtent.width, swapChainExtent.height, VK_FORMAT_D16_UNORM, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, shadowMapTextureImage, shadowMapTextureImageMemory);
+}
+
 //create the texture
 void Renderer::createTextureImage()
 {
@@ -1213,9 +1325,45 @@ void Renderer::createTextureImage()
 	vkFreeMemory(device, stagingBufferMemory, nullptr);
 }
 
+void Renderer::createShadowMapTextureView()
+{
+	shadowMapTextureImageView = createImageView(shadowMapTextureImage, VK_FORMAT_D16_UNORM, VK_IMAGE_ASPECT_DEPTH_BIT);
+}
+
 void Renderer::createTextureImageView()
 {
 	textureImageView = createImageView(textureImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT);
+}
+
+void Renderer::createShadowMapTextureSampler()
+{
+	VkSamplerCreateInfo samplerInfo = {};
+	samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+	samplerInfo.magFilter = VK_FILTER_LINEAR;
+	samplerInfo.minFilter = VK_FILTER_LINEAR;
+
+	samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT; //CLAMP TO EDGE MAYBE
+	samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+	samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+
+	samplerInfo.anisotropyEnable = VK_TRUE;
+	samplerInfo.maxAnisotropy = 16;
+
+	samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_WHITE;
+
+	samplerInfo.unnormalizedCoordinates = VK_FALSE;
+
+	samplerInfo.compareEnable = VK_FALSE;
+	samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
+
+	samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+	samplerInfo.mipLodBias = 0.0f;
+	samplerInfo.minLod = 0.0f;
+	samplerInfo.maxLod = 1.0f;
+
+	if (vkCreateSampler(device, &samplerInfo, nullptr, &shadowMapTextureSampler) != VK_SUCCESS) {
+		throw std::runtime_error("failed to create texture sampler!");
+	}
 }
 
 void Renderer::createTextureSampler()
@@ -1307,6 +1455,46 @@ void Renderer::createIndexBuffer()
 //a descriptor set is a set of resources thar are bound into the pipeline together
 //here we are going to create a descriptor set describing 3 resources we wish to bind into the pipeline
 //these are the ubo uniform buffer, lighting constants uniform buffer and the sampler used to access the texture
+void Renderer::createShadowMapDescriptorSetLayout()
+{
+	//binding to describe the uniform buffer
+	VkDescriptorSetLayoutBinding uboLayoutBinding = {};
+	uboLayoutBinding.binding = 0; //the number we are binding to (shader access will use this number)
+	uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; //type of the binding, uniform buffer because that is what we are binding
+	uboLayoutBinding.descriptorCount = 1; //number of descriptors contained in the binding
+	uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT; //which stage of the pipeline will access this binding
+
+	//binding to describe the lighting buffer
+	VkDescriptorSetLayoutBinding lightingLayoutBinding = {};
+	lightingLayoutBinding.binding = 2; //the binding number, this is what we will refer to in our shader program
+	lightingLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; //type of the binding, uniform buffer because that is what we are binding
+	lightingLayoutBinding.descriptorCount = 1; //the number of descriptors contained in the binding
+	lightingLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT; //which stage of the pipeline will access this binding
+
+	//binding to describe the sampler
+	VkDescriptorSetLayoutBinding samplerLayoutBinding = {};
+	samplerLayoutBinding.binding = 1; //the number we are binding to (shader access will use this number)
+	samplerLayoutBinding.descriptorCount = 1; //one descriptor in this binding
+	samplerLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; //the type of this binding, we are using combined sampler, both image and sampler in one
+	samplerLayoutBinding.pImmutableSamplers = nullptr; //this field needs to be included because the type of this binding is combined image sampler (we set this later, nullptr makes it dynamic)
+	samplerLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT; //which stage of the pipeline will access this binding
+
+	//group the descriptor set layout bindings
+	std::array<VkDescriptorSetLayoutBinding, 3> bindings = { uboLayoutBinding, samplerLayoutBinding, lightingLayoutBinding };
+	VkDescriptorSetLayoutCreateInfo layoutInfo = {}; //create the descriptor set layout
+	layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+	layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size()); //the number of bindings
+	layoutInfo.pBindings = bindings.data(); //the bindings
+
+	//create the descriptor set
+	if (vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &shadowMapDescriptorSetLayout) != VK_SUCCESS) {
+		throw std::runtime_error("failed to create descriptor set layout!");
+	}
+}
+
+//a descriptor set is a set of resources thar are bound into the pipeline together
+//here we are going to create a descriptor set describing 3 resources we wish to bind into the pipeline
+//these are the ubo uniform buffer, lighting constants uniform buffer and the sampler used to access the texture
 void Renderer::createDescriptorSetLayout()
 {
 	//binding to describe the uniform buffer
@@ -1350,18 +1538,17 @@ void Renderer::createDescriptorPool()
 	//we need to create the pool sizes for each type of descriptor binding
 	std::array<VkDescriptorPoolSize, 3> poolSizes = {};
 	poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; //type of the buffer
-	poolSizes[0].descriptorCount = static_cast<uint32_t>(swapChainImages.size());  //the max number of descriptors we can allocate from this pool
+	poolSizes[0].descriptorCount = static_cast<uint32_t>(swapChainImages.size()*2);  //the max number of descriptors we can allocate from this pool
 	poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; //type of the buffer
-	poolSizes[1].descriptorCount = static_cast<uint32_t>(swapChainImages.size()); //the max number of descriptors we can allocate from this pool
+	poolSizes[1].descriptorCount = static_cast<uint32_t>(swapChainImages.size()*2); //the max number of descriptors we can allocate from this pool (extra one for the shadow map sampling)
 	poolSizes[2].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; //type of the buffer
-	poolSizes[2].descriptorCount = static_cast<uint32_t>(swapChainImages.size()); //the max number of descriptors we can allocate from this pool
-
+	poolSizes[2].descriptorCount = static_cast<uint32_t>(swapChainImages.size()*2); //the max number of descriptors we can allocate from this pool
 	//create the pool
 	VkDescriptorPoolCreateInfo poolInfo = {};
 	poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO; //type of struct
 	poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size()); //number of different pool sizes
 	poolInfo.pPoolSizes = poolSizes.data(); //the sizes
-	poolInfo.maxSets = static_cast<uint32_t>(swapChainImages.size()); //max number of descriptor sets we can allocate
+	poolInfo.maxSets = static_cast<uint32_t>(swapChainImages.size()*2); //max number of descriptor sets we can allocate
 
 	//create the pool
 	if (vkCreateDescriptorPool(device, &poolInfo, nullptr, &descriptorPool) != VK_SUCCESS) {
@@ -1374,6 +1561,7 @@ void Renderer::createDescriptorSets()
 {
 	//create an array to hold handles to all the descriptor sets, one for each image in the swap chain ( we have the same descriptor for each image)
 	std::vector<VkDescriptorSetLayout> layouts(swapChainImages.size(), descriptorSetLayout);
+	std::vector<VkDescriptorSetLayout> shadowLayouts(swapChainImages.size(), shadowMapDescriptorSetLayout);
 	//allocation info for descriptor sets
 	VkDescriptorSetAllocateInfo allocInfo = {};
 	allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO; //struct type
@@ -1383,8 +1571,16 @@ void Renderer::createDescriptorSets()
 
 	//resize to hold all handles to descriptor sets
 	descriptorSets.resize(swapChainImages.size());
+	shadowMapDescriptorSets.resize((swapChainImages.size()));
 	//create the descriptor sets
 	if (vkAllocateDescriptorSets(device, &allocInfo, descriptorSets.data()) != VK_SUCCESS) {
+		throw std::runtime_error("failed to allocate descriptor sets!");
+	}
+
+	allocInfo.pSetLayouts = shadowLayouts.data(); //the descriptor set layout structs
+
+	//create the descriptor sets
+	if (vkAllocateDescriptorSets(device, &allocInfo, shadowMapDescriptorSets.data()) != VK_SUCCESS) {
 		throw std::runtime_error("failed to allocate descriptor sets!");
 	}
 
@@ -1432,6 +1628,23 @@ void Renderer::createDescriptorSets()
 		descriptorWrites[2].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; //the type of the descriptor (uniform buffer)
 		descriptorWrites[2].descriptorCount = 1;//the number of descriptors to update
 		descriptorWrites[2].pBufferInfo = &lightingBufferInfo; //the buffer we are binding
+
+		//update that descriptor set by providing the device (which owns the pool), the number of descriptor writes, the descriptor writes, and 0 and nullptr becuase we are not copying any data from pre exisiting descriptors
+		vkUpdateDescriptorSets(device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
+
+		///---------------------------------------------------------------------------------------------
+		
+		std::array<VkWriteDescriptorSet, 3> shadowDescriptorWrites = {};
+
+		imageInfo.imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL; //the image layout
+		imageInfo.imageView = shadowMapTextureImageView; //the image view of the texture
+		imageInfo.sampler = shadowMapTextureSampler; //the sampler (before we said we would update it later, here we are providing the sampler to use with the texture)
+
+		descriptorWrites[0].dstSet = shadowMapDescriptorSets[i]; //the set we are writing to
+	
+		descriptorWrites[1].dstSet = shadowMapDescriptorSets[i]; //the set we are updating
+
+		descriptorWrites[2].dstSet = shadowMapDescriptorSets[i]; //the set we are writing to
 
 		//update that descriptor set by providing the device (which owns the pool), the number of descriptor writes, the descriptor writes, and 0 and nullptr becuase we are not copying any data from pre exisiting descriptors
 		vkUpdateDescriptorSets(device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
