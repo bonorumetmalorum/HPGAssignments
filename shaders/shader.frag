@@ -20,7 +20,7 @@ layout(binding = 4) uniform sampler2D shadowSampler;
 
 void main() {
 	vec4 textureColor = texture(texSampler, fragTexCoord);
-
+	vec4 shadow_coords = fragShadowCoord / fragShadowCoord.w;
 	float ambI = 0.25;
 	float diffI = 0.9;
 	float specI = 4.0;
@@ -38,22 +38,22 @@ void main() {
 	float specularPower = pow(specularDotProd, fragSpecularCoefficient);
 	vec3 specularLight = fragSpecularLighting * fragColor * specularPower * specI;
 
+
 	vec4 lighting = vec4(0);
 	if(abs(renderFlags.x) > 0.5){
 		lighting += vec4(ambientLight, 1.0) * vec4(fragColor, 1.0);
 	}
 
-	float depth = fragShadowCoord.z;
-	if(texture(shadowSampler, fragShadowCoord.st).r < depth)
+	float fragdepth = shadow_coords.z;
+	if(texture(shadowSampler, shadow_coords.st).r > fragdepth - 0.005)
 	{
 		if(abs(renderFlags.y) > 0.5){
-			lighting += vec4(diffuseLight, 1.0) * vec4(fragColor, 1.0);
-		}
+		lighting += vec4(diffuseLight, 1.0) * vec4(fragColor, 1.0);
+	}
 		if(abs(renderFlags.z) > 0.5){
 			lighting += vec4(specularLight,1.0) * vec4(fragColor, 1.0);
 		}
-	}
-
+	}	
 	
 	//outColor = vec4(1.0,1.0,1.0, 1.0);
 	outColor = lighting * textureColor;
