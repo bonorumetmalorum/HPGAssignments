@@ -843,7 +843,6 @@ void Renderer::createShadowMapPipeline()
 	depthStencil.depthBoundsTestEnable = VK_FALSE; //special test to check if depth buffer values are within a range, disabled here
 	depthStencil.stencilTestEnable = VK_FALSE; //no stencil test to do after depth test
 
-
 	//describing the configuration of the newly created pipeline vertex input state -  
 	//what we are doing here is describing the layout of geometric data in memory and then having Vulkan fetch it and then feed it to the shader
 	auto bindingDescription = Vertex::getBindingDescription(); //get the binding description
@@ -898,10 +897,10 @@ void Renderer::createShadowMapPipeline()
 	rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;  //which faces should we cull (here we choose to cull back faces, we could also do both)
 	rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE; //how to iterate over vertices (determines which faces are front and back) can be CC or C
 	//the following parameters can be used to fix issues with z-fighting by allowing fragments to be offset in depth
-	rasterizer.depthBiasEnable = VK_FALSE; // can be modified based on slope but we don't want that here so it is disabled
-	rasterizer.depthBiasConstantFactor = 0.0f; // Optional - depth bias equation
+	rasterizer.depthBiasEnable = VK_TRUE; // can be modified based on slope but we don't want that here so it is disabled
+	rasterizer.depthBiasConstantFactor = 1.25f; // Optional - depth bias equation
 	rasterizer.depthBiasClamp = 0.0f; // Optional - puts an upper bound on the depth bias equation output if positive and non zero and lower bound if non zero and negative
-	rasterizer.depthBiasSlopeFactor = 0.0f; // Optional - param in depth bias equation
+	rasterizer.depthBiasSlopeFactor = 1.75f; // Optional - param in depth bias equation
 	//depth bias is calculated by finding m which is steepest descent in z direction and then multiplying it by depthBiasSlopeFactor and depthBiasConstantFactor
 
 	//multisampling
@@ -1218,6 +1217,7 @@ void Renderer::createGraphicsPipeline()
 
 	rasterizer.cullMode = VK_CULL_MODE_NONE;
 
+	
 
 	if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &dqPipeline) != VK_SUCCESS) { //make the graphics pipeline
 		throw std::runtime_error("failed to create graphics pipeline!"); //throw an error if it was unsuccessful
@@ -1354,14 +1354,14 @@ void Renderer::createRenderPass()
 
 	//depth attachment to use for the depth test
 	VkAttachmentDescription depthAttachment = {};
-	depthAttachment.format = findDepthFormat();
+	depthAttachment.format = VK_FORMAT_D16_UNORM;
 	depthAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
 	depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-	depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+	depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
 	depthAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
 	depthAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
 	depthAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-	depthAttachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+	depthAttachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
 
 	//Subpasses and attachment references
 	/*
@@ -1958,8 +1958,6 @@ void Renderer::createCommandBuffers()
 	beginInfo.pInheritanceInfo = nullptr; // Optional - relevant for secondary command buffers
 
 	std::array<VkClearValue, 2> clearColors = {};
-	clearColors[0].depthStencil = { 1.0f, 0 };
-	clearColors[1].color = { 0.7f, 0.5f, 0.6f, 1.0f };
 
 	//begin recording commands for the command buffer ( we want to draw a triangle )
 	for (size_t i = 0; i < commandBuffers.size(); i++) {//for all command buffers
@@ -1970,6 +1968,8 @@ void Renderer::createCommandBuffers()
 		if (vkBeginCommandBuffer(commandBuffers[i], &beginInfo) != VK_SUCCESS) {// begin recording
 			throw std::runtime_error("failed to begin recording command buffer!"); //if we didn't successfully begin recording throw an error
 		}
+
+		clearColors[0].depthStencil = { 1.0f, 0 };
 
 		VkRenderPassBeginInfo shadowPassInfo = {};
 		shadowPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO; //struct type
@@ -2034,6 +2034,14 @@ void Renderer::createCommandBuffers()
 		vkCmdBindIndexBuffer(commandBuffers[i], dq.indexBuffer, 0, VK_INDEX_TYPE_UINT32); //bind the index buffer
 		
 		vkCmdDrawIndexed(commandBuffers[i], static_cast<uint32_t>(dq.indices.size()), 1, 0, 0, 0); //draw using the index buffer
+
+		vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
+
+		vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, &vertexBuffer, offsets);
+
+		vkCmdBindIndexBuffer(commandBuffers[i], indexBuffer, 0, VK_INDEX_TYPE_UINT32); //bind the index buffer
+
+		vkCmdDrawIndexed(commandBuffers[i], static_cast<uint32_t>(indices.size()), 1, 0, 0, 0); //draw using the index buffer
 
 		//end render pass
 		vkCmdEndRenderPass(commandBuffers[i]);
