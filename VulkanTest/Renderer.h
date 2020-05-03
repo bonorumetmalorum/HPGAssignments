@@ -227,6 +227,7 @@ private:
 	VkPipelineLayout pipelineLayout;
 	VkPipeline graphicsPipeline;
 	VkPipeline shadowMapPipeline;
+	VkPipeline  dqPipeline;
 	/*
 		a frame buffer wraps an attachment
 		an attachment is represented in the pipeline by an image returned by the swap chain
@@ -319,6 +320,9 @@ private:
 
 		VkBuffer vertexBuffer;
 		VkDeviceMemory vertexBufferMemory;
+
+		VkBuffer indexBuffer;
+		VkDeviceMemory indexBufferMemory;
 
 	} dq;
 

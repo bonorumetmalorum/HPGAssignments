@@ -1199,6 +1199,32 @@ void Renderer::createGraphicsPipeline()
 
 	vkDestroyShaderModule(device, fragShaderModule, nullptr); //destroy the shader modules since they have been loaded in the pipeline
 	vkDestroyShaderModule(device, vertShaderModule, nullptr); //destroy the shader modules since they have been loaded in the pipeline
+
+	//debug quad pipeline layout and pipeline creation
+	vertShaderCode = readFile("../shaders/qdvert.spv");
+	fragShaderCode = readFile("../shaders/qdfrag.spv");
+
+	//create shader modules using read in code
+	vertShaderModule = createShaderModule(vertShaderCode);
+	fragShaderModule = createShaderModule(fragShaderCode);
+
+	vertShaderStageInfo.module = vertShaderModule;
+	fragShaderStageInfo.module = fragShaderModule;
+
+	shaderStages[0] = vertShaderStageInfo;
+	shaderStages[1] = fragShaderStageInfo;
+
+	pipelineInfo.pStages = shaderStages;
+
+	rasterizer.cullMode = VK_CULL_MODE_NONE;
+
+
+	if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &dqPipeline) != VK_SUCCESS) { //make the graphics pipeline
+		throw std::runtime_error("failed to create graphics pipeline!"); //throw an error if it was unsuccessful
+	}
+	
+	vkDestroyShaderModule(device, fragShaderModule, nullptr); //destroy the shader modules since they have been loaded in the pipeline
+	vkDestroyShaderModule(device, vertShaderModule, nullptr); //destroy the shader modules since they have been loaded in the pipeline
 }
 
 void Renderer::createShadowMapFrameBuffers()
@@ -1611,6 +1637,10 @@ void Renderer::createVertexBuffer()
 	vkFreeMemory(device, stagingBufferMemory, nullptr);
 
 	///---- make debug quad vertex buffer
+	for (auto v : dq.vertices)
+	{
+		std::cout << v.normal.x << " " << v.normal.y << " " << v.normal.z << std::endl;
+	}
 	bufferSize = sizeof(dq.vertices[0]) * dq.vertices.size();
 	createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory);
 	vkMapMemory(device, stagingBufferMemory, 0, bufferSize, 0, &data);
@@ -1647,6 +1677,20 @@ void Renderer::createIndexBuffer()
 	createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, indexBuffer, indexBufferMemory);
 	//copy the data to the device local memory
 	copyBuffer(stagingBuffer, indexBuffer, bufferSize);
+	//destroy the staging buffer and free its memory
+	vkDestroyBuffer(device, stagingBuffer, nullptr);
+	vkFreeMemory(device, stagingBufferMemory, nullptr);
+
+	bufferSize = sizeof(dq.indices[0]) * dq.indices.size();
+	createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory);
+	vkMapMemory(device, stagingBufferMemory, 0, bufferSize, 0, &data);
+	memcpy(data, dq.indices.data(), (size_t)bufferSize);
+	vkUnmapMemory(device, stagingBufferMemory);
+
+	//create the device local memory (index buffer bit is set to indicate what the memory is used for)
+	createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, dq.indexBuffer, dq.indexBufferMemory);
+	//copy the data to the device local memory
+	copyBuffer(stagingBuffer, dq.indexBuffer, bufferSize);
 	//destroy the staging buffer and free its memory
 	vkDestroyBuffer(device, stagingBuffer, nullptr);
 	vkFreeMemory(device, stagingBufferMemory, nullptr);
@@ -1981,25 +2025,16 @@ void Renderer::createCommandBuffers()
 		//bind graphics pipeline - we supply the command buffer we wish to feed to the pipeline, where we want to bind, our pipeline is a graphics pipeline
 		//so we bind it to the VK_PIPELINE_BIND_POINT_GRAPHICS and finally we provide the pipeline handle.
 
-		vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
+		vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, dqPipeline);
 		
 		//bind the buffer of vertices to draw
 
-		vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, vertexBuffers, offsets);
+		vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, &dq.vertexBuffer, offsets);
 
-		vkCmdBindIndexBuffer(commandBuffers[i], indexBuffer, 0, VK_INDEX_TYPE_UINT32); //bind the index buffer
+		vkCmdBindIndexBuffer(commandBuffers[i], dq.indexBuffer, 0, VK_INDEX_TYPE_UINT32); //bind the index buffer
 		
+		vkCmdDrawIndexed(commandBuffers[i], static_cast<uint32_t>(dq.indices.size()), 1, 0, 0, 0); //draw using the index buffer
 
-		vkCmdDrawIndexed(commandBuffers[i], static_cast<uint32_t>(indices.size()), 1, 0, 0, 0); //draw using the index buffer
-
-		/*		
-			vkCmdDraw:
-				vertexCount: Even though we don't have a vertex buffer, we technically still have 3 vertices to draw.
-				instanceCount: Used for instanced rendering, use 1 if you're not doing that.
-				firstVertex: Used as an offset into the vertex buffer, defines the lowest value of gl_VertexIndex.
-				firstInstance: Used as an offset for instanced rendering, defines the lowest value of gl_InstanceIndex.
-		*/
-		//vkCmdDraw(commandBuffers[i], 3, 1, 0, 0);
 		//end render pass
 		vkCmdEndRenderPass(commandBuffers[i]);
 		//end recording commands
