@@ -1647,8 +1647,15 @@ void Renderer::createShadowMapDescriptorSetLayout()
 	uboLayoutBinding.descriptorCount = 1; //number of descriptors contained in the binding
 	uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT; //which stage of the pipeline will access this binding
 
+	VkDescriptorSetLayoutBinding shadowSampler = {};
+	shadowSampler.binding = 1; //the number we are binding to (shader access will use this number)
+	shadowSampler.descriptorCount = 1; //one descriptor in this binding
+	shadowSampler.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; //the type of this binding, we are using combined sampler, both image and sampler in one
+	shadowSampler.pImmutableSamplers = nullptr; //this field needs to be included because the type of this binding is combined image sampler (we set this later, nullptr makes it dynamic)
+	shadowSampler.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT; //which stage of the pipeline will access this binding
+
 	//group the descriptor set layout bindings
-	std::array<VkDescriptorSetLayoutBinding, 1> bindings = { uboLayoutBinding };
+	std::array<VkDescriptorSetLayoutBinding, 2> bindings = { uboLayoutBinding, shadowSampler };
 
 	VkDescriptorSetLayoutCreateInfo layoutInfo = {}; //create the descriptor set layout
 	layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
@@ -1779,7 +1786,7 @@ void Renderer::createDescriptorSets()
 	shadowImageInfo.imageView = shadowMapTextureImageView; //the image view of the texture
 	shadowImageInfo.sampler = shadowMapTextureSampler; //the sampler (before we said we would update it later, here we are providing the sampler to use with the texture)
 	
-	std::array<VkWriteDescriptorSet, 1> shadowWrites = {};
+	std::array<VkWriteDescriptorSet, 2> shadowWrites = {};
 	shadowWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; //we are writing to the descriptor set so this must be the type of the struct
 	shadowWrites[0].dstSet = shadowMapDescriptorSet; //the set we are writing to
 	shadowWrites[0].dstBinding = 0; //the binding of the descriptor in the
@@ -1788,7 +1795,15 @@ void Renderer::createDescriptorSets()
 	shadowWrites[0].descriptorCount = 1; //the number of descriptors to update
 	shadowWrites[0].pBufferInfo = &ShadowUniformBufferInfo; //the buffer we are binding
 
-	vkUpdateDescriptorSets(device, 1, shadowWrites.data(), 0, nullptr);
+	shadowWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;//we are writing to the descriptor set so this must be the type of the struct
+	shadowWrites[1].dstSet = shadowMapDescriptorSet; //the set we are updating
+	shadowWrites[1].dstBinding = 1; //the binding of the descpriptor in the set
+	shadowWrites[1].dstArrayElement = 0; //the starting index of the update
+	shadowWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; //the type of the descriptor (texture so we specify combined image and sampler)
+	shadowWrites[1].descriptorCount = 1; //the number of descriptors we are updating
+	shadowWrites[1].pImageInfo = &shadowImageInfo; //the image we are binding (we are no correctly providing the texture data and sampler)
+
+	vkUpdateDescriptorSets(device, shadowWrites.size(), shadowWrites.data(), 0, nullptr);
 
 	//we now need to associate the right buffers with the descriptor sets we have just created
 	for (size_t i = 0; i < swapChainImages.size(); i++) {

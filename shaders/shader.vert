@@ -40,13 +40,19 @@ layout(binding = 3) uniform ShadowUniformObject {
 	vec3 renderFlags;
 } suo;
 
+const mat4 bias = mat4(        
+	0.5, 0.0, 0.0, 0.0,       
+	 0.0, 0.5, 0.0, 0.0,        
+	 0.0, 0.0, 1.0, 0.0,        
+	 0.5, 0.5, 0.0, 1.0 );
+
 void main() {
 	vec4 VCS_position = ubo.view * ubo.model * vec4(inPosition, 1.0);
 
 	vec4 WCS_position = ubo.model * vec4(inPosition, 1.0);
 	vec4 LCS_position = suo.view * WCS_position;
 
-	fragShadowCoord = suo.proj * LCS_position;
+	fragShadowCoord = bias * suo.proj * LCS_position;
 
 	//already in world coords so no need to multiply by model
 	fragLightVector = (ubo.view * lighting.lightPos) - VCS_position;
