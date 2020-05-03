@@ -56,8 +56,8 @@ void main() {
 
 	
 	//outColor = vec4(1.0,1.0,1.0, 1.0);
-	//outColor = lighting * textureColor;
-	outColor = vec4(texture(shadowSampler, fragShadowCoord.st).r, texture(shadowSampler, fragShadowCoord.st).r, texture(shadowSampler, fragShadowCoord.st).r, 1.0);
+	outColor = lighting * textureColor;
+	//outColor = vec4(texture(shadowSampler, fragShadowCoord.st).r, texture(shadowSampler, fragShadowCoord.st).r, texture(shadowSampler, fragShadowCoord.st).r, 1.0);
 	//outColor = vec4(.xyz, 1.0);
 }
 

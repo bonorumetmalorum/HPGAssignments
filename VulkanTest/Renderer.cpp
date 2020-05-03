@@ -1609,6 +1609,23 @@ void Renderer::createVertexBuffer()
 	//destroy the staging buffer and and free its memory
 	vkDestroyBuffer(device, stagingBuffer, nullptr);
 	vkFreeMemory(device, stagingBufferMemory, nullptr);
+
+	///---- make debug quad vertex buffer
+	bufferSize = sizeof(dq.vertices[0]) * dq.vertices.size();
+	createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory);
+	vkMapMemory(device, stagingBufferMemory, 0, bufferSize, 0, &data);
+	memcpy(data, dq.vertices.data(), (size_t)bufferSize);
+	vkUnmapMemory(device, stagingBufferMemory);
+
+	createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, dq.vertexBuffer, dq.vertexBufferMemory);
+
+	//copy the staging buffer to the device only vertex buffer
+	copyBuffer(stagingBuffer, dq.vertexBuffer, bufferSize);
+
+	//destroy the staging buffer and and free its memory
+	vkDestroyBuffer(device, stagingBuffer, nullptr);
+	vkFreeMemory(device, stagingBufferMemory, nullptr);
 }
 
 //create an index buffer so we can reuse the vertices

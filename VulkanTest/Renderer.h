@@ -252,37 +252,6 @@ private:
 	*/
 	std::vector<VkCommandBuffer> commandBuffers;
 
-	///*
-	//	vertex buffer stuff
-	//*/
-	////struct to hold a vertex
-	//struct Vertex {
-	//	glm::vec2 position;
-	//	glm::vec3 color;
-
-	//	static VkVertexInputBindingDescription getBindingDescription() {
-	//		VkVertexInputBindingDescription desc = {};
-	//		desc.binding = 0; //which layout is this in reference to, layout location 0 is what we are binding to
-	//		desc.inputRate = VK_VERTEX_INPUT_RATE_VERTEX; //load after each vertex (can also be instance, but we wont use that)
-	//		desc.stride = sizeof(Vertex);
-	//		return desc;
-	//	}
-
-	//	static std::array<VkVertexInputAttributeDescription, 2> getAttributeDescriptions() {
-	//		std::array<VkVertexInputAttributeDescription, 2> attributeDescriptions = {};
-	//		attributeDescriptions[0].binding = 0;//which binding the vertex data comes from
-	//		attributeDescriptions[0].location = 0;//the location directive input of the vertex shader
-	//		attributeDescriptions[0].format = VK_FORMAT_R32G32_SFLOAT; //type of the data attribute
-	//		attributeDescriptions[0].offset = offsetof(Vertex, position); //offset, where to start reading (offset of position within struct, this is important because of potential compiler mangle)
-
-	//		attributeDescriptions[1].binding = 0; //which binding does the data come from
-	//		attributeDescriptions[1].location = 1; //refrence to a layout location within shader
-	//		attributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT; //the format of the data
-	//		attributeDescriptions[1].offset = offsetof(Vertex, color); //where in struct to read data for color
-	//		return attributeDescriptions;
-	//	}
-	//};
-
 	Texture texture;
 	//buffer handle
 	VkBuffer vertexBuffer;
@@ -336,6 +305,22 @@ private:
 		alignas(16) glm::mat4 proj;
 	};
 
+	struct DebugQuad
+	{
+		std::vector<Vertex> vertices = { 
+			Vertex{glm::vec3(1.0f, 1.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f), glm::vec2(1.f,1.f)},
+			Vertex{glm::vec3(0.0f, 1.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f), glm::vec2(0.f,1.f)},
+			Vertex{glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f), glm::vec2(0.f,0.f)},
+			Vertex{glm::vec3(1.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f), glm::vec2(1.f,0.f)}
+
+		};
+
+		std::vector<uint32_t> indices = { 0,1,2, 2,3,0 };
+
+		VkBuffer vertexBuffer;
+		VkDeviceMemory vertexBufferMemory;
+
+	} dq;
 
 	//index buffer data
 	std::vector<uint32_t> indices;
