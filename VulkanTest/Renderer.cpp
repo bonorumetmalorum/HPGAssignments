@@ -505,7 +505,6 @@ void Renderer::createShadowMapRenderPass()
 	VkSubpassDescription subpass = {};
 	subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS; //bind point of a pipeline object to a command buffer (specifying as a graphics pipeline here, but it could be a compute pipeline)
 	subpass.colorAttachmentCount = 0; //number of color attachments (this is where output is written)
-	subpass.pColorAttachments = 0; //pointer into array containing the attachments (1 in this case so not an array, this is the output)
 	//we don't really have input attachments at the moment, since the triangle we render is defined in the shader itself
 	subpass.pDepthStencilAttachment = &depthAttachmentRef;
 
@@ -522,7 +521,7 @@ void Renderer::createShadowMapRenderPass()
 	//define subpass
 	//first two fields specify the indices of the dependency and the dependent subpass
 	VkSubpassDependency dependency1 = {};
-	dependency1.srcSubpass = VK_SUBPASS_EXTERNAL; //producer of data (in this case is external to this subpass)
+	dependency1.srcSubpass = VK_SUBPASS_EXTERNAL; //producer of data
 	dependency1.dstSubpass = 0; //this subpass is the destination of the data (that is how the dependency goes)
 	// next two fields specify the operations to wait on and the stages in which these operations occur
 	dependency1.srcStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT; //which pipeline stage of the source subpass produced the data
@@ -533,8 +532,8 @@ void Renderer::createShadowMapRenderPass()
 	dependency1.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
 
 	VkSubpassDependency dependency2 = {};
-	dependency2.srcSubpass = VK_SUBPASS_EXTERNAL; //producer of data (in this case is external to this subpass)
-	dependency2.dstSubpass = 0; //this subpass is the destination of the data (that is how the dependency goes)
+	dependency2.srcSubpass = 0; //producer of data (in this case is external to this subpass)
+	dependency2.dstSubpass = VK_SUBPASS_EXTERNAL; //this subpass is the destination of the data (that is how the dependency goes)
 	// next two fields specify the operations to wait on and the stages in which these operations occur
 	dependency2.srcStageMask = VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT; //which pipeline stage of the source subpass produced the data
 	dependency2.srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT; //how source subpass accesses the data
@@ -1381,15 +1380,31 @@ void Renderer::createRenderPass()
 	dependency.srcSubpass = VK_SUBPASS_EXTERNAL; //producer of data (in this case is external to this subpass)
 	dependency.dstSubpass = 0; //this subpass is the destination of the data (that is how the dependency goes)
 	// next two fields specify the operations to wait on and the stages in which these operations occur
-	dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT; //which pipeline stage of the source subpass produced the data
-	dependency.srcAccessMask = 0; //how source subpass accesses the data
+	dependency.srcStageMask = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT; //which pipeline stage of the source subpass produced the data
+	dependency.srcAccessMask = VK_ACCESS_MEMORY_READ_BIT; //how source subpass accesses the data
 	//next two fields specify the operations to wait on and the stages in which these operations occur
 	dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT; //which stages of the destination subpass will consume the data. 
 	dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT; //how destination subpass accesses the data
-	
+	dependency.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+
+	//define subpass
+	//first two fields specify the indices of the dependency and the dependent subpass
+	VkSubpassDependency dependency2 = {};
+	dependency2.srcSubpass = 0; //producer of data (in this case is external to this subpass)
+	dependency2.dstSubpass = VK_SUBPASS_EXTERNAL; //this subpass is the destination of the data (that is how the dependency goes)
+	// next two fields specify the operations to wait on and the stages in which these operations occur
+	dependency2.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT; //which pipeline stage of the source subpass produced the data
+	dependency2.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT; //how source subpass accesses the data
+	//next two fields specify the operations to wait on and the stages in which these operations occur
+	dependency2.dstStageMask = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT; //which stages of the destination subpass will consume the data. 
+	dependency2.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT; //how destination subpass accesses the data
+	dependency2.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+
+	std::array<VkSubpassDependency, 2> deps = { dependency, dependency2 };
+
 	//setup the subpass in the renderpassinfo struct
-	renderPassInfo.dependencyCount = 1; //we have 1 dependency
-	renderPassInfo.pDependencies = &dependency; //the dependency info
+	renderPassInfo.dependencyCount = 2; //we have 1 dependency
+	renderPassInfo.pDependencies = deps.data(); //the dependency info
 
 	if (vkCreateRenderPass(device, &renderPassInfo, nullptr, &renderPass) != VK_SUCCESS) { //make the render pass
 		throw std::runtime_error("failed to create render pass!"); //if we were not successful throw an error
@@ -1459,7 +1474,6 @@ void Renderer::createCommandPool()
 
 void Renderer::createShadowMapTextureImage()
 {
-	//stbi_image_free(texture.pixels); - this is how we would do it using the stbi image loading lib
 	//create the image and its memory
 	createImage(swapChainExtent.width, swapChainExtent.height, VK_FORMAT_D16_UNORM, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, shadowMapTextureImage, shadowMapTextureImageMemory);
 }
@@ -1909,6 +1923,9 @@ void Renderer::createCommandBuffers()
 		vkCmdEndRenderPass(commandBuffers[i]);
 
 		///----begin scene rendering after depth pass is done
+
+		clearColors[0].color =  { 0.7f, 0.5f, 0.6f, 1.0f };
+		clearColors[1].depthStencil = { 1.0f, 0 };
 
 		VkRenderPassBeginInfo renderPassInfo = {}; //create info needed to begin a render a pass
 		renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO; //struct type
