@@ -162,6 +162,12 @@
     <ClCompile Include="Ball.cpp" />
     <ClCompile Include="BallAux.cpp" />
     <ClCompile Include="BallMath.cpp" />
+    <ClCompile Include="imgui.cpp" />
+    <ClCompile Include="imgui_demo.cpp" />
+    <ClCompile Include="imgui_draw.cpp" />
+    <ClCompile Include="imgui_impl_glfw.cpp" />
+    <ClCompile Include="imgui_impl_vulkan.cpp" />
+    <ClCompile Include="imgui_widgets.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="ObjLoader.cpp" />
     <ClCompile Include="Renderer.cpp" />
@@ -170,6 +176,14 @@
     <ClInclude Include="Ball.h" />
     <ClInclude Include="BallAux.h" />
     <ClInclude Include="BallMath.h" />
+    <ClInclude Include="imconfig.h" />
+    <ClInclude Include="imgui.h" />
+    <ClInclude Include="imgui_impl_glfw.h" />
+    <ClInclude Include="imgui_impl_vulkan.h" />
+    <ClInclude Include="imgui_internal.h" />
+    <ClInclude Include="imstb_rectpack.h" />
+    <ClInclude Include="imstb_textedit.h" />
+    <ClInclude Include="imstb_truetype.h" />
     <ClInclude Include="ObjLoader.h" />
     <ClInclude Include="Renderer.h" />
   </ItemGroup>
