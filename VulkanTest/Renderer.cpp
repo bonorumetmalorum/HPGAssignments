@@ -21,6 +21,7 @@ Renderer::Renderer(OBJ & model, Texture & texture, Mtl & mtl)
 	this->lighting.lightPos = glm::vec4(0, -1.0, 5.0, 1.0);
 	Ball_Init(&arcBall);
 	Ball_Place(&arcBall, { 0.0,0.0,0.0,1.0 }, 0.80);
+	ImGui::CreateContext();
 }
 
 /*
@@ -71,6 +72,7 @@ void Renderer::initVulkan()
 	createUniformBuffers(); //create the uniform buffer to load shader accessible data
 	createDescriptorPool(); //create a descriptor pool from which we can allocate uniforms
 	createDescriptorSets(); //create descriptor sets to describe the resources that will be bound to the pipeline
+	imInit(); //prepare ui
 	createCommandBuffers(); //create the command buffer from the pool with the appropriate commands
 	createSyncObjects(); //create synchronization primitives to control rendering
 }
@@ -1933,6 +1935,11 @@ void Renderer::createCommandBuffers()
 	beginInfo.pInheritanceInfo = nullptr; // Optional - relevant for secondary command buffers
 
 	std::array<VkClearValue, 2> clearColors = {};
+	
+	//IMGUI 
+	menu();
+	//IMGUI
+	updateRepresentation();
 
 	//begin recording commands for the command buffer ( we want to draw a triangle )
 	for (size_t i = 0; i < commandBuffers.size(); i++) {//for all command buffers
@@ -2018,6 +2025,7 @@ void Renderer::createCommandBuffers()
 
 		vkCmdDrawIndexed(commandBuffers[i], static_cast<uint32_t>(indices.size()), 1, 0, 0, 0); //draw using the index buffer
 
+		drawUI(commandBuffers[i]);
 		//end render pass
 		vkCmdEndRenderPass(commandBuffers[i]);
 		//end recording commands
@@ -2553,11 +2561,11 @@ void Renderer::mousePosCallback(GLFWwindow* window, double xpos, double ypos)
 void Renderer::imInit()
 {
 	ImGuiIO& im_io = ImGui::GetIO();
-
+	im_io.DisplaySize = ImVec2(WIDTH, HEIGHT);
 	//get the font data as RGBA32
 	unsigned char* fontData;
 	int fontWidth = 0, fontHeight = 0;
-	im_io.Fonts->GetTexDataAsRGBA32(&fontData, &fontWidth, &fontWidth);
+	im_io.Fonts->GetTexDataAsRGBA32(&fontData, &fontWidth, &fontHeight);
 
 	//create the image for the font data
 	{
@@ -2572,19 +2580,19 @@ void Renderer::imInit()
 		VkDeviceMemory stagingBufferMemory; //the memory associated with the staging buffer handle
 
 		//make the buffer
-		createBuffer((fontWidth * fontHeight * sizeof(char)), VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory);
+		createBuffer((fontWidth * fontHeight * 4 * sizeof(char)), VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory);
 		void* data; //map the memory so we can load the texture into it
-		vkMapMemory(device, stagingBufferMemory, 0, texture.imageSize, 0, &data);
+		vkMapMemory(device, stagingBufferMemory, 0, (fontWidth * fontHeight * 4 * sizeof(char)), 0, &data);
 		memcpy(data, fontData, static_cast<size_t>(fontWidth * fontHeight * 4 * sizeof(char)));
 		vkUnmapMemory(device, stagingBufferMemory);
 
 		//transition the image layout from undefined to image layout transfer dst optimal so we can copy data to it
 		//provide the texture image we are transitioning layouts, the format of the image, src layout, dst layout
-		transitionImageLayout(textureImage, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+		transitionImageLayout(im_fontImage, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 		copyBufferToImage(stagingBuffer, im_fontImage, static_cast<uint32_t>(fontWidth), static_cast<uint32_t>(fontHeight));
 		//transition one more time to a format that is optimal for shader only access
 		//provide the texture image we are transitioning layouts, the format of the image, src layout, dst layout
-		transitionImageLayout(textureImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+		transitionImageLayout(im_fontImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
 		//destroy the staging buffer and memory
 		vkDestroyBuffer(device, stagingBuffer, nullptr);
@@ -2594,6 +2602,7 @@ void Renderer::imInit()
 	//create the font texture sampler
 	{
 		VkSamplerCreateInfo samplerCreateInfo = {};
+		samplerCreateInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
 		samplerCreateInfo.magFilter = VK_FILTER_LINEAR;
 		samplerCreateInfo.minFilter = VK_FILTER_LINEAR;
 		samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
@@ -2756,8 +2765,8 @@ void Renderer::imInit()
 		msci.alphaToOneEnable = VK_FALSE; // Optional - what do we do with actual alpha values, set the alpha to one as if the fragment shader has not produced an alpha value
 
 		//load shaders
-		auto vertexCode = readFile("../shaders/imgui.vert");
-		auto fragmentCode = readFile("../shaders/imgui.frag");
+		auto vertexCode = readFile("../shaders/imgui.vert.spv");
+		auto fragmentCode = readFile("../shaders/imgui.frag.spv");
 
 		VkShaderModule vertexMod = createShaderModule(vertexCode);
 		VkShaderModule fragmentMod = createShaderModule(fragmentCode);
@@ -2774,6 +2783,7 @@ void Renderer::imInit()
 		
 		VkGraphicsPipelineCreateInfo gpci = {};
 		gpci.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+		gpci.renderPass = renderPass;
 		gpci.pInputAssemblyState = &iasci;
 		gpci.pRasterizationState = &rsci;
 		gpci.pColorBlendState = &cbsci;
@@ -2783,6 +2793,7 @@ void Renderer::imInit()
 		gpci.pDynamicState = nullptr;
 		gpci.stageCount = shaderStages.size();
 		gpci.pStages = shaderStages.data();
+		gpci.layout = im_pipelineLayout;
 
 		VkVertexInputBindingDescription vibd = {};
 		vibd.binding = 0;
