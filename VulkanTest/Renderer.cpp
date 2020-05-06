@@ -2878,6 +2878,39 @@ void Renderer::updateRepresentation()
 	vkFlushMappedMemoryRanges(device, 1, &mr);
 }
 
+void Renderer::drawUI(VkCommandBuffer& cbuffer)
+{
+	ImGuiIO io = ImGui::GetIO();
+	vkCmdBindDescriptorSets(cbuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, im_pipelineLayout, 0, 1, &im_dSet, 0, nullptr);
+	vkCmdBindPipeline(cbuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, im_pipeLine);
+
+	uiConstants.scale = glm::vec2(2.0f / io.DisplaySize.x, 2.0f / io.DisplaySize.y);
+	uiConstants.translate = glm::vec2(-1.0f);
+	vkCmdPushConstants(cbuffer, im_pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(UiConstants), &uiConstants);
+
+	ImDrawData* imDrawData = ImGui::GetDrawData();
+	int32_t vertexOffset = 0;
+	int32_t indexOffset = 0;
+
+	if (imDrawData->CmdListsCount > 0)
+	{
+		VkDeviceSize offsets[1] = { 0 };
+		vkCmdBindVertexBuffers(cbuffer, 0, 1, &im_vertexBuffer, offsets);
+		vkCmdBindIndexBuffer(cbuffer, im_indexBuffer, 0, VK_INDEX_TYPE_UINT16);
+		for (size_t i = 0; i < imDrawData->CmdListsCount; i++)
+		{
+			const ImDrawList* cmd_list = imDrawData->CmdLists[i];
+			for (size_t j = 0; j < cmd_list->CmdBuffer.Size; j++)
+			{
+				const ImDrawCmd* drawcmd = &cmd_list->CmdBuffer[j];
+				vkCmdDrawIndexed(cbuffer, drawcmd->ElemCount, 1, indexOffset, vertexOffset, 0);
+				indexOffset += drawcmd->ElemCount;
+			}
+			vertexOffset += cmd_list->VtxBuffer.Size;
+		}
+	}
+}
+
 
 //mouse button clicks callback
 void Renderer::mouseButtonCallBack(GLFWwindow* window, int button, int action, int mods) {

@@ -356,7 +356,7 @@ private:
 	{
 		glm::vec2 scale;
 		glm::vec2 translate;
-	};
+	} uiConstants;
 
 	//memory to load IMGUI geometries
 	int vertCount = 0;
@@ -386,5 +386,7 @@ private:
 	void menu();
 	//method to update the vertex and index buffers
 	void updateRepresentation();
+	//draw commands for GUI
+	void drawUI(VkCommandBuffer &cbuffer);
 };
 
