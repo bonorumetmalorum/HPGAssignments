@@ -92,6 +92,7 @@ void Renderer::initWindow()
 	glfwSetMouseButtonCallback(window, mouseButtonCallBack);
 	glfwSetCursorPosCallback(window, mousePosCallback); //mouse button callback
 	glfwSetKeyCallback(window, keyboardKeyCallback);
+	ImGui_ImplGlfw_InitForVulkan(window, true);
 }
 
 /*
@@ -2539,10 +2540,14 @@ bool Renderer::translating = false;
 //mouse position callback, gets the mouses current position
 void Renderer::mousePosCallback(GLFWwindow* window, double xpos, double ypos)
 {
+	ImGuiIO& io = ImGui::GetIO();
+	int width, height;
+	glfwGetWindowSize(window, &width, &height);
+	io.DisplaySize = ImVec2((float)width, (float)height);
+
+	io.MousePos = ImVec2(xpos, ypos);
 	auto app = reinterpret_cast<Renderer*>(glfwGetWindowUserPointer(window)); //get a pointer to the app instance
 	//get current window dimensions
-	int height, width;
-	glfwGetWindowSize(window, &width, &height);
 	float size = (width > height) ? height : width;
 	//calculate the screen coords in ndc space
 	HVect now{ (float)xpos, (float)ypos };
@@ -2562,6 +2567,13 @@ void Renderer::mousePosCallback(GLFWwindow* window, double xpos, double ypos)
 
 void Renderer::imInit()
 {
+	ImGuiStyle& style = ImGui::GetStyle();
+	style.Colors[ImGuiCol_TitleBg] = ImVec4(1.0f, 0.0f, 0.0f, 0.6f);
+	style.Colors[ImGuiCol_TitleBgActive] = ImVec4(1.0f, 0.0f, 0.0f, 0.8f);
+	style.Colors[ImGuiCol_MenuBarBg] = ImVec4(1.0f, 0.0f, 0.0f, 0.4f);
+	style.Colors[ImGuiCol_Header] = ImVec4(1.0f, 0.0f, 0.0f, 0.4f);
+	style.Colors[ImGuiCol_CheckMark] = ImVec4(0.0f, 1.0f, 0.0f, 1.0f);
+
 	ImGuiIO& io = ImGui::GetIO();
 	io.DisplaySize = ImVec2(WIDTH, HEIGHT);
 	io.DisplayFramebufferScale = ImVec2(1.0f, 1.0f);
@@ -2572,7 +2584,7 @@ void Renderer::imInit()
 
 	//create the image for the font data
 	{
-		createImage(fontWidth, fontHeight, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, VK_NULL_HANDLE, im_fontImage, im_fontImageMemory);
+		createImage(fontWidth, fontHeight, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, im_fontImage, im_fontImageMemory);
 		//create image view
 		im_fontImageView = createImageView(im_fontImage, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_ASPECT_COLOR_BIT);
 	}
@@ -2595,7 +2607,7 @@ void Renderer::imInit()
 		copyBufferToImage(stagingBuffer, im_fontImage, static_cast<uint32_t>(fontWidth), static_cast<uint32_t>(fontHeight));
 		//transition one more time to a format that is optimal for shader only access
 		//provide the texture image we are transitioning layouts, the format of the image, src layout, dst layout
-		transitionImageLayout(im_fontImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+		transitionImageLayout(im_fontImage, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
 		//destroy the staging buffer and memory
 		vkDestroyBuffer(device, stagingBuffer, nullptr);
@@ -2731,8 +2743,8 @@ void Renderer::imInit()
 
 		VkPipelineDepthStencilStateCreateInfo dssci = {};
 		dssci.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO; //truct type
-		dssci.depthTestEnable = VK_TRUE; //enable depth test
-		dssci.depthWriteEnable = VK_TRUE; //enable ability to write values to the depth buffer
+		dssci.depthTestEnable = VK_FALSE; //enable depth test
+		dssci.depthWriteEnable = VK_FALSE; //enable ability to write values to the depth buffer
 		dssci.depthCompareOp = VK_COMPARE_OP_LESS; // keep fragments with lesser depth
 		dssci.depthBoundsTestEnable = VK_FALSE; //special test to check if depth buffer values are within a range, disabled here
 		dssci.stencilTestEnable = VK_FALSE; //no stencil test to do after depth test
@@ -2818,10 +2830,12 @@ void Renderer::imInit()
 		attribs[0].location = 0;
 		attribs[0].format = VK_FORMAT_R32G32_SFLOAT;
 		attribs[0].offset = offsetof(ImDrawVert, pos);
+
 		attribs[1].binding = 0;
 		attribs[1].location = 1;
 		attribs[1].format = VK_FORMAT_R32G32_SFLOAT;
 		attribs[1].offset = offsetof(ImDrawVert, uv);
+
 		attribs[2].binding = 0;
 		attribs[2].location = 2;
 		attribs[2].format = VK_FORMAT_R8G8B8A8_UNORM;
@@ -2845,6 +2859,9 @@ void Renderer::menu()
 {
 	//initialise the new frame to draw
 	ImGui::NewFrame();
+	ImGui::Begin("hello am I moveable");
+	ImGui::Text("fuck you");
+	ImGui::End();
 	ImGui::ShowDemoWindow(&demo);
 	//makes the draw buffers
 	ImGui::Render();
