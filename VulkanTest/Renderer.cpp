@@ -2559,13 +2559,15 @@ void Renderer::imInit()
 	int fontWidth = 0, fontHeight = 0;
 	im_io.Fonts->GetTexDataAsRGBA32(&fontData, &fontWidth, &fontWidth);
 
-
 	//create the image for the font data
-	createImage(fontWidth, fontHeight, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, VK_NULL_HANDLE, im_fontImage, im_fontImageMemory);
-	//create image view
-	im_fontImageView = createImageView(im_fontImage, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_ASPECT_COLOR_BIT);
+	{
+		createImage(fontWidth, fontHeight, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, VK_NULL_HANDLE, im_fontImage, im_fontImageMemory);
+		//create image view
+		im_fontImageView = createImageView(im_fontImage, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_ASPECT_COLOR_BIT);
+	}
 
-	{ //transfer the data to the image
+	//transfer the data to the image
+	{ 
 		VkBuffer stagingBuffer; //intermediary buffer needed to load data to GPU only accessible memory
 		VkDeviceMemory stagingBufferMemory; //the memory associated with the staging buffer handle
 
@@ -2675,6 +2677,7 @@ void Renderer::imInit()
 
 		vkCreatePipelineLayout(device, &plc, nullptr, &im_pipelineLayout);
 	}
+
 	//create the pipeline
 	{
 		//input assembly
@@ -2810,8 +2813,71 @@ void Renderer::imInit()
 		gpci.pVertexInputState = &visci;
 		vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &gpci, nullptr, &im_pipeLine);
 	}
+
 	//init complete
 }
+
+void Renderer::menu()
+{
+	//initialise the new frame to draw
+	ImGui::NewFrame();
+	
+	ImGui::ShowDemoWindow();
+	//makes the draw buffers
+	ImGui::Render();
+}
+
+void Renderer::updateRepresentation()
+{
+	//data that we are going to render (ui elements)
+	ImDrawData* imDrawData = ImGui::GetDrawData();
+
+	VkDeviceSize vBufferSize = imDrawData->TotalVtxCount * sizeof(ImDrawVert);
+	VkDeviceSize iBufferSize = imDrawData->TotalIdxCount * sizeof(ImDrawIdx);
+
+	//if we have nothing draw return
+	if (!vBufferSize || !iBufferSize)
+		return;
+	//allocate the buffer memory for the vertex buffer and index buffer
+	//we need to check if they have already been allocated, if so is the size we need now larger, if yes deleted and reallocate the new larger buffer
+	if (im_vertexBufferMemory == VK_NULL_HANDLE || vertCount != imDrawData->TotalVtxCount)
+	{
+		vkDestroyBuffer(device, im_vertexBuffer, nullptr);
+		vkFreeMemory(device, im_vertexBufferMemory, nullptr);
+		createBuffer(vBufferSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, im_vertexBuffer, im_vertexBufferMemory);
+		vertCount = imDrawData->TotalVtxCount;
+	}
+
+	if (im_indexBufferMemory == VK_NULL_HANDLE || indexCount != imDrawData->TotalIdxCount)
+	{
+		vkDestroyBuffer(device, im_indexBuffer, nullptr);
+		vkFreeMemory(device, im_indexBufferMemory, nullptr);
+		createBuffer(iBufferSize, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, im_indexBuffer, im_indexBufferMemory);
+		indexCount = imDrawData->TotalIdxCount;
+	}
+
+	ImDrawVert* vData, * iData;
+	vkMapMemory(device, im_vertexBufferMemory, 0, vBufferSize, 0, (void**)& vData);
+	vkMapMemory(device, im_indexBufferMemory, 0, iBufferSize, 0, (void**)& iData);
+	for (int i = 0; i < imDrawData->CmdListsCount; i++)
+	{
+		const ImDrawList* cmd_list = imDrawData->CmdLists[i];
+		memcpy(vData, cmd_list->VtxBuffer.Data, cmd_list->VtxBuffer.Size * sizeof(ImDrawVert));
+		memcpy(iData, cmd_list->IdxBuffer.Data, cmd_list->IdxBuffer.Size * sizeof(ImDrawIdx));
+		vData += cmd_list->VtxBuffer.Size;
+		iData += cmd_list->IdxBuffer.Size;
+	}
+
+	VkMappedMemoryRange mr = {};
+	mr.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
+	mr.offset = 0;
+	mr.memory = im_vertexBufferMemory;
+	mr.size = VK_WHOLE_SIZE;
+	vkFlushMappedMemoryRanges(device, 1, &mr);
+	mr.memory = im_indexBufferMemory;
+	vkFlushMappedMemoryRanges(device, 1, &mr);
+}
+
 
 //mouse button clicks callback
 void Renderer::mouseButtonCallBack(GLFWwindow* window, int button, int action, int mods) {

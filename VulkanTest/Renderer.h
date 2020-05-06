@@ -359,6 +359,9 @@ private:
 	};
 
 	//memory to load IMGUI geometries
+	int vertCount = 0;
+	int indexCount = 0;
+
 	VkBuffer im_vertexBuffer;
 	VkDeviceMemory im_vertexBufferMemory;
 
@@ -379,6 +382,9 @@ private:
 	VkDescriptorSet im_dSet;
 	//render the ImGui menu
 	void imInit();
+	//method to draw the menu
 	void menu();
+	//method to update the vertex and index buffers
+	void updateRepresentation();
 };
 
