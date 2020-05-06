@@ -19,7 +19,6 @@
 #include <glm/gtc/type_ptr.hpp>
 #include "imgui.h"
 #include "imgui_impl_glfw.h"
-#include "imgui_impl_vulkan.h"
 
 
 #define DEBUG
@@ -355,6 +354,8 @@ private:
 	///----IMGUI RELATED STUFF -----------
 	//ui constants needed to render imgui menus
 	bool demo = true;
+	float mousex = 0;float mousey = 0;
+	bool mButtonState[2];
 	struct UiConstants
 	{
 		glm::vec2 scale;

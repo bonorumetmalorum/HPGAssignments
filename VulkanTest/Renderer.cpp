@@ -93,6 +93,7 @@ void Renderer::initWindow()
 	glfwSetCursorPosCallback(window, mousePosCallback); //mouse button callback
 	glfwSetKeyCallback(window, keyboardKeyCallback);
 	ImGui_ImplGlfw_InitForVulkan(window, true);
+	
 }
 
 /*
@@ -101,8 +102,13 @@ void Renderer::initWindow()
 void Renderer::mainLoop()
 {
 	//event loop
+	ImGuiIO & io = ImGui::GetIO();
 	while (!glfwWindowShouldClose(window)) {
 		glfwPollEvents();
+		io.MousePos = ImVec2(mousex, mousey);
+		io.MouseDown[0] = mButtonState[0];
+		io.MouseDown[1] = mButtonState[1];
+		vkDeviceWaitIdle(device);
 		createCommandBuffers();
 		drawFrame();
 	}
@@ -2373,6 +2379,7 @@ void Renderer::drawFrame()
 
 	vkResetFences(device, 1, &inFlightFences[currentFrame]); //unlike with semaphores, we need to manually restore the fence to the original state
 
+
 	//the graphics queue that will receive the  work to execute, the submit info which describes the work, the number of submissions (we can make multiple submissions in one go).
 	//The last parameter references an optional fence that will be signaled when the command buffers finish execution (CPU-GPU sync).
 	if (vkQueueSubmit(graphicsQueue, 1, &submitInfo, inFlightFences[currentFrame]) != VK_SUCCESS) { //submit the queue
@@ -2540,15 +2547,13 @@ bool Renderer::translating = false;
 //mouse position callback, gets the mouses current position
 void Renderer::mousePosCallback(GLFWwindow* window, double xpos, double ypos)
 {
-	ImGuiIO& io = ImGui::GetIO();
 	int width, height;
 	glfwGetWindowSize(window, &width, &height);
-	io.DisplaySize = ImVec2((float)width, (float)height);
-
-	io.MousePos = ImVec2(xpos, ypos);
 	auto app = reinterpret_cast<Renderer*>(glfwGetWindowUserPointer(window)); //get a pointer to the app instance
 	//get current window dimensions
 	float size = (width > height) ? height : width;
+	app->mousex = xpos;
+	app->mousey = ypos;
 	//calculate the screen coords in ndc space
 	HVect now{ (float)xpos, (float)ypos };
 	now.x = (2.0 * now.x - size) / size;
@@ -2581,7 +2586,7 @@ void Renderer::imInit()
 	unsigned char* fontData;
 	int fontWidth = 0, fontHeight = 0;
 	io.Fonts->GetTexDataAsRGBA32(&fontData, &fontWidth, &fontHeight);
-
+	io.WantCaptureMouse = true;
 	//create the image for the font data
 	{
 		createImage(fontWidth, fontHeight, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, im_fontImage, im_fontImageMemory);
@@ -2859,10 +2864,13 @@ void Renderer::menu()
 {
 	//initialise the new frame to draw
 	ImGui::NewFrame();
-	ImGui::Begin("hello am I moveable");
-	ImGui::Text("fuck you");
-	ImGui::End();
-	ImGui::ShowDemoWindow(&demo);
+	//ImGui::Begin("hello");
+	//if (ImGui::Button("shadow mapping"))
+	//	std::cout << "buttone clicked" << std::endl;
+	//ImGui::Button("PCF");
+	//ImGui::Button("Acne");
+	//ImGui::End();
+	ImGui::ShowDemoWindow();
 	//makes the draw buffers
 	ImGui::Render();
 }
@@ -2971,6 +2979,7 @@ void Renderer::drawUI(VkCommandBuffer& cbuffer)
 
 //mouse button clicks callback
 void Renderer::mouseButtonCallBack(GLFWwindow* window, int button, int action, int mods) {
+	auto io = ImGui::GetIO();
 	auto app = reinterpret_cast<Renderer*>(glfwGetWindowUserPointer(window));
 	double x, y;
 	glfwGetCursorPos(app->window, &x, &y);
@@ -2982,20 +2991,24 @@ void Renderer::mouseButtonCallBack(GLFWwindow* window, int button, int action, i
 	now.y = (size - 2.0 * now.y) / size;
 	if (button == GLFW_MOUSE_BUTTON_1) { //left click
 		if (action == GLFW_PRESS) { //press
+			app->mButtonState[0] = true;
 			Ball_Mouse(&arcBall, now); //start dragging
 			Ball_BeginDrag(&arcBall);
 		}
 		else if (action == GLFW_RELEASE) { //release
+			app->mButtonState[0] = false;
 			Ball_EndDrag(&arcBall);//end dragging
 		}
 	}
 	else if (button == GLFW_MOUSE_BUTTON_2) { //right click
 		if (action == GLFW_PRESS) { //press
+			app->mButtonState[1] = true;
 			lastPos.x = now.x;
 			lastPos.y = now.y;
 			translating = true; //start translating
 		}
 		else if (action == GLFW_RELEASE) { //release
+			app->mButtonState[1] = false;
 			translating = false; //stop translating
 		}
 	}
