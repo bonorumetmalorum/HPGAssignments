@@ -349,5 +349,36 @@ private:
 	static void mouseButtonCallBack(GLFWwindow* window, int button, int action, int mods);
 	static void keyboardKeyCallback(GLFWwindow * window, int key, int scancode, int action, int mods);
 	static void mousePosCallback(GLFWwindow* window, double xpos, double ypos);
+
+	///----IMGUI RELATED STUFF -----------
+	//ui constants needed to render imgui menus
+	struct UiConstants
+	{
+		glm::vec2 scale;
+		glm::vec2 translate;
+	};
+
+	//memory to load IMGUI geometries
+	VkBuffer im_vertexBuffer;
+	VkDeviceMemory im_vertexBufferMemory;
+
+	VkBuffer im_indexBuffer;
+	VkDeviceMemory im_indexBufferMemory;
+
+	//memory to load ImGui font data and sample
+	VkImage im_fontImage;
+	VkDeviceMemory im_fontImageMemory;
+	VkImageView im_fontImageView;
+	VkSampler im_fontSampler;
+	//pipeline and pipeline info to render ImGui
+	VkPipelineLayout im_pipelineLayout;
+	VkPipeline im_pipeLine;
+	//descriptor pool to allocate ImGui related pipeline resources
+	VkDescriptorPool im_dPool;
+	VkDescriptorSetLayout im_dSetLayout;
+	VkDescriptorSet im_dSet;
+	//render the ImGui menu
+	void imInit();
+	void menu();
 };
 

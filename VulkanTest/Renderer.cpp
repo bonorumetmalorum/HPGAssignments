@@ -789,31 +789,6 @@ void Renderer::createImageViews()
 	//loop over all images in the swap chain and create an image view for each one
 	for (size_t i = 0; i < swapChainImages.size(); i++) {
 		swapChainImageViews[i] = createImageView(swapChainImages[i], swapChainImageFormat, VK_IMAGE_ASPECT_COLOR_BIT);
-		//all of the following code has been refactored into a separate method "createImageView" which is used above
-		//VkImageViewCreateInfo createInfo = {}; //create info struct that will contain the information for setting up the image view
-		//createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO; //type of the struct - image view
-		//createInfo.image = swapChainImages[i]; //parent image of the view that will be created
-		//createInfo.viewType = VK_IMAGE_VIEW_TYPE_2D; //type of the view that will be created - can be 1d, 2d, and 3d images, or even cube maps and cube map array images, there are also 1d and 2d array images
-		//createInfo.format = swapChainImageFormat; //the format of the image, which will be the same as the swap chain format to ensure compatibility (this can be different however)
-
-		////component ordering in the view may be different from that in the parent
-		////each member of the components struct will refer to the child rgba components and how it should be interpreted from the parent image
-		//createInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY; //read from the corresponding channel in the parent - because we are using the identity swizzle
-		//createInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY; //read from the corresponding channel in the parent - because we are using the identity swizzle
-		//createInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY; //read from the corresponding channel in the parent - because we are using the identity swizzle
-		//createInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY; //read from the corresponding channel in the parent - because we are using the identity swizzle
-
-		////describes what part of the image should be accessed - colour in this case, no mipmapping or multiple layers here
-		////because this image view can be a subset of the parent image, the subset is specified in the following struct (subresourceRange)
-		//createInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT; //bitfield made up of the members of the VkImageAspectFlagBits specifying which aspects of the image are effected by the barrier (here we are only modifying the colour part, there are other parts, such as the stencil buffer)
-		//createInfo.subresourceRange.baseMipLevel = 0; //used to create an image view that corresponds to a certain part of the parents mip map chain
-		//createInfo.subresourceRange.levelCount = 1; //how many mip levels do we want to use
-		//createInfo.subresourceRange.baseArrayLayer = 0; //only used when the parent image is an array image, which in our case is not (how many layers do we want to use)
-		//createInfo.subresourceRange.layerCount = 1; //we only have one layer
-
-		//if (vkCreateImageView(device, &createInfo, nullptr, &swapChainImageViews[i]) != VK_SUCCESS) { //create the image view by passing the logical device, create info setup struct, null allocation callbacks and the out parameter to hold the swapchain views, if not successful stop
-		//	throw std::runtime_error("failed to create image views!"); //throw an error
-		//}
 	}
 }
 
@@ -2573,6 +2548,269 @@ void Renderer::mousePosCallback(GLFWwindow* window, double xpos, double ypos)
 		lastPos.x = now.x;
 		lastPos.y = now.y;
 	}
+}
+
+void Renderer::imInit()
+{
+	ImGuiIO& im_io = ImGui::GetIO();
+
+	//get the font data as RGBA32
+	unsigned char* fontData;
+	int fontWidth = 0, fontHeight = 0;
+	im_io.Fonts->GetTexDataAsRGBA32(&fontData, &fontWidth, &fontWidth);
+
+
+	//create the image for the font data
+	createImage(fontWidth, fontHeight, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, VK_NULL_HANDLE, im_fontImage, im_fontImageMemory);
+	//create image view
+	im_fontImageView = createImageView(im_fontImage, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_ASPECT_COLOR_BIT);
+
+	{ //transfer the data to the image
+		VkBuffer stagingBuffer; //intermediary buffer needed to load data to GPU only accessible memory
+		VkDeviceMemory stagingBufferMemory; //the memory associated with the staging buffer handle
+
+		//make the buffer
+		createBuffer((fontWidth * fontHeight * sizeof(char)), VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory);
+		void* data; //map the memory so we can load the texture into it
+		vkMapMemory(device, stagingBufferMemory, 0, texture.imageSize, 0, &data);
+		memcpy(data, fontData, static_cast<size_t>(fontWidth * fontHeight * 4 * sizeof(char)));
+		vkUnmapMemory(device, stagingBufferMemory);
+
+		//transition the image layout from undefined to image layout transfer dst optimal so we can copy data to it
+		//provide the texture image we are transitioning layouts, the format of the image, src layout, dst layout
+		transitionImageLayout(textureImage, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+		copyBufferToImage(stagingBuffer, im_fontImage, static_cast<uint32_t>(fontWidth), static_cast<uint32_t>(fontHeight));
+		//transition one more time to a format that is optimal for shader only access
+		//provide the texture image we are transitioning layouts, the format of the image, src layout, dst layout
+		transitionImageLayout(textureImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+
+		//destroy the staging buffer and memory
+		vkDestroyBuffer(device, stagingBuffer, nullptr);
+		vkFreeMemory(device, stagingBufferMemory, nullptr);
+	}
+
+	//create the font texture sampler
+	{
+		VkSamplerCreateInfo samplerCreateInfo = {};
+		samplerCreateInfo.magFilter = VK_FILTER_LINEAR;
+		samplerCreateInfo.minFilter = VK_FILTER_LINEAR;
+		samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+		samplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+		samplerCreateInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+		samplerCreateInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+		samplerCreateInfo.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
+		vkCreateSampler(device, &samplerCreateInfo, nullptr, &im_fontSampler);
+	}
+
+	//create the descriptor pool
+	{
+		std::array<VkDescriptorPoolSize, 1> poolsizes;
+		poolsizes[0].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+		poolsizes[0].descriptorCount = 1;
+
+		VkDescriptorPoolCreateInfo poolCreateInfo = {};
+		poolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+		poolCreateInfo.maxSets = 2;
+		poolCreateInfo.poolSizeCount = 1;
+		poolCreateInfo.pPoolSizes = poolsizes.data();
+		
+		vkCreateDescriptorPool(device, &poolCreateInfo, nullptr, &im_dPool);
+	}
+
+	//create the descriptor set layout
+	{
+		std::array<VkDescriptorSetLayoutBinding, 1> layoutBindings = {};
+		layoutBindings[0].binding = 0;
+		layoutBindings[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+		layoutBindings[0].descriptorCount = 1;
+		layoutBindings[0].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+
+		VkDescriptorSetLayoutCreateInfo dslCreateInfo = {};
+		dslCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+		dslCreateInfo.bindingCount = 1;
+		dslCreateInfo.pBindings = layoutBindings.data();
+
+		vkCreateDescriptorSetLayout(device, &dslCreateInfo, nullptr, &im_dSetLayout);
+	}
+	
+	//allocated the descriptor sets
+	{
+		VkDescriptorSetAllocateInfo dsAllocInfo = {};
+		dsAllocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+		dsAllocInfo.descriptorPool = im_dPool;
+		dsAllocInfo.descriptorSetCount = 1;
+		dsAllocInfo.pSetLayouts = &im_dSetLayout;
+		//allocate the descriptor set
+		vkAllocateDescriptorSets(device, &dsAllocInfo, &im_dSet);
+		//font image info
+		VkDescriptorImageInfo imageinfo = {};
+		imageinfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		imageinfo.imageView = im_fontImageView;
+		imageinfo.sampler = im_fontSampler;
+		//update the descriptor set
+		std::array<VkWriteDescriptorSet, 1> writes = {};
+		writes[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		writes[0].descriptorCount = 1;
+		writes[0].dstBinding = 0;
+		writes[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+		writes[0].pImageInfo = &imageinfo;
+		writes[0].dstSet = im_dSet;
+		vkUpdateDescriptorSets(device, 1, writes.data(), 0, nullptr);
+	}
+
+	//create the pipeline layout
+	{
+		VkPushConstantRange pcr = {};
+		pcr.size = sizeof(UiConstants);
+		pcr.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+		pcr.offset = 0;
+
+		VkPipelineLayoutCreateInfo plc = {};
+		plc.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+		plc.pushConstantRangeCount = 1;
+		plc.pPushConstantRanges = &pcr;
+		plc.setLayoutCount = 1;
+		plc.pSetLayouts = &im_dSetLayout;
+
+		vkCreatePipelineLayout(device, &plc, nullptr, &im_pipelineLayout);
+	}
+	//create the pipeline
+	{
+		//input assembly
+		VkPipelineInputAssemblyStateCreateInfo iasci = {};
+		iasci.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+		iasci.primitiveRestartEnable = VK_FALSE;
+		iasci.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+		
+		//rasterization
+		VkPipelineRasterizationStateCreateInfo rsci = {};
+		rsci.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+		rsci.cullMode = VK_CULL_MODE_NONE;
+		rsci.polygonMode = VK_POLYGON_MODE_FILL;
+		rsci.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+		rsci.depthClampEnable = VK_FALSE; //fragments beyond the near and far plane are culled - (not needed here, this way we don't need to process these fragments)
+		rsci.rasterizerDiscardEnable = VK_FALSE; //when this is enabled the rasterizer will not run
+		rsci.lineWidth = 1.0f; //thickness of lines
+		//these have changed to accommodate for the y flip in the projection matrix
+		//the following parameters can be used to fix issues with z-fighting by allowing fragments to be offset in depth
+		rsci.depthBiasEnable = VK_FALSE; // can be modified based on slope but we don't want that here so it is disabled
+		
+		//enable blending
+		VkPipelineColorBlendAttachmentState cbas{};
+		cbas.blendEnable = VK_TRUE;
+		cbas.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+		cbas.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+		cbas.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+		cbas.colorBlendOp = VK_BLEND_OP_ADD;
+		cbas.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+		cbas.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+		cbas.alphaBlendOp = VK_BLEND_OP_ADD;
+
+		VkPipelineColorBlendStateCreateInfo cbsci = {};
+		cbsci.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO; //struct type
+		cbsci.logicOpEnable = VK_FALSE; //specifies if we should perform logical operation between the output of the frag shader and the colour attachment
+		cbsci.logicOp = VK_LOGIC_OP_COPY; // Optional - we have chosen not to do any operations so the data is written unmodified to the colour attachment from the frag shader
+		cbsci.attachmentCount = 1; //number of attachments, we only have 1 which the colour attachment
+		cbsci.pAttachments = &cbas; //the colour blend attachment
+
+		VkPipelineDepthStencilStateCreateInfo dssci = {};
+		dssci.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO; //truct type
+		dssci.depthTestEnable = VK_TRUE; //enable depth test
+		dssci.depthWriteEnable = VK_TRUE; //enable ability to write values to the depth buffer
+		dssci.depthCompareOp = VK_COMPARE_OP_LESS; // keep fragments with lesser depth
+		dssci.depthBoundsTestEnable = VK_FALSE; //special test to check if depth buffer values are within a range, disabled here
+		dssci.stencilTestEnable = VK_FALSE; //no stencil test to do after depth test
+
+		//define the viewport (area to which we will render)
+		VkViewport viewport = {};
+		viewport.x = 0.0f; //origin
+		viewport.y = 0.0f; //origin
+		viewport.width = (float)swapChainExtent.width; //max width (here we are matching the swap chain width)
+		viewport.height = (float)swapChainExtent.height; //max height (here we are matching the swap chain height)
+		viewport.minDepth = 0.0f; //frame buffer depth values - we don't really use them at the moment
+		viewport.maxDepth = 1.0f; //frame buffer depth values - we don't really use them at the moment
+
+		//filter that discards pixels, we want to draw the entire image so we have a scissor angle to cover it entirely
+		VkRect2D scissor = {}; //VkRect2D is a type that defines a rectangle in vulkan, it can be used for other things as well
+		scissor.offset = { 0, 0 }; //screen offset (in our case it starts at the origin)
+		scissor.extent = swapChainExtent; // the dimensions of the swap chain image (so here we are not discarding any pixels, it covers the full extent of the swap chain image)
+
+		VkPipelineViewportStateCreateInfo vsci = {};
+		vsci.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO; //type of the struct
+		vsci.viewportCount = 1; //number of view ports we want to use
+		vsci.pViewports = &viewport; //the viewport(s)
+		vsci.scissorCount = 1; //the number of scissors we want to use
+		vsci.pScissors = &scissor; //the scissor(s)
+
+		VkPipelineMultisampleStateCreateInfo msci = {};
+		msci.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO; //struct type
+		msci.sampleShadingEnable = VK_FALSE; //disable MS on the shading
+		msci.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT; //number of samples to use, use 1 sample in this case
+		msci.minSampleShading = 1.0f; // Optional - minimum number of times the shader will be run per pixel (value is between 0 - 1, 1 means each pixel will receive its own data by another invocation of the frag shader)
+		msci.pSampleMask = nullptr; // Optional - used to update only a subset of the samples produced (bitmaps)
+		msci.alphaToCoverageEnable = VK_FALSE; // Optional - use the alpha channel to store coverage values which will be used for easy transparency
+		msci.alphaToOneEnable = VK_FALSE; // Optional - what do we do with actual alpha values, set the alpha to one as if the fragment shader has not produced an alpha value
+
+		//load shaders
+		auto vertexCode = readFile("../shaders/imgui.vert");
+		auto fragmentCode = readFile("../shaders/imgui.frag");
+
+		VkShaderModule vertexMod = createShaderModule(vertexCode);
+		VkShaderModule fragmentMod = createShaderModule(fragmentCode);
+
+		std::array<VkPipelineShaderStageCreateInfo, 2> shaderStages = {};
+		shaderStages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+		shaderStages[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+		shaderStages[0].stage = VK_SHADER_STAGE_VERTEX_BIT;
+		shaderStages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+		shaderStages[0].module = vertexMod;
+		shaderStages[1].module = fragmentMod;
+		shaderStages[0].pName = "main";
+		shaderStages[1].pName = "main";
+		
+		VkGraphicsPipelineCreateInfo gpci = {};
+		gpci.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+		gpci.pInputAssemblyState = &iasci;
+		gpci.pRasterizationState = &rsci;
+		gpci.pColorBlendState = &cbsci;
+		gpci.pMultisampleState = &msci;
+		gpci.pViewportState = &vsci;
+		gpci.pDepthStencilState = &dssci;
+		gpci.pDynamicState = nullptr;
+		gpci.stageCount = shaderStages.size();
+		gpci.pStages = shaderStages.data();
+
+		VkVertexInputBindingDescription vibd = {};
+		vibd.binding = 0;
+		vibd.stride = sizeof(ImDrawVert);
+		vibd.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
+		std::array<VkVertexInputAttributeDescription, 3> attribs = {};
+		attribs[0].binding = 0;
+		attribs[0].location = 0;
+		attribs[0].format = VK_FORMAT_R32G32_SFLOAT;
+		attribs[0].offset = offsetof(ImDrawVert, pos);
+		attribs[1].binding = 0;
+		attribs[1].location = 1;
+		attribs[1].format = VK_FORMAT_R32G32_SFLOAT;
+		attribs[1].offset = offsetof(ImDrawVert, pos);
+		attribs[2].binding = 0;
+		attribs[2].location = 2;
+		attribs[2].format = VK_FORMAT_R8G8B8A8_UNORM;
+		attribs[2].offset = offsetof(ImDrawVert, pos);
+		
+		VkPipelineVertexInputStateCreateInfo visci = {};
+		visci.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+		visci.vertexBindingDescriptionCount = 1;
+		visci.pVertexBindingDescriptions = &vibd;
+		visci.vertexAttributeDescriptionCount = attribs.size();
+		visci.pVertexAttributeDescriptions = attribs.data();
+
+		gpci.pVertexInputState = &visci;
+		vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &gpci, nullptr, &im_pipeLine);
+	}
+	//init complete
 }
 
 //mouse button clicks callback
