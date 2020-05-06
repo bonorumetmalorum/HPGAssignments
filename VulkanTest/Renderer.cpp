@@ -102,6 +102,7 @@ void Renderer::mainLoop()
 	//event loop
 	while (!glfwWindowShouldClose(window)) {
 		glfwPollEvents();
+		createCommandBuffers();
 		drawFrame();
 	}
 
@@ -2336,6 +2337,7 @@ void Renderer::drawFrame()
 		return;
 	}
 
+
 	//if the result is either a success or suboptimal value we proceed, if it is anything else, something has gone wrong and we throw an error
 	else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
 		throw std::runtime_error("failed to acquire swap chain image!");
@@ -2560,12 +2562,13 @@ void Renderer::mousePosCallback(GLFWwindow* window, double xpos, double ypos)
 
 void Renderer::imInit()
 {
-	ImGuiIO& im_io = ImGui::GetIO();
-	im_io.DisplaySize = ImVec2(WIDTH, HEIGHT);
+	ImGuiIO& io = ImGui::GetIO();
+	io.DisplaySize = ImVec2(WIDTH, HEIGHT);
+	io.DisplayFramebufferScale = ImVec2(1.0f, 1.0f);
 	//get the font data as RGBA32
 	unsigned char* fontData;
 	int fontWidth = 0, fontHeight = 0;
-	im_io.Fonts->GetTexDataAsRGBA32(&fontData, &fontWidth, &fontHeight);
+	io.Fonts->GetTexDataAsRGBA32(&fontData, &fontWidth, &fontHeight);
 
 	//create the image for the font data
 	{
@@ -2780,6 +2783,16 @@ void Renderer::imInit()
 		shaderStages[1].module = fragmentMod;
 		shaderStages[0].pName = "main";
 		shaderStages[1].pName = "main";
+
+		std::vector<VkDynamicState> dynamicStateEnables = {
+			VK_DYNAMIC_STATE_VIEWPORT,
+			VK_DYNAMIC_STATE_SCISSOR
+		};
+
+		VkPipelineDynamicStateCreateInfo dynamicState = {};
+		dynamicState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+		dynamicState.dynamicStateCount = 2;
+		dynamicState.pDynamicStates = dynamicStateEnables.data();
 		
 		VkGraphicsPipelineCreateInfo gpci = {};
 		gpci.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
@@ -2790,7 +2803,7 @@ void Renderer::imInit()
 		gpci.pMultisampleState = &msci;
 		gpci.pViewportState = &vsci;
 		gpci.pDepthStencilState = &dssci;
-		gpci.pDynamicState = nullptr;
+		gpci.pDynamicState = &dynamicState;
 		gpci.stageCount = shaderStages.size();
 		gpci.pStages = shaderStages.data();
 		gpci.layout = im_pipelineLayout;
@@ -2808,11 +2821,11 @@ void Renderer::imInit()
 		attribs[1].binding = 0;
 		attribs[1].location = 1;
 		attribs[1].format = VK_FORMAT_R32G32_SFLOAT;
-		attribs[1].offset = offsetof(ImDrawVert, pos);
+		attribs[1].offset = offsetof(ImDrawVert, uv);
 		attribs[2].binding = 0;
 		attribs[2].location = 2;
 		attribs[2].format = VK_FORMAT_R8G8B8A8_UNORM;
-		attribs[2].offset = offsetof(ImDrawVert, pos);
+		attribs[2].offset = offsetof(ImDrawVert, col);
 		
 		VkPipelineVertexInputStateCreateInfo visci = {};
 		visci.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
@@ -2832,8 +2845,7 @@ void Renderer::menu()
 {
 	//initialise the new frame to draw
 	ImGui::NewFrame();
-	
-	ImGui::ShowDemoWindow();
+	ImGui::ShowDemoWindow(&demo);
 	//makes the draw buffers
 	ImGui::Render();
 }
@@ -2847,7 +2859,7 @@ void Renderer::updateRepresentation()
 	VkDeviceSize iBufferSize = imDrawData->TotalIdxCount * sizeof(ImDrawIdx);
 
 	//if we have nothing draw return
-	if (!vBufferSize || !iBufferSize)
+	if ((vBufferSize == 0) || (iBufferSize == 0))
 		return;
 	//allocate the buffer memory for the vertex buffer and index buffer
 	//we need to check if they have already been allocated, if so is the size we need now larger, if yes deleted and reallocate the new larger buffer
@@ -2887,6 +2899,9 @@ void Renderer::updateRepresentation()
 	vkFlushMappedMemoryRanges(device, 1, &mr);
 	mr.memory = im_indexBufferMemory;
 	vkFlushMappedMemoryRanges(device, 1, &mr);
+
+	vkUnmapMemory(device, im_vertexBufferMemory);
+	vkUnmapMemory(device, im_indexBufferMemory);
 }
 
 void Renderer::drawUI(VkCommandBuffer& cbuffer)
@@ -2903,6 +2918,14 @@ void Renderer::drawUI(VkCommandBuffer& cbuffer)
 	int32_t vertexOffset = 0;
 	int32_t indexOffset = 0;
 
+	VkViewport viewport = {};
+	viewport.width = ImGui::GetIO().DisplaySize.x;
+	viewport.height = ImGui::GetIO().DisplaySize.y;
+	viewport.minDepth = 0.0f;
+	viewport.maxDepth = 1.0f;
+
+	vkCmdSetViewport(cbuffer, 0, 1, &viewport);
+
 	if (imDrawData->CmdListsCount > 0)
 	{
 		VkDeviceSize offsets[1] = { 0 };
@@ -2914,6 +2937,12 @@ void Renderer::drawUI(VkCommandBuffer& cbuffer)
 			for (size_t j = 0; j < cmd_list->CmdBuffer.Size; j++)
 			{
 				const ImDrawCmd* drawcmd = &cmd_list->CmdBuffer[j];
+				VkRect2D scissorRect;
+				scissorRect.offset.x = std::max((int32_t)(drawcmd->ClipRect.x), 0);
+				scissorRect.offset.y = std::max((int32_t)(drawcmd->ClipRect.y), 0);
+				scissorRect.extent.width = (uint32_t)(drawcmd->ClipRect.z - drawcmd->ClipRect.x);
+				scissorRect.extent.height = (uint32_t)(drawcmd->ClipRect.w - drawcmd->ClipRect.y);
+				vkCmdSetScissor(cbuffer, 0, 1, &scissorRect);
 				vkCmdDrawIndexed(cbuffer, drawcmd->ElemCount, 1, indexOffset, vertexOffset, 0);
 				indexOffset += drawcmd->ElemCount;
 			}
