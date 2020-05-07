@@ -2557,7 +2557,7 @@ void Renderer::cleanupSwapChain()
 	vkFreeCommandBuffers(device, commandPool, static_cast<uint32_t>(commandBuffersBase.size()), commandBuffersBase.data()); //free the command buffers
 
 	//destroy the pipeline by providing the logical device and the pipeline handle
-	vkDestroyPipeline(device, baseGraphicsPipeline, nullptr);
+	vkDestroyPipeline(device, baseGraphicsPipeline, nullptr); 
 	vkDestroyPipeline(device, shellGraphicsPipeline, nullptr);
 	vkDestroyPipeline(device, finGraphicsPipeline, nullptr);
 	vkDestroyPipelineLayout(device, basePipelineLayout, nullptr); //destroy any uniforms allocated by destroying the layout, provide the logical device and the pipeline layout handle
