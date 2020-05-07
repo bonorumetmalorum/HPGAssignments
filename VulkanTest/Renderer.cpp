@@ -886,10 +886,10 @@ void Renderer::createShadowMapPipeline()
 	rasterizer.cullMode = VK_CULL_MODE_NONE;  //which faces should we cull (here we choose to cull back faces, we could also do both)
 	rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE; //how to iterate over vertices (determines which faces are front and back) can be CC or C
 	//the following parameters can be used to fix issues with z-fighting by allowing fragments to be offset in depth
-	rasterizer.depthBiasEnable = VK_FALSE; // can be modified based on slope but we don't want that here so it is disabled
-	rasterizer.depthBiasConstantFactor = 1.25f; // depth bias equation - used here to offset the 
+	rasterizer.depthBiasEnable = VK_TRUE; // can be modified based on slope but we don't want that here so it is disabled
+	rasterizer.depthBiasConstantFactor = 0.0f; // depth bias equation - used here to offset the 
 	rasterizer.depthBiasClamp = 0.0f; // Optional - puts an upper bound on the depth bias equation output if positive and non zero and lower bound if non zero and negative
-	rasterizer.depthBiasSlopeFactor = 1.75f; // Optional - param in depth bias equation
+	rasterizer.depthBiasSlopeFactor = 0.0f; // Optional - param in depth bias equation
 	//depth bias is calculated by finding m which is steepest descent in z direction and then multiplying it by depthBiasSlopeFactor and depthBiasConstantFactor
 
 	//multisampling
@@ -917,8 +917,7 @@ void Renderer::createShadowMapPipeline()
 
 	//dynamic state - what parameters can we change at runtime (can be nullptr if we don't have any)
 	VkDynamicState dynamicStates[] = {
-		VK_DYNAMIC_STATE_VIEWPORT, //we would like to change the viewport dimensions
-		VK_DYNAMIC_STATE_LINE_WIDTH //we would also like to change the line width on the fly
+		VK_DYNAMIC_STATE_DEPTH_BIAS
 	};
 
 	/*
@@ -927,7 +926,7 @@ void Renderer::createShadowMapPipeline()
 	*/
 	VkPipelineDynamicStateCreateInfo dynamicState = {};
 	dynamicState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO; //type of struct
-	dynamicState.dynamicStateCount = 2; //the number of states we wish to make dynamic
+	dynamicState.dynamicStateCount = 1; //the number of states we wish to make dynamic
 	dynamicState.pDynamicStates = dynamicStates; //the states
 
 	//pipeline layout - specifies uniform layout information - which we are not using here so the struct is blank, but we still need to provide it
@@ -955,7 +954,7 @@ void Renderer::createShadowMapPipeline()
 	pipelineInfo.pMultisampleState = &multisampling; //MS stage
 	pipelineInfo.pDepthStencilState = &depthStencil;// Optional - depth stencil stage
 	pipelineInfo.pColorBlendState = &colorBlending; //colour blending stage
-	pipelineInfo.pDynamicState = nullptr; // Optional - the state which are treating as dynamic, we don't use this either
+	pipelineInfo.pDynamicState = &dynamicState; // Optional - the state which are treating as dynamic, we don't use this either
 	pipelineInfo.layout = shadowMapPipelineLayout; // pipeline layout, we are not using any uniforms and other constants in our pipeline
 	pipelineInfo.renderPass = shadowMapRenderPass; // the render passes associating operations and images
 	pipelineInfo.subpass = 0; // we are not using any subpasses
@@ -1987,6 +1986,12 @@ void Renderer::recordCommandBuffers()
 		vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, shadowMapPipeline);
 
 		vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, shadowMapPipelineLayout, 0, 1, &shadowMapDescriptorSet, 0, nullptr);
+		if (!shadowAcne) {
+			vkCmdSetDepthBias(commandBuffers[i], 0.f, 0.0f, 0.f);
+		}
+		else {
+			vkCmdSetDepthBias(commandBuffers[i], 1.25f, 0.0f, 1.75f);
+		}
 
 		VkBuffer vertexBuffers[] = { vertexBuffer };
 		VkDeviceSize offsets[] = { 0 };
@@ -2022,19 +2027,20 @@ void Renderer::recordCommandBuffers()
 		//bind the uniform data to the bind point
 		vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[i], 0, nullptr);
 
+		//debug quad pipeline
+		if (smdisplay) //if we want to display the debug quad and visualise the sm
+		{
+			vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, dqPipeline);
+
+			vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, &dq.vertexBuffer, offsets);
+
+			vkCmdBindIndexBuffer(commandBuffers[i], dq.indexBuffer, 0, VK_INDEX_TYPE_UINT32); //bind the index buffer
+
+			vkCmdDrawIndexed(commandBuffers[i], static_cast<uint32_t>(dq.indices.size()), 1, 0, 0, 0); //draw using the index buffer
+		}
+		
 		//bind graphics pipeline - we supply the command buffer we wish to feed to the pipeline, where we want to bind, our pipeline is a graphics pipeline
 		//so we bind it to the VK_PIPELINE_BIND_POINT_GRAPHICS and finally we provide the pipeline handle.
-
-		vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, dqPipeline);
-
-		//bind the buffer of vertices to draw
-
-		vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, &dq.vertexBuffer, offsets);
-
-		vkCmdBindIndexBuffer(commandBuffers[i], dq.indexBuffer, 0, VK_INDEX_TYPE_UINT32); //bind the index buffer
-
-		vkCmdDrawIndexed(commandBuffers[i], static_cast<uint32_t>(dq.indices.size()), 1, 0, 0, 0); //draw using the index buffer
-
 		vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
 
 		vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, &vertexBuffer, offsets);
@@ -2519,9 +2525,9 @@ void Renderer::updateUniformBuffer(uint32_t index)
 	glm::mat4 rotatioMat = glm::make_mat4(mNow); //make it such that we can use it with glm
 	ubo.model = model * rotatioMat; //incorporate it into the model matrix
 	ubo.view = glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 8.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f)); //look direction
-	ubo.proj = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float)swapChainExtent.height, 0.1f, 10000.0f); //perspective projection matrix
+	ubo.proj = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float)swapChainExtent.height, 0.1f, 100.0f); //perspective projection matrix
 	ubo.proj[1][1] *= -1; //invert the y component so things are drawn the right way around
-	ubo.renderFlags = renderFlags; //render flags used to deactivate ambient, diff and spec
+	ubo.renderFlags = glm::vec3(pcf, smTex, enablesm); //render flags used to deactivate ambient, diff and spec
 
 	ShadowUniformObject suo = {}; //ubo object that we will load into buffer
 	suo.model = model * rotatioMat; //incorporate it into the model matrix
@@ -2591,13 +2597,6 @@ void Renderer::mousePosCallback(GLFWwindow* window, double xpos, double ypos)
 
 void Renderer::imInit()
 {
-	ImGuiStyle& style = ImGui::GetStyle();
-	style.Colors[ImGuiCol_TitleBg] = ImVec4(1.0f, 0.0f, 0.0f, 0.6f);
-	style.Colors[ImGuiCol_TitleBgActive] = ImVec4(1.0f, 0.0f, 0.0f, 0.8f);
-	style.Colors[ImGuiCol_MenuBarBg] = ImVec4(1.0f, 0.0f, 0.0f, 0.4f);
-	style.Colors[ImGuiCol_Header] = ImVec4(1.0f, 0.0f, 0.0f, 0.4f);
-	style.Colors[ImGuiCol_CheckMark] = ImVec4(0.0f, 1.0f, 0.0f, 1.0f);
-
 	ImGuiIO& io = ImGui::GetIO();
 	io.DisplaySize = ImVec2(WIDTH, HEIGHT);
 	io.DisplayFramebufferScale = ImVec2(1.0f, 1.0f);
@@ -2883,11 +2882,12 @@ void Renderer::menu()
 {
 	//initialise the new frame to draw
 	ImGui::NewFrame();
-	ImGui::Begin("hello");
-	if (ImGui::Button("shadow mapping"))
-		std::cout << "buttone clicked" << std::endl;
-	ImGui::Button("PCF");
-	ImGui::Button("Acne");
+	ImGui::Begin("Render Stage Controls");
+	ImGui::Checkbox("render sm as tex", &smTex);
+	ImGui::Checkbox("display sm", &smdisplay);
+	ImGui::Checkbox("turn off sm", &enablesm);
+	ImGui::Checkbox("remove shadow acne", &shadowAcne);
+	ImGui::Checkbox("PCF", &pcf);
 	ImGui::End();
 	//makes the draw buffers
 	ImGui::Render();

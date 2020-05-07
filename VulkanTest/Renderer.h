@@ -355,7 +355,11 @@ private:
 
 	///----IMGUI RELATED STUFF -----------
 	//ui constants needed to render imgui menus
-	bool demo = true;
+	bool smTex = false;
+	bool smdisplay = true;
+	bool enablesm = true;
+	bool shadowAcne = true;
+	bool pcf = true;
 	float mousex = 0;float mousey = 0;
 	bool mButtonState[2];
 	struct UiConstants
