@@ -18,7 +18,7 @@ Renderer::Renderer(OBJ & model, Texture & texture, Mtl & mtl)
 	this->lighting.lightDiffuse = mtl.diffuse;
 	this->lighting.lightSpecular = mtl.specular;
 	this->lighting.lightSpecularExponent = glm::vec2(mtl.specularExponent, 0.0);
-	this->lighting.lightPos = glm::vec4(0, -1.0, 5.0, 1.0);
+	this->lighting.lightPos = glm::vec4(0.0, 2.0, 2.0, 1.0);
 	Ball_Init(&arcBall);
 	Ball_Place(&arcBall, { 0.0,0.0,0.0,1.0 }, 0.80);
 	ImGui::CreateContext();
@@ -108,8 +108,9 @@ void Renderer::mainLoop()
 		io.MousePos = ImVec2(mousex, mousey);
 		io.MouseDown[0] = mButtonState[0];
 		io.MouseDown[1] = mButtonState[1];
-		vkDeviceWaitIdle(device);
-		createCommandBuffers();
+		vkQueueWaitIdle(graphicsQueue); //wait for the queue to be idle and proceed with recording a new command buffer for ImGui
+		resetCommandBuffers();
+		recordCommandBuffers();
 		drawFrame();
 	}
 
@@ -850,15 +851,18 @@ void Renderer::createShadowMapPipeline()
 	VkViewport viewport = {};
 	viewport.x = 0.0f; //origin
 	viewport.y = 0.0f; //origin
-	viewport.width = (float)swapChainExtent.width; //max width (here we are matching the swap chain width)
-	viewport.height = (float)swapChainExtent.height; //max height (here we are matching the swap chain height)
+	viewport.width = 1024; //max width (here we are matching the swap chain width)
+	viewport.height = 1024; //max height (here we are matching the swap chain height)
 	viewport.minDepth = 0.0f; //frame buffer depth values - we don't really use them at the moment
 	viewport.maxDepth = 1.0f; //frame buffer depth values - we don't really use them at the moment
 
 	//filter that discards pixels, we want to draw the entire image so we have a scissor angle to cover it entirely
 	VkRect2D scissor = {}; //VkRect2D is a type that defines a rectangle in vulkan, it can be used for other things as well
+	VkExtent2D extent = {};
+	extent.height = 1024;
+	extent.width = 1024;
 	scissor.offset = { 0, 0 }; //screen offset (in our case it starts at the origin)
-	scissor.extent = swapChainExtent; // the dimensions of the swap chain image (so here we are not discarding any pixels, it covers the full extent of the swap chain image)
+	scissor.extent = extent; // the dimensions of the swap chain image (so here we are not discarding any pixels, it covers the full extent of the swap chain image)
 
 	//combine the viewport and scissor configuration into viewport state
 	VkPipelineViewportStateCreateInfo viewportState = {};
@@ -879,11 +883,11 @@ void Renderer::createShadowMapPipeline()
 	rasterizer.polygonMode = VK_POLYGON_MODE_FILL; //turns triangles into points or lines - in this case triangles are solid, filled in
 	rasterizer.lineWidth = 1.0f; //thickness of lines
 	//these have changed to accommodate for the y flip in the projection matrix
-	rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;  //which faces should we cull (here we choose to cull back faces, we could also do both)
+	rasterizer.cullMode = VK_CULL_MODE_NONE;  //which faces should we cull (here we choose to cull back faces, we could also do both)
 	rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE; //how to iterate over vertices (determines which faces are front and back) can be CC or C
 	//the following parameters can be used to fix issues with z-fighting by allowing fragments to be offset in depth
-	rasterizer.depthBiasEnable = VK_TRUE; // can be modified based on slope but we don't want that here so it is disabled
-	rasterizer.depthBiasConstantFactor = 1.25f; // Optional - depth bias equation
+	rasterizer.depthBiasEnable = VK_FALSE; // can be modified based on slope but we don't want that here so it is disabled
+	rasterizer.depthBiasConstantFactor = 1.25f; // depth bias equation - used here to offset the 
 	rasterizer.depthBiasClamp = 0.0f; // Optional - puts an upper bound on the depth bias equation output if positive and non zero and lower bound if non zero and negative
 	rasterizer.depthBiasSlopeFactor = 1.75f; // Optional - param in depth bias equation
 	//depth bias is calculated by finding m which is steepest descent in z direction and then multiplying it by depthBiasSlopeFactor and depthBiasConstantFactor
@@ -1009,7 +1013,7 @@ void Renderer::createGraphicsPipeline()
 	depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO; //truct type
 	depthStencil.depthTestEnable = VK_TRUE; //enable depth test
 	depthStencil.depthWriteEnable = VK_TRUE; //enable ability to write values to the depth buffer
-	depthStencil.depthCompareOp = VK_COMPARE_OP_LESS; // keep fragments with lesser depth
+	depthStencil.depthCompareOp = VK_COMPARE_OP_LESS_OR_EQUAL; // keep fragments with lesser depth
 	depthStencil.depthBoundsTestEnable = VK_FALSE; //special test to check if depth buffer values are within a range, disabled here
 	depthStencil.stencilTestEnable = VK_FALSE; //no stencil test to do after depth test
 
@@ -1219,8 +1223,8 @@ void Renderer::createShadowMapFrameBuffers()
 	framebufferInfo.renderPass = shadowMapRenderPass; //render pass we are binding framebuffer to
 	framebufferInfo.attachmentCount = 1; //number of attachments
 	framebufferInfo.pAttachments = &shadowMapTextureImageView; //the images that we wish to manage in the frame buffer
-	framebufferInfo.width = swapChainExtent.width; //the width of the image
-	framebufferInfo.height = swapChainExtent.height; //the height of the image
+	framebufferInfo.width = 1024; //the width of the image
+	framebufferInfo.height = 1024; //the height of the image
 	framebufferInfo.layers = 1; //number of layers in image array
 
 	if (vkCreateFramebuffer(device, &framebufferInfo, nullptr, &shadowMapFramebuffer) != VK_SUCCESS) { //create the frame buffer object
@@ -1475,7 +1479,7 @@ void Renderer::createCommandPool()
 	VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT: Allow command buffers to be rerecorded individually, without this flag they all have to be reset together
 
 	*/
-	poolInfo.flags = 0; // Optional - we don't have any specific requirements at this point
+	poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT; // Optional - we don't have any specific requirements at this point
 
 	if (vkCreateCommandPool(device, &poolInfo, nullptr, &commandPool) != VK_SUCCESS) { //create the pool
 		throw std::runtime_error("failed to create command pool!"); //if we are unsuccessful throw an error
@@ -1486,7 +1490,7 @@ void Renderer::createCommandPool()
 void Renderer::createShadowMapTextureImage()
 {
 	//create the image and its memory
-	createImage(swapChainExtent.width, swapChainExtent.height, VK_FORMAT_D16_UNORM, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, shadowMapTextureImage, shadowMapTextureImageMemory);
+	createImage(1024, 1024, VK_FORMAT_D16_UNORM, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, shadowMapTextureImage, shadowMapTextureImageMemory);
 }
 
 //create the texture
@@ -1536,14 +1540,14 @@ void Renderer::createShadowMapTextureSampler()
 	samplerInfo.magFilter = VK_FILTER_LINEAR;
 	samplerInfo.minFilter = VK_FILTER_LINEAR;
 
-	samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT; //CLAMP TO EDGE MAYBE
-	samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-	samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+	samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE; //CLAMP TO EDGE MAYBE
+	samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+	samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
 
 	samplerInfo.anisotropyEnable = VK_TRUE;
 	samplerInfo.maxAnisotropy = 16;
 
-	samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_WHITE;
+	samplerInfo.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
 
 	samplerInfo.unnormalizedCoordinates = VK_FALSE;
 
@@ -1621,7 +1625,7 @@ void Renderer::createVertexBuffer()
 	vkDestroyBuffer(device, stagingBuffer, nullptr);
 	vkFreeMemory(device, stagingBufferMemory, nullptr);
 
-	///---- make debug quad vertex buffer
+	///---- make dedrbug quad vertex buffer
 	for (auto v : dq.vertices)
 	{
 		std::cout << v.normal.x << " " << v.normal.y << " " << v.normal.z << std::endl;
@@ -1937,13 +1941,18 @@ void Renderer::createCommandBuffers()
 		throw std::runtime_error("failed to allocate command buffers!");//throw an error if we were unsuccessful
 	}
 
+	recordCommandBuffers(); //record the command buffers
+}
+
+void Renderer::recordCommandBuffers()
+{
 	VkCommandBufferBeginInfo beginInfo = {}; //information needed to tell the command buffer to begin recording
 	beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO; //struct type
 	beginInfo.flags = 0; // Optional - specifies how we're going to use the command buffer
 	beginInfo.pInheritanceInfo = nullptr; // Optional - relevant for secondary command buffers
 
 	std::array<VkClearValue, 2> clearColors = {};
-	
+
 	//IMGUI 
 	menu();
 	//IMGUI
@@ -1967,7 +1976,8 @@ void Renderer::createCommandBuffers()
 		shadowPassInfo.framebuffer = shadowMapFramebuffer; //the buffer we want to render to
 		//size of the render area
 		shadowPassInfo.renderArea.offset = { 0, 0 }; //origin of the buffer
-		shadowPassInfo.renderArea.extent = swapChainExtent; //dimensions of the buffer - matches swap chain images
+		shadowPassInfo.renderArea.extent.height = 1024; //dimensions of the buffer - matches swap chain images
+		shadowPassInfo.renderArea.extent.width = 1024; //dimensions of the buffer - matches swap chain images
 		//clear values to use for VK_ATTACHMENT_LOAD_OP_CLEAR, which we used as load operation for the color attachment
 		shadowPassInfo.clearValueCount = 1; //one clear value
 		shadowPassInfo.pClearValues = clearColors.data(); //clear value
@@ -1977,7 +1987,7 @@ void Renderer::createCommandBuffers()
 		vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, shadowMapPipeline);
 
 		vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, shadowMapPipelineLayout, 0, 1, &shadowMapDescriptorSet, 0, nullptr);
-		
+
 		VkBuffer vertexBuffers[] = { vertexBuffer };
 		VkDeviceSize offsets[] = { 0 };
 		vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, vertexBuffers, offsets);
@@ -1990,7 +2000,7 @@ void Renderer::createCommandBuffers()
 
 		///----begin scene rendering after depth pass is done
 
-		clearColors[0].color =  { 0.7f, 0.5f, 0.6f, 1.0f };
+		clearColors[0].color = { 0.7f, 0.5f, 0.6f, 1.0f };
 		clearColors[1].depthStencil = { 1.0f, 0 };
 
 		VkRenderPassBeginInfo renderPassInfo = {}; //create info needed to begin a render a pass
@@ -2001,7 +2011,7 @@ void Renderer::createCommandBuffers()
 		renderPassInfo.renderArea.offset = { 0, 0 }; //origin of the buffer
 		renderPassInfo.renderArea.extent = swapChainExtent; //dimensions of the buffer - matches swap chain images
 		//clear values to use for VK_ATTACHMENT_LOAD_OP_CLEAR, which we used as load operation for the color attachment
-		
+
 		renderPassInfo.clearValueCount = static_cast<uint32_t>(clearColors.size()); //one clear value
 		renderPassInfo.pClearValues = clearColors.data(); //clear value
 		//begin render pass
@@ -2016,13 +2026,13 @@ void Renderer::createCommandBuffers()
 		//so we bind it to the VK_PIPELINE_BIND_POINT_GRAPHICS and finally we provide the pipeline handle.
 
 		vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, dqPipeline);
-		
+
 		//bind the buffer of vertices to draw
 
 		vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, &dq.vertexBuffer, offsets);
 
 		vkCmdBindIndexBuffer(commandBuffers[i], dq.indexBuffer, 0, VK_INDEX_TYPE_UINT32); //bind the index buffer
-		
+
 		vkCmdDrawIndexed(commandBuffers[i], static_cast<uint32_t>(dq.indices.size()), 1, 0, 0, 0); //draw using the index buffer
 
 		vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
@@ -2043,12 +2053,20 @@ void Renderer::createCommandBuffers()
 	}
 }
 
+void Renderer::resetCommandBuffers()
+{
+	for (size_t i = 0; i < commandBuffers.size(); i++)
+	{
+		vkResetCommandBuffer(commandBuffers[i], VK_COMMAND_BUFFER_RESET_RELEASE_RESOURCES_BIT);
+	}
+}
+
 //create depth stencil resources
 void Renderer::createDepthResources()
 {
 	VkFormat depthFormat = findDepthFormat(); //find the format we need to create a depth buffer
 	//create the image that will be used to store the depth buffer data, it must have the same dimensions as a swap chain image
-	createImage(swapChainExtent.width, swapChainExtent.height, depthFormat, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, depthImage, depthImageMemory);
+	createImage(1024, 1024, depthFormat, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, depthImage, depthImageMemory);
 	depthImageView = createImageView(depthImage, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT); //create the image view so we can access it
 }
 
@@ -2494,7 +2512,7 @@ void Renderer::updateUniformBuffer(uint32_t index)
 	UniformBufferObject ubo = {}; //ubo object that we will load into buffer
 	
 	glm::mat4 model = glm::translate(glm::mat4(1.0), translation); //model matrix
-	model = glm::scale(model, {0.05,0.05,0.05}); //scale the duck so its not so big
+	model = glm::scale(model, {2.f,2.f, 2.f}); //scale the duck so its not so big
 
 	float mNow[16]; //the rotation matrix from the arcball controller
 	Ball_Value(&arcBall, mNow); //get the current rotation matrix
@@ -2507,8 +2525,9 @@ void Renderer::updateUniformBuffer(uint32_t index)
 
 	ShadowUniformObject suo = {}; //ubo object that we will load into buffer
 	suo.model = model * rotatioMat; //incorporate it into the model matrix
-	suo.view = glm::lookAt(glm::vec3(lighting.lightPos), translation, glm::vec3(0.0f, 0.0f, 1.0f)); //look direction
-	suo.proj = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float)swapChainExtent.height, 0.1f, 10000.0f); //perspective projection matrix
+	suo.view = glm::lookAt(glm::vec3(lighting.lightPos), translation, glm::vec3(0.0f, 1.0f, 0.0f)); //look direction
+	suo.proj = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float)swapChainExtent.height, 0.1f, 100.f); //perspective projection matrix
+	//suo.proj = glm::ortho(-10.0f, 10.0f, -10.0f, 10.0f, 1.0f, 7.5f); //perspective projection matrix
 
 
 	//map the on GPU memory to main memory so we can load the data, then unmap
@@ -2541,7 +2560,7 @@ void Renderer::framebufferResizeCallback(GLFWwindow * window, int width, int hei
 BallData Renderer::arcBall;
 glm::vec3 Renderer::renderFlags = glm::vec3(true);
 glm::vec2 Renderer::lastPos = glm::vec2(0);
-glm::vec3 Renderer::translation = {0.0,8.0,0.0};
+glm::vec3 Renderer::translation = {0.0,7.0,0.0};
 bool Renderer::translating = false;
 
 //mouse position callback, gets the mouses current position
@@ -2864,13 +2883,12 @@ void Renderer::menu()
 {
 	//initialise the new frame to draw
 	ImGui::NewFrame();
-	//ImGui::Begin("hello");
-	//if (ImGui::Button("shadow mapping"))
-	//	std::cout << "buttone clicked" << std::endl;
-	//ImGui::Button("PCF");
-	//ImGui::Button("Acne");
-	//ImGui::End();
-	ImGui::ShowDemoWindow();
+	ImGui::Begin("hello");
+	if (ImGui::Button("shadow mapping"))
+		std::cout << "buttone clicked" << std::endl;
+	ImGui::Button("PCF");
+	ImGui::Button("Acne");
+	ImGui::End();
 	//makes the draw buffers
 	ImGui::Render();
 }
@@ -2979,7 +2997,6 @@ void Renderer::drawUI(VkCommandBuffer& cbuffer)
 
 //mouse button clicks callback
 void Renderer::mouseButtonCallBack(GLFWwindow* window, int button, int action, int mods) {
-	auto io = ImGui::GetIO();
 	auto app = reinterpret_cast<Renderer*>(glfwGetWindowUserPointer(window));
 	double x, y;
 	glfwGetCursorPos(app->window, &x, &y);

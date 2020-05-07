@@ -20,6 +20,7 @@ layout(binding = 4) uniform sampler2D shadowSampler;
 
 void main() {
 	vec4 textureColor = texture(texSampler, fragTexCoord);
+	textureColor.a = 1.0;
 	vec4 shadow_coords = fragShadowCoord / fragShadowCoord.w;
 	float ambI = 0.25;
 	float diffI = 0.9;

@@ -90,6 +90,8 @@ private:
 	void createDescriptorPool();
 	void createDescriptorSets();
 	void createCommandBuffers();
+	void recordCommandBuffers();
+	void resetCommandBuffers();
 	void createDepthResources();
 	void copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height);
 	void createImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage & image, VkDeviceMemory & imageMemory);

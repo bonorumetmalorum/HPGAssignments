@@ -39,7 +39,7 @@ layout(binding = 3) uniform ShadowUniformObject {
     mat4 proj;
 	vec3 renderFlags;
 } suo;
-
+//needed for persepctive projection
 const mat4 bias = mat4(        
 	0.5, 0.0, 0.0, 0.0,       
 	 0.0, 0.5, 0.0, 0.0,        

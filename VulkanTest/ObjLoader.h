@@ -49,8 +49,14 @@ struct Vertex {
 	}
 	//override for easier equality check
 	bool operator==(const Vertex& other) const {
-		return position == other.position && normal == other.normal && uv == other.uv;
+		return position == other.position;
 	}
+};
+
+enum ReadMode
+{
+	TRIANGLES,
+	QUADS,
 };
 
 //implement hashing so we can use the vertex in a std::map
@@ -58,8 +64,7 @@ namespace std {
 	template<> struct hash<Vertex> {
 		size_t operator()(Vertex const& vertex) const {
 			return ((hash<glm::vec3>()(vertex.position) ^
-				(hash<glm::vec3>()(vertex.normal) << 1)) >> 1) ^
-				(hash<glm::vec2>()(vertex.uv) << 1);
+				(hash<glm::vec2>()(vertex.uv) << 1)) >> 1);
 		}
 	};
 };
@@ -68,13 +73,14 @@ namespace std {
 struct OBJ {
 	std::vector<Vertex> vertexList; //unique vertices
 	std::vector<uint32_t> indices; //grouped in triplets
+	std::vector<uint32_t> adjacencyIndices; //indices but with adjacency info
 };
 
 //texture struct to hold all information regarding a texture image
 struct Texture {
 	VkDeviceSize imageSize;
 	unsigned char* pixels;
-	int width, height;
+	int width, height, depth;
 };
 
 //mtl struct to hold all information needed for blinn-phong lighting
@@ -93,7 +99,8 @@ class ObjLoader
 public:
 	ObjLoader();
 	//load obj
-	void loadObj(std::string path);
+	void loadObj(std::string path, ReadMode mode);
+
 	//load mtl
 	Mtl loadMtl(std::string path);
 	//load texture
@@ -110,12 +117,15 @@ public:
 	OBJ createObj();
 
 	//get a untriangulated list of vertices
-	std::vector<glm::vec3> & getVertices();
+	std::vector<glm::vec3>& getVertices();
 
 private:
 	std::vector<glm::vec3> vertices;
 	std::vector<glm::vec3> normals;
 	std::vector<glm::vec2> uvcoords;
 	std::vector<VertexIndicies> faceVertices;
-};
+	ReadMode mode;
 
+	void triangulate(OBJ& obj);
+	void package(OBJ& obj);
+};
