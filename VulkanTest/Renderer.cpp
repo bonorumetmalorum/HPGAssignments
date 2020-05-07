@@ -232,15 +232,17 @@ void Renderer::cleanup()
 {
 	
 	cleanupSwapChain(); //first we clean up the swap chain and all related resources
-	
+
+	vkDestroyPipeline(device, shadowMapPipeline, nullptr);
+	vkDestroyPipelineLayout(device, shadowMapPipelineLayout, nullptr);
+	vkDestroyFramebuffer(device, shadowMapFramebuffer, nullptr);
+	vkDestroyRenderPass(device, shadowMapRenderPass, nullptr);
+
 	vkDestroySampler(device, textureSampler, nullptr);
 	vkDestroyImageView(device, textureImageView, nullptr);
 
 	vkDestroySampler(device, shadowMapTextureSampler, nullptr);
 	vkDestroyImageView(device, shadowMapTextureImageView, nullptr);
-
-	vkDestroySampler(device, im_fontSampler, nullptr);
-	vkDestroyImageView(device, im_fontImageView, nullptr);
 
 	vkDestroyImage(device, textureImage, nullptr);
 	vkFreeMemory(device, textureImageMemory, nullptr);
@@ -248,30 +250,26 @@ void Renderer::cleanup()
 	vkDestroyImage(device, shadowMapTextureImage, nullptr);
 	vkFreeMemory(device, shadowMapTextureImageMemory, nullptr);
 
-	vkDestroyImage(device, im_fontImage, nullptr);
-	vkFreeMemory(device, im_fontImageMemory, nullptr);
-
 	vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
 	vkDestroyDescriptorSetLayout(device, shadowMapDescriptorSetLayout, nullptr);
-	vkDestroyDescriptorSetLayout(device, im_dSetLayout, nullptr);
 
 	vkDestroyBuffer(device, indexBuffer, nullptr);
 	vkFreeMemory(device, indexBufferMemory, nullptr);
-
-	vkDestroyBuffer(device, im_indexBuffer, nullptr);
-	vkFreeMemory(device, im_indexBufferMemory, nullptr);
 
 	vkDestroyBuffer(device, dq.indexBuffer, nullptr);
 	vkFreeMemory(device, dq.indexBufferMemory, nullptr);
 
 	vkDestroyBuffer(device, vertexBuffer, nullptr);
 	vkFreeMemory(device, vertexBufferMemory, nullptr);
-	
+
 	vkDestroyBuffer(device, dq.vertexBuffer, nullptr);
 	vkFreeMemory(device, dq.vertexBufferMemory, nullptr);
 
 	vkDestroyBuffer(device, im_vertexBuffer, nullptr);
 	vkFreeMemory(device, im_vertexBufferMemory, nullptr);
+	vkDestroyBuffer(device, im_indexBuffer, nullptr);
+	vkFreeMemory(device, im_indexBufferMemory, nullptr);
+	
 
 	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) { //destroy all synchronization objects
 		vkDestroySemaphore(device, renderFinishedSemaphores[i], nullptr);
@@ -2096,7 +2094,7 @@ void Renderer::createDepthResources()
 {
 	VkFormat depthFormat = findDepthFormat(); //find the format we need to create a depth buffer
 	//create the image that will be used to store the depth buffer data, it must have the same dimensions as a swap chain image
-	createImage(1024, 1024, depthFormat, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, depthImage, depthImageMemory);
+	createImage(swapChainExtent.width, swapChainExtent.height, depthFormat, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, depthImage, depthImageMemory);
 	depthImageView = createImageView(depthImage, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT); //create the image view so we can access it
 }
 
@@ -2314,16 +2312,17 @@ void Renderer::recreateSwapChain()
 	//start to recreate the swap chain with new parameters
 	createSwapChain(); //create a new swap chain with the new window width and height
 	createImageViews(); //create new image views
-	createShadowMapTextureView();
+	//createShadowMapTextureView();
 	createRenderPass(); //create a new render pass
-	createShadowMapRenderPass();
+	//createShadowMapRenderPass();
 	createGraphicsPipeline(); //create a new graphics pipeline
-	createShadowMapPipeline();
+	//createShadowMapPipeline();
 	createDepthResources(); //create the depth stencil
 	createFramebuffers(); //create a new framebuffer
 	createUniformBuffers(); //create the uniform buffers
 	createDescriptorPool(); //create uniform descriptor pool
 	createDescriptorSets();  //create descriptor sets
+	imInit();
 	createCommandBuffers(); //create new command buffers (we recycle the command pool)
 }
 
@@ -2341,22 +2340,15 @@ void Renderer::cleanupSwapChain()
 		vkDestroyFramebuffer(device, swapChainFramebuffers[i], nullptr); //destroy them
 	}
 
-	vkDestroyFramebuffer(device, shadowMapFramebuffer, nullptr);
-
 	//do this so we don't need to allocate and new command pool, we can reuse the old one to issue new command buffers
 	//we need to provide the logical device, the pool from which we allocated the buffers and the buffers themselves
 	vkFreeCommandBuffers(device, commandPool, static_cast<uint32_t>(commandBuffers.size()), commandBuffers.data()); //free the command buffers
 
 	//destroy the pipeline by providing the logical device and the pipeline handle
 	vkDestroyPipeline(device, graphicsPipeline, nullptr);
-	vkDestroyPipeline(device, shadowMapPipeline, nullptr);
-	vkDestroyPipeline(device, im_pipeLine, nullptr);
-	vkDestroyPipelineLayout(device, pipelineLayout, nullptr); //destroy any uniforms allocated by destroying the layout, provide the logical device and the pipeline layout handle
-	vkDestroyPipelineLayout(device, shadowMapPipelineLayout, nullptr); //destroy any uniforms allocated by destroying the layout, provide the logical device and the pipeline layout handle
-	vkDestroyPipelineLayout(device, im_pipelineLayout, nullptr); //destroy any uniforms allocated by destroying the layout, provide the logical device and the pipeline layout handle
 	vkDestroyPipeline(device, dqPipeline, nullptr);
+	vkDestroyPipelineLayout(device, pipelineLayout, nullptr); //destroy any uniforms allocated by destroying the layout, provide the logical device and the pipeline layout handle
 	vkDestroyRenderPass(device, renderPass, nullptr); //destroy the render pass by providing the logical device and the render pass handle
-	vkDestroyRenderPass(device, shadowMapRenderPass, nullptr); //destroy the render pass by providing the logical device and the render pass handle
 
 	for (size_t i = 0; i < swapChainImageViews.size(); i++) {
 		vkDestroyImageView(device, swapChainImageViews[i], nullptr); //destroy all image views by providing the logical device and swap chain image views handle
@@ -2378,7 +2370,17 @@ void Renderer::cleanupSwapChain()
 
 	//destroy the pool from which we allocated the uniform buffers
 	vkDestroyDescriptorPool(device, descriptorPool, nullptr);
-	vkDestroyDescriptorPool(device, im_dPool, nullptr);
+
+	{//clean up all of imgui
+		vkDestroyPipeline(device, im_pipeLine, nullptr);
+		vkDestroyPipelineLayout(device, im_pipelineLayout, nullptr);
+		vkDestroyImage(device, im_fontImage, nullptr);
+		vkFreeMemory(device, im_fontImageMemory, nullptr);
+		vkDestroyImageView(device, im_fontImageView, nullptr);
+		vkDestroySampler(device, im_fontSampler, nullptr);
+		vkDestroyDescriptorSetLayout(device, im_dSetLayout, nullptr);
+		vkDestroyDescriptorPool(device, im_dPool, nullptr);
+	}
 }
 
 /*
