@@ -46,7 +46,7 @@ int main() {
 
 	diredge::createLineAdjacency(model, halfedges);
  	
-	Renderer app(model, texture, fin, mtl);
+	Renderer app(model, texture, fin, mtl, false);
 	
 	try {
 		app.run();

@@ -9,7 +9,7 @@ Renderer::Renderer()
 {
 }
 
-Renderer::Renderer(OBJ & model, Texture & textureShell, Texture & textureFin, Mtl & mtl)
+Renderer::Renderer(OBJ & model, Texture & textureShell, Texture & textureFin, Mtl & mtl, bool isRenderSphere)
 {
 	this->indices = model.indices;
 	this->adjacencyIndices = model.adjacencyIndices;
@@ -25,6 +25,7 @@ Renderer::Renderer(OBJ & model, Texture & textureShell, Texture & textureFin, Mt
 	this->lighting.lightPos = glm::vec4(0.0, 2.0, 2.0, 1.0);
 	Ball_Init(&arcBall);
 	Ball_Place(&arcBall, { 0.0,0.0,0.0,1.0 }, 0.80);
+	this->sphere = isRenderSphere;
 }
 
 /*
@@ -2671,8 +2672,10 @@ void Renderer::updateUniformBuffer(uint32_t index)
 	UniformBufferObject ubo = {}; //ubo object that we will load into buffer
 	
 	glm::mat4 model = glm::translate(glm::mat4(1.0), translation); //model matrix
-	model = glm::scale(model, { 13.0,13.0,13.0 }); //scale the bunny so its not so small
-	//model = glm::scale(model, { 0.05,0.05,0.05 }); //scale the sphere so its not so big
+	if(!sphere)
+		model = glm::scale(model, { 13.0,13.0,13.0 }); //scale the bunny so its not so small
+	else
+		model = glm::scale(model, { 0.05,0.05,0.05 }); //scale the sphere so its not so big
 
 
 	float mNow[16]; //the rotation matrix from the arcball controller
@@ -2697,15 +2700,20 @@ void Renderer::updateUniformBuffer(uint32_t index)
 	vkUnmapMemory(device, lightingUniformBuffersMemory);
 
 	float levelOpacity = 0.9;
-	float levelWeight = 0.001; //bunny
-	//float levelWeight = 0.1; //sphere
+	float levelWeight = 0;
+	if(!sphere)
+		levelWeight = 0.001; //bunny
+	else
+		levelWeight = 0.1; //sphere
 	for (uint32_t i = 0; i < SHELLS; i++)
 	{
 		size_t offset = i * alignedMemory;
 		glm::vec3* current = (glm::vec3*)(((size_t)shellUBO.data) + offset);
 		levelOpacity -= 0.05;
-		levelWeight += 0.001; //bunny
-		//levelWeight += 0.1; //sphere
+		if(!sphere)
+			levelWeight += 0.001; //bunny
+		else
+			levelWeight += 0.2; //sphere
 		*(current) = glm::vec3(levelWeight, levelOpacity, i);
 	}
 	void* dataShell;

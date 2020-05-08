@@ -52,7 +52,7 @@ class Renderer
 public:
 
 	Renderer();
-	Renderer(OBJ &model, Texture & shell, Texture & fin, Mtl & mtl);// - store the reference to the OBJ, so you can set up the buffers
+	Renderer(OBJ &model, Texture & shell, Texture & fin, Mtl & mtl, bool isRenderSphere);// - store the reference to the OBJ, so you can set up the buffers
 	~Renderer();
 	
 	void run();
@@ -320,6 +320,8 @@ private:
 	struct ShellUniformBufferObject {
 		glm::vec3 * data;
 	};
+
+	bool sphere = false;
 
 	LightingConstants lighting;
 
