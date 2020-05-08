@@ -826,7 +826,9 @@ void Renderer::createImageViews()
 
 void Renderer::createShadowMapPipeline() 
 {
-	//read in shader programs in binary format (pre compiled)
+	//read in shader programs in binary format (pre compiled) we only have a vertex shader here to transform model to light space
+	//the rest is taken care of by the primitive pipeline stages to fill the depth buffer
+	//fragment becomes pass through in this case (we dont even render so it does not matter what it does)
 	auto vertShaderCode = readFile("../shaders/shadowVert.spv");
 
 	//create shader modules using read in code
@@ -872,8 +874,9 @@ void Renderer::createShadowMapPipeline()
 	VkViewport viewport = {};
 	viewport.x = 0.0f; //origin
 	viewport.y = 0.0f; //origin
-	viewport.width = 1024; //max width (here we are matching the swap chain width)
-	viewport.height = 1024; //max height (here we are matching the swap chain height)
+	viewport.width = 1024; //max width - fixed value since the shadow map is just a texture, we can save on space and set it to be constant
+	//on a full screen display, ~1920 x 1080 the shadow map will have a lower res making shadow acne and shadow resolution poorer, really making it necessary to have a bias and pcf enabled
+	viewport.height = 1024; //max height
 	viewport.minDepth = 0.0f; //frame buffer depth values - we don't really use them at the moment
 	viewport.maxDepth = 1.0f; //frame buffer depth values - we don't really use them at the moment
 
@@ -904,13 +907,13 @@ void Renderer::createShadowMapPipeline()
 	rasterizer.polygonMode = VK_POLYGON_MODE_FILL; //turns triangles into points or lines - in this case triangles are solid, filled in
 	rasterizer.lineWidth = 1.0f; //thickness of lines
 	//these have changed to accommodate for the y flip in the projection matrix
-	rasterizer.cullMode = VK_CULL_MODE_NONE;  //which faces should we cull (here we choose to cull back faces, we could also do both)
+	rasterizer.cullMode = VK_CULL_MODE_NONE;  //which faces should we cull 
+	//(we dont cull any faces for the depth calculation, peter panning (where the shadow is detached from the object) can be an issue,
+	//however with the mesh that is used it doesnt seem to be a problem, this should be changed to front face culling to fix that issue)
 	rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE; //how to iterate over vertices (determines which faces are front and back) can be CC or C
 	//the following parameters can be used to fix issues with z-fighting by allowing fragments to be offset in depth
+	//this is set dynamicall so we can turn it on and off from the UI
 	rasterizer.depthBiasEnable = VK_TRUE; // can be modified based on slope but we don't want that here so it is disabled
-	rasterizer.depthBiasConstantFactor = 0.0f; // depth bias equation - used here to offset the 
-	rasterizer.depthBiasClamp = 0.0f; // Optional - puts an upper bound on the depth bias equation output if positive and non zero and lower bound if non zero and negative
-	rasterizer.depthBiasSlopeFactor = 0.0f; // Optional - param in depth bias equation
 	//depth bias is calculated by finding m which is steepest descent in z direction and then multiplying it by depthBiasSlopeFactor and depthBiasConstantFactor
 
 	//multisampling
@@ -934,11 +937,11 @@ void Renderer::createShadowMapPipeline()
 	//this is responsible for writing fragments into color attachments
 	VkPipelineColorBlendStateCreateInfo colorBlending = {};
 	colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO; //struct type
-	colorBlending.attachmentCount = 0; //number of attachments, we only have 1 which the colour attachment
+	colorBlending.attachmentCount = 0; //number of attachments, no color blending
 
 	//dynamic state - what parameters can we change at runtime (can be nullptr if we don't have any)
 	VkDynamicState dynamicStates[] = {
-		VK_DYNAMIC_STATE_DEPTH_BIAS
+		VK_DYNAMIC_STATE_DEPTH_BIAS //we want to change the depth bias on the fly
 	};
 
 	/*
@@ -1089,13 +1092,10 @@ void Renderer::createGraphicsPipeline()
 	rasterizer.polygonMode = VK_POLYGON_MODE_FILL; //turns triangles into points or lines - in this case triangles are solid, filled in
 	rasterizer.lineWidth = 1.0f; //thickness of lines
 	//these have changed to accommodate for the y flip in the projection matrix
-	rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;  //which faces should we cull (here we choose to cull back faces, we could also do both)
+	rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;  //which faces should we cull (here we choose to cull back faces)
 	rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE; //how to iterate over vertices (determines which faces are front and back) can be CC or C
 	//the following parameters can be used to fix issues with z-fighting by allowing fragments to be offset in depth
 	rasterizer.depthBiasEnable = VK_FALSE; // can be modified based on slope but we don't want that here so it is disabled
-	rasterizer.depthBiasConstantFactor = 0.0f; // Optional - depth bias equation
-	rasterizer.depthBiasClamp = 0.0f; // Optional - puts an upper bound on the depth bias equation output if positive and non zero and lower bound if non zero and negative
-	rasterizer.depthBiasSlopeFactor = 0.0f; // Optional - param in depth bias equation
 	//depth bias is calculated by finding m which is steepest descent in z direction and then multiplying it by depthBiasSlopeFactor and depthBiasConstantFactor
 
 	//multisampling
@@ -1118,23 +1118,13 @@ void Renderer::createGraphicsPipeline()
 	//configuration per colour attachment (we only have one colour attachment)
 	VkPipelineColorBlendAttachmentState colorBlendAttachment = {};
 	colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT; //the channels we are writing to
-	if (BLEND) {
-		colorBlendAttachment.blendEnable = VK_TRUE; //if we want to blend the colours
-		colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA; //use the source image alpha channel to determine how much of src colours we use
-		colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA; //use the destination image alpha channel to determine how much of dst colours we use
-		colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD; //add the two colours together
-		colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE; //use the source images alpha
-		colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO; //don't use the destination images alpha
-		colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD; //add the alphas together to determine final alpha of new image
-	}else{
-		colorBlendAttachment.blendEnable = VK_FALSE; //do we blend, not in this case,  we simply overwrite the contents of the buffer the parameters below are ignored
-		colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_ONE; // Optional - we treat the src as opaque and replace everything in the dst
-		colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO; // Optional - we are not using any amount of the destination images colour
-		colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD; // Optional - we add the colours (essentially replacing them)
-		colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE; // Optional - use all of the source images alpha value
-		colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO; // Optional - don't use any of the destination images alpha
-		colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD; // Optional - add the alphas together to determine final alpha value
-	}
+	colorBlendAttachment.blendEnable = VK_TRUE; //if we want to blend the colours
+	colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA; //use the source image alpha channel to determine how much of src colours we use
+	colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA; //use the destination image alpha channel to determine how much of dst colours we use
+	colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD; //add the two colours together
+	colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE; //use the source images alpha
+	colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO; //don't use the destination images alpha
+	colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD; //add the alphas together to determine final alpha of new image
 
 	//references the array of structures for all of the framebuffers and allows you to set blend constants that you can use as blend factors in the blend calculations
 	//final stage in the graphics pipeline is the colour blend stage
@@ -1150,21 +1140,6 @@ void Renderer::createGraphicsPipeline()
 	colorBlending.blendConstants[1] = 0.0f; // Optional - G
 	colorBlending.blendConstants[2] = 0.0f; // Optional - B
 	colorBlending.blendConstants[3] = 0.0f; // Optional - A
-
-	//dynamic state - what parameters can we change at runtime (can be nullptr if we don't have any)
-	VkDynamicState dynamicStates[] = {
-		VK_DYNAMIC_STATE_VIEWPORT, //we would like to change the viewport dimensions
-		VK_DYNAMIC_STATE_LINE_WIDTH //we would also like to change the line width on the fly
-	};
-
-	/*
-		It is possible to make particular parts of the graphics pipeline dynamic
-		this means that they can be updated using commands in side the command buffer rather than through an object
-	*/
-	VkPipelineDynamicStateCreateInfo dynamicState = {};
-	dynamicState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO; //type of struct
-	dynamicState.dynamicStateCount = 2; //the number of states we wish to make dynamic
-	dynamicState.pDynamicStates = dynamicStates; //the states
 
 	//pipeline layout - specifies uniform layout information - which we are not using here so the struct is blank, but we still need to provide it
 	VkPipelineLayoutCreateInfo pipelineLayoutInfo = {};
@@ -1207,7 +1182,8 @@ void Renderer::createGraphicsPipeline()
 
 	vkDestroyShaderModule(device, fragShaderModule, nullptr); //destroy the shader modules since they have been loaded in the pipeline
 	vkDestroyShaderModule(device, vertShaderModule, nullptr); //destroy the shader modules since they have been loaded in the pipeline
-
+	
+	///-------------------------------------------------------- SETUP DEBUG QUAD
 	//debug quad pipeline layout and pipeline creation
 	vertShaderCode = readFile("../shaders/qdvert.spv");
 	fragShaderCode = readFile("../shaders/qdfrag.spv");
@@ -1224,9 +1200,7 @@ void Renderer::createGraphicsPipeline()
 
 	pipelineInfo.pStages = shaderStages;
 
-	rasterizer.cullMode = VK_CULL_MODE_NONE;
-
-	
+	rasterizer.cullMode = VK_CULL_MODE_NONE; //single sheet so we dont need to cull
 
 	if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &dqPipeline) != VK_SUCCESS) { //make the graphics pipeline
 		throw std::runtime_error("failed to create graphics pipeline!"); //throw an error if it was unsuccessful
@@ -1235,18 +1209,18 @@ void Renderer::createGraphicsPipeline()
 	vkDestroyShaderModule(device, fragShaderModule, nullptr); //destroy the shader modules since they have been loaded in the pipeline
 	vkDestroyShaderModule(device, vertShaderModule, nullptr); //destroy the shader modules since they have been loaded in the pipeline
 }
-
+//create the shadow map frame buffer
 void Renderer::createShadowMapFrameBuffers()
 {
 	VkFramebufferCreateInfo framebufferInfo = {}; //struct to hold framebuffer creation info
 	framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO; //struct type
 	framebufferInfo.renderPass = shadowMapRenderPass; //render pass we are binding framebuffer to
-	framebufferInfo.attachmentCount = 1; //number of attachments
-	framebufferInfo.pAttachments = &shadowMapTextureImageView; //the images that we wish to manage in the frame buffer
-	framebufferInfo.width = 1024; //the width of the image
+	framebufferInfo.attachmentCount = 1; //number of attachments - just the depth attachment
+	framebufferInfo.pAttachments = &shadowMapTextureImageView; //the images that we wish to manage in the frame buffer (shadow map image view, access to depth map)
+	framebufferInfo.width = 1024; //the width of the image - fixed at this size
 	framebufferInfo.height = 1024; //the height of the image
 	framebufferInfo.layers = 1; //number of layers in image array
-
+	//create the frame buffer
 	if (vkCreateFramebuffer(device, &framebufferInfo, nullptr, &shadowMapFramebuffer) != VK_SUCCESS) { //create the frame buffer object
 		throw std::runtime_error("failed to create framebuffer!"); //throw an error if we are unsuccessful in creating the buffer
 	}
@@ -1255,20 +1229,7 @@ void Renderer::createShadowMapFrameBuffers()
 //here we are going to submit commands to copy data from the staging buffer to the device local vert buff
 void Renderer::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size)
 {
-	//VkCommandBufferAllocateInfo allocInfo = {};
-	//allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-	//allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY; 
-	//allocInfo.commandPool = commandPool;
-	//allocInfo.commandBufferCount = 1;
-
 	VkCommandBuffer commandBuffer = beginSingleTimeCommands();
-	//vkAllocateCommandBuffers(device, &allocInfo, &commandBuffer);
-	
-	//VkCommandBufferBeginInfo beginInfo = {};
-	//beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-	//beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-
-	//vkBeginCommandBuffer(commandBuffer, &beginInfo);
 
 	VkBufferCopy copyRegion = {};
 	copyRegion.srcOffset = 0; // Optional
@@ -1277,18 +1238,6 @@ void Renderer::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize s
 	vkCmdCopyBuffer(commandBuffer, srcBuffer, dstBuffer, 1, &copyRegion);
 
 	endSingleTimeCommands(commandBuffer);
-
-	/*vkEndCommandBuffer(commandBuffer);
-
-	VkSubmitInfo submitInfo = {};
-	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-	submitInfo.commandBufferCount = 1;
-	submitInfo.pCommandBuffers = &commandBuffer;
-
-	vkQueueSubmit(graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
-	vkQueueWaitIdle(graphicsQueue);
-
-	vkFreeCommandBuffers(device, commandPool, 1, &commandBuffer);*/
 }
 
 //helper function to create a buffer
@@ -1409,37 +1358,8 @@ void Renderer::createRenderPass()
 	renderPassInfo.subpassCount = 1; // the number of subpasses
 	renderPassInfo.pSubpasses = &subpass; //the subpass creation info
 
-	//define subpass
-	//first two fields specify the indices of the dependency and the dependent subpass
-	VkSubpassDependency dependency = {};
-	dependency.srcSubpass = VK_SUBPASS_EXTERNAL; //producer of data (in this case is external to this subpass)
-	dependency.dstSubpass = 0; //this subpass is the destination of the data (that is how the dependency goes)
-	// next two fields specify the operations to wait on and the stages in which these operations occur
-	dependency.srcStageMask = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT; //which pipeline stage of the source subpass produced the data
-	dependency.srcAccessMask = VK_ACCESS_MEMORY_READ_BIT; //how source subpass accesses the data
-	//next two fields specify the operations to wait on and the stages in which these operations occur
-	dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT; //which stages of the destination subpass will consume the data. 
-	dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT; //how destination subpass accesses the data
-	dependency.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
-
-	//define subpass
-	//first two fields specify the indices of the dependency and the dependent subpass
-	VkSubpassDependency dependency2 = {};
-	dependency2.srcSubpass = 0; //producer of data (in this case is external to this subpass)
-	dependency2.dstSubpass = VK_SUBPASS_EXTERNAL; //this subpass is the destination of the data (that is how the dependency goes)
-	// next two fields specify the operations to wait on and the stages in which these operations occur
-	dependency2.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT; //which pipeline stage of the source subpass produced the data
-	dependency2.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT; //how source subpass accesses the data
-	//next two fields specify the operations to wait on and the stages in which these operations occur
-	dependency2.dstStageMask = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT; //which stages of the destination subpass will consume the data. 
-	dependency2.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT; //how destination subpass accesses the data
-	dependency2.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
-
-	std::array<VkSubpassDependency, 2> deps = { dependency, dependency2 };
-
-	//setup the subpass in the renderpassinfo struct
-	renderPassInfo.dependencyCount = 2; //we have 1 dependency
-	renderPassInfo.pDependencies = deps.data(); //the dependency info
+	renderPassInfo.dependencyCount = 0; //we have 1 dependency (last subpass so no need to declare any dependencies from here)
+	renderPassInfo.pDependencies = nullptr; //the dependency info
 
 	if (vkCreateRenderPass(device, &renderPassInfo, nullptr, &renderPass) != VK_SUCCESS) { //make the render pass
 		throw std::runtime_error("failed to create render pass!"); //if we were not successful throw an error
@@ -1509,7 +1429,7 @@ void Renderer::createCommandPool()
 
 void Renderer::createShadowMapTextureImage()
 {
-	//create the image and its memory
+	//create the image and its memory - fixed size
 	createImage(1024, 1024, VK_FORMAT_D16_UNORM, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, shadowMapTextureImage, shadowMapTextureImageMemory);
 }
 
@@ -1560,7 +1480,7 @@ void Renderer::createShadowMapTextureSampler()
 	samplerInfo.magFilter = VK_FILTER_LINEAR;
 	samplerInfo.minFilter = VK_FILTER_LINEAR;
 
-	samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE; //CLAMP TO EDGE MAYBE
+	samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE; //slamp to edge because we dont want to repeat the texture, anything outside the shadow map should be a static value
 	samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
 	samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
 
@@ -1583,7 +1503,7 @@ void Renderer::createShadowMapTextureSampler()
 		throw std::runtime_error("failed to create texture sampler!");
 	}
 }
-
+//basic texture sampler
 void Renderer::createTextureSampler()
 {
 	VkSamplerCreateInfo samplerInfo = {};
@@ -1645,11 +1565,8 @@ void Renderer::createVertexBuffer()
 	vkDestroyBuffer(device, stagingBuffer, nullptr);
 	vkFreeMemory(device, stagingBufferMemory, nullptr);
 
-	///---- make dedrbug quad vertex buffer
-	for (auto v : dq.vertices)
-	{
-		std::cout << v.normal.x << " " << v.normal.y << " " << v.normal.z << std::endl;
-	}
+	///---- make debug quad vertex buffer
+	//allocate the buffers for the vertices and indices and load them in
 	bufferSize = sizeof(dq.vertices[0]) * dq.vertices.size();
 	createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory);
 	vkMapMemory(device, stagingBufferMemory, 0, bufferSize, 0, &data);
@@ -1765,22 +1682,21 @@ void Renderer::createDescriptorSetLayout()
 	lightingLayoutBinding.descriptorCount = 1; //the number of descriptors contained in the binding
 	lightingLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT; //which stage of the pipeline will access this binding
 
-	//binding to describe the lighting buffer
+	//binding to describe the shadow uniform buffer
 	VkDescriptorSetLayoutBinding shadowLayoutBinding = {};
 	shadowLayoutBinding.binding = 3; //the binding number, this is what we will refer to in our shader program
 	shadowLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; //type of the binding, uniform buffer because that is what we are binding
 	shadowLayoutBinding.descriptorCount = 1; //the number of descriptors contained in the binding
 	shadowLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT; //which stage of the pipeline will access this binding
 
-	//binding to describe the sampler
+	//binding to describe the shadow map sampler
 	VkDescriptorSetLayoutBinding shadowSamplerLayoutBinding = {};
 	shadowSamplerLayoutBinding.binding = 4; //the number we are binding to (shader access will use this number)
 	shadowSamplerLayoutBinding.descriptorCount = 1; //one descriptor in this binding
 	shadowSamplerLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; //the type of this binding, we are using combined sampler, both image and sampler in one
 	shadowSamplerLayoutBinding.pImmutableSamplers = nullptr; //this field needs to be included because the type of this binding is combined image sampler (we set this later, nullptr makes it dynamic)
 	shadowSamplerLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT; //which stage of the pipeline will access this binding
-
-
+	
 	//group the descriptor set layout bindings
 	std::array<VkDescriptorSetLayoutBinding, 5> bindings = { uboLayoutBinding, samplerLayoutBinding, lightingLayoutBinding, shadowLayoutBinding, shadowSamplerLayoutBinding};
 	VkDescriptorSetLayoutCreateInfo layoutInfo = {}; //create the descriptor set layout
@@ -1850,12 +1766,12 @@ void Renderer::createDescriptorSets()
 	ShadowUniformBufferInfo.buffer = shadowUniformBuffer; //handle to the buffer we wish to bind to the descriptor set
 	ShadowUniformBufferInfo.offset = 0; //start at offset 0 in the buffer
 	ShadowUniformBufferInfo.range = sizeof(ShadowUniformObject); //the size of each element in the buffer
-
+	//shadow map image info
 	VkDescriptorImageInfo shadowImageInfo = {};
 	shadowImageInfo.imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL; //the image layout
 	shadowImageInfo.imageView = shadowMapTextureImageView; //the image view of the texture
 	shadowImageInfo.sampler = shadowMapTextureSampler; //the sampler used to access the shadow map
-	
+	//update the descriptor sets for the shadow map pipeline here
 	std::array<VkWriteDescriptorSet, 2> shadowWrites = {};
 	shadowWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; //we are writing to the descriptor set so this must be the type of the struct
 	shadowWrites[0].dstSet = shadowMapDescriptorSet; //the set we are writing to
@@ -1872,7 +1788,7 @@ void Renderer::createDescriptorSets()
 	shadowWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; //the type of the descriptor (texture so we specify combined image and sampler)
 	shadowWrites[1].descriptorCount = 1; //the number of descriptors we are updating
 	shadowWrites[1].pImageInfo = &shadowImageInfo; //the image we are binding (we are no correctly providing the texture data and sampler)
-
+	//update
 	vkUpdateDescriptorSets(device, shadowWrites.size(), shadowWrites.data(), 0, nullptr);
 
 	//we now need to associate the right buffers with the descriptor sets we have just created
@@ -2319,7 +2235,7 @@ void Renderer::recreateSwapChain()
 	createUniformBuffers(); //create the uniform buffers
 	createDescriptorPool(); //create uniform descriptor pool
 	createDescriptorSets();  //create descriptor sets
-	imInit();
+	imInit(); //setup imgui pipeline
 	createCommandBuffers(); //create new command buffers (we recycle the command pool)
 }
 
@@ -3015,25 +2931,26 @@ void Renderer::drawUI(VkCommandBuffer& cbuffer)
 
 	if (imDrawData->CmdListsCount > 0)
 	{
-		VkDeviceSize offsets[1] = { 0 };
-		vkCmdBindVertexBuffers(cbuffer, 0, 1, &im_vertexBuffer, offsets);
+		/*VkDeviceSize offsets[1] = { 0 };*/
+		vkCmdBindVertexBuffers(cbuffer, 0, 1, &im_vertexBuffer, 0);
 		vkCmdBindIndexBuffer(cbuffer, im_indexBuffer, 0, VK_INDEX_TYPE_UINT16);
 		for (size_t i = 0; i < imDrawData->CmdListsCount; i++)
-		{
-			const ImDrawList* cmd_list = imDrawData->CmdLists[i];
+		{//for all the command lists (elements to draw)
+			const ImDrawList* cmd_list = imDrawData->CmdLists[i]; //get the draw list
 			for (size_t j = 0; j < cmd_list->CmdBuffer.Size; j++)
-			{
-				const ImDrawCmd* drawcmd = &cmd_list->CmdBuffer[j];
-				VkRect2D scissorRect;
-				scissorRect.offset.x = std::max((int32_t)(drawcmd->ClipRect.x), 0);
+			{//iterate through the buffers (draw calls)
+				const ImDrawCmd* drawcmd = &cmd_list->CmdBuffer[j]; //get the draw call
+				VkRect2D scissorRect; //set up the scissor
+				//configure the scissor according to ImGui (it is setup to be around the window)
+				scissorRect.offset.x = std::max((int32_t)(drawcmd->ClipRect.x), 0); //the origin of the scissor is x, y
 				scissorRect.offset.y = std::max((int32_t)(drawcmd->ClipRect.y), 0);
-				scissorRect.extent.width = (uint32_t)(drawcmd->ClipRect.z - drawcmd->ClipRect.x);
+				scissorRect.extent.width = (uint32_t)(drawcmd->ClipRect.z - drawcmd->ClipRect.x); //the extent is the difference between the w and z
 				scissorRect.extent.height = (uint32_t)(drawcmd->ClipRect.w - drawcmd->ClipRect.y);
 				vkCmdSetScissor(cbuffer, 0, 1, &scissorRect);
-				vkCmdDrawIndexed(cbuffer, drawcmd->ElemCount, 1, indexOffset, vertexOffset, 0);
-				indexOffset += drawcmd->ElemCount;
+				vkCmdDrawIndexed(cbuffer, drawcmd->ElemCount, 1, indexOffset, vertexOffset, 0); //draw from the index offset of this draw call and vertex offset of this draw call
+				indexOffset += drawcmd->ElemCount; //incremement by the size of this draw call
 			}
-			vertexOffset += cmd_list->VtxBuffer.Size;
+			vertexOffset += cmd_list->VtxBuffer.Size; //increment by the size of this draw call
 		}
 	}
 }

@@ -319,7 +319,7 @@ private:
 
 		};
 
-		std::vector<uint32_t> indices = { 0,1,2, 2,3,0 };
+		std::vector<uint32_t> indices = {0, 1, 2, 2, 3, 0};
 
 		VkBuffer vertexBuffer;
 		VkDeviceMemory vertexBufferMemory;
