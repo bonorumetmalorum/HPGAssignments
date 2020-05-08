@@ -109,6 +109,7 @@ void Renderer::mainLoop()
 		io.MouseDown[0] = mButtonState[0];
 		io.MouseDown[1] = mButtonState[1];
 		vkQueueWaitIdle(graphicsQueue); //wait for the queue to be idle and proceed with recording a new command buffer for ImGui
+		//re record the command buffers because ImGui may have changed, we need to reflect this (new push constants etc, might have been better to have a sperate command buffer for ImGui...)
 		recordCommandBuffers();
 		drawFrame();
 	}
@@ -1879,7 +1880,7 @@ void Renderer::createCommandBuffers()
 
 	recordCommandBuffers(); //record the command buffers
 }
-//record the command buffers
+//record the command buffers (avoids us having to reallocate the buffers)
 void Renderer::recordCommandBuffers()
 {
 	VkCommandBufferBeginInfo beginInfo = {}; //information needed to tell the command buffer to begin recording
