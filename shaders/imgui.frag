@@ -5,7 +5,7 @@ layout (binding = 0) uniform sampler2D fSampler;
 
 layout (location = 0) in vec2 inUV;
 layout (location = 1) in vec4 inColor;
-
+//applies colors and texture to frag
 void main()
 {
     fColor = inColor * texture(fSampler, inUV.st);

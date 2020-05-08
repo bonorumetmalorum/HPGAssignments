@@ -16,7 +16,7 @@ out gl_PerVertex
 {
 	vec4 gl_Position;   
 };
-
+//bog standard vertex shader, passes uv coords, colors and position (with scaling and translation) on
 void main() 
 {
 	outUV = inUV;
