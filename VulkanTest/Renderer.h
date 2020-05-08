@@ -350,7 +350,6 @@ private:
 	static glm::vec3 translation;
 	static bool translating;
 	static void mouseButtonCallBack(GLFWwindow* window, int button, int action, int mods);
-	static void keyboardKeyCallback(GLFWwindow * window, int key, int scancode, int action, int mods);
 	static void mousePosCallback(GLFWwindow* window, double xpos, double ypos);
 
 	///----IMGUI RELATED STUFF -----------

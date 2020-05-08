@@ -91,7 +91,6 @@ void Renderer::initWindow()
 	
 	glfwSetMouseButtonCallback(window, mouseButtonCallBack);
 	glfwSetCursorPosCallback(window, mousePosCallback); //mouse button callback
-	glfwSetKeyCallback(window, keyboardKeyCallback);
 	ImGui_ImplGlfw_InitForVulkan(window, true);
 	
 }
@@ -878,7 +877,7 @@ void Renderer::createShadowMapPipeline()
 	viewport.width = 1024; //max width - fixed value since the shadow map is just a texture, we can save on space and set it to be constant
 	//on a full screen display, ~1920 x 1080 the shadow map will have a lower res making shadow acne and shadow resolution poorer, really making it necessary to have a bias and pcf enabled
 	viewport.height = 1024; //max height
-	viewport.minDepth = 0.1f; 
+	viewport.minDepth = 0.0f; 
 	viewport.maxDepth = 1.0f;
 
 	//filter that discards pixels, we want to draw the entire image so we have a scissor angle to cover it entirely
@@ -1066,7 +1065,7 @@ void Renderer::createGraphicsPipeline()
 	viewport.y = 0.0f; //origin
 	viewport.width = (float)swapChainExtent.width; //max width (here we are matching the swap chain width)
 	viewport.height = (float)swapChainExtent.height; //max height (here we are matching the swap chain height)
-	viewport.minDepth = 0.1f; 
+	viewport.minDepth = 0.0f; 
 	viewport.maxDepth = 1.0f; 
 
 	//filter that discards pixels, we want to draw the entire image so we have a scissor angle to cover it entirely
@@ -2731,7 +2730,7 @@ void Renderer::imInit()
 		viewport.y = 0.0f; //origin
 		viewport.width = (float)swapChainExtent.width; //max width (here we are matching the swap chain width)
 		viewport.height = (float)swapChainExtent.height; //max height (here we are matching the swap chain height)
-		viewport.minDepth = 0.1f; 
+		viewport.minDepth = 0.0f; 
 		viewport.maxDepth = 1.0f;
 
 		//filter that discards pixels, we want to draw the entire image so we have a scissor angle to cover it entirely
@@ -2924,7 +2923,7 @@ void Renderer::drawUI(VkCommandBuffer& cbuffer)
 	VkViewport viewport = {};
 	viewport.width = width;
 	viewport.height = height;
-	viewport.minDepth = 0.1f;
+	viewport.minDepth = 0.0f;
 	viewport.maxDepth = 1.0f;
 
 	vkCmdSetViewport(cbuffer, 0, 1, &viewport);
@@ -2989,18 +2988,5 @@ void Renderer::mouseButtonCallBack(GLFWwindow* window, int button, int action, i
 			app->mButtonState[1] = false;
 			translating = false; //stop translating
 		}
-	}
-}
-
-//keyboard key click callback
-void Renderer::keyboardKeyCallback(GLFWwindow * window, int key, int scancode, int action, int mods) {
-	if (key == GLFW_KEY_A && action == GLFW_PRESS) { //A key press for turning ambient on/off
-		renderFlags.x = renderFlags.x==1.0?0.0:1.0;
-	}
-	else if (key == GLFW_KEY_D && action == GLFW_PRESS) { //D key press for turning diffuse on/off
-		renderFlags.y = renderFlags.y == 1.0 ? 0.0 : 1.0;
-	}
-	else if (key == GLFW_KEY_S && action == GLFW_PRESS) { //S key press for turning specular on/off
-		renderFlags.z = renderFlags.z == 1.0 ? 0.0 : 1.0;
 	}
 }
