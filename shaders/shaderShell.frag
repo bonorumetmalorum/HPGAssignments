@@ -27,7 +27,7 @@ void main() {
 	textureColor.a *= opacity;
 	float ambI = 0.3;
 	float diffI = 0.5;
-	float specI = 0.4;
+	float specI = 0.2;
 
 	vec4 normEyeVector = normalize(fragEyeVector);
 	vec4 normLightVector = normalize(fragLightVector);
@@ -39,9 +39,9 @@ void main() {
     float TdotE = max(dot( normNormal.xyz , normEyeVector.xyz), 0.0);
     float sinTL = sqrt( 1 - TdotL*TdotL );
     float sinTE = sqrt( 1 - TdotE*TdotE );
-	
+
 	textureColor.xyz += vec3(1.0,1.0,1.0) * (ambI*textureColor.xyz) + (diffI*sinTL*textureColor.xyz) + 
-       (specI*pow( abs((TdotL*TdotE + sinTL*sinTE)),50.0)) * fragColor;
+       (specI*pow( abs((TdotL*TdotE + sinTL*sinTE)),10.0)) * fragColor;
 
 	//banks selfshadowing:
     float minShadow = 0.8;
