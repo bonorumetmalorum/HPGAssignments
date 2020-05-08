@@ -877,8 +877,8 @@ void Renderer::createShadowMapPipeline()
 	viewport.width = 1024; //max width - fixed value since the shadow map is just a texture, we can save on space and set it to be constant
 	//on a full screen display, ~1920 x 1080 the shadow map will have a lower res making shadow acne and shadow resolution poorer, really making it necessary to have a bias and pcf enabled
 	viewport.height = 1024; //max height
-	viewport.minDepth = 0.0f; //frame buffer depth values - we don't really use them at the moment
-	viewport.maxDepth = 1.0f; //frame buffer depth values - we don't really use them at the moment
+	viewport.minDepth = 0.1f; 
+	viewport.maxDepth = 1.0f;
 
 	//filter that discards pixels, we want to draw the entire image so we have a scissor angle to cover it entirely
 	VkRect2D scissor = {}; //VkRect2D is a type that defines a rectangle in vulkan, it can be used for other things as well
@@ -1065,8 +1065,8 @@ void Renderer::createGraphicsPipeline()
 	viewport.y = 0.0f; //origin
 	viewport.width = (float)swapChainExtent.width; //max width (here we are matching the swap chain width)
 	viewport.height = (float)swapChainExtent.height; //max height (here we are matching the swap chain height)
-	viewport.minDepth = 0.0f; //frame buffer depth values - we don't really use them at the moment
-	viewport.maxDepth = 1.0f; //frame buffer depth values - we don't really use them at the moment
+	viewport.minDepth = 0.1f; 
+	viewport.maxDepth = 1.0f; 
 
 	//filter that discards pixels, we want to draw the entire image so we have a scissor angle to cover it entirely
 	VkRect2D scissor = {}; //VkRect2D is a type that defines a rectangle in vulkan, it can be used for other things as well
@@ -2484,9 +2484,8 @@ void Renderer::updateUniformBuffer(uint32_t index)
 
 	ShadowUniformObject suo = {}; //ubo object that we will load into buffer
 	suo.model = model * rotatioMat; //incorporate it into the model matrix
-	suo.view = glm::lookAt(glm::vec3(lighting.lightPos), translation, glm::vec3(0.0f, 1.0f, 0.0f)); //look direction
+	suo.view = glm::lookAt(glm::vec3(lighting.lightPos), translation, glm::vec3(0.0f, 0.0f, 1.0f)); //look direction
 	suo.proj = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float)swapChainExtent.height, 0.1f, 100.f); //perspective projection matrix
-	//suo.proj = glm::ortho(-10.0f, 10.0f, -10.0f, 10.0f, 1.0f, 7.5f); //perspective projection matrix
 
 
 	//map the on GPU memory to main memory so we can load the data, then unmap
@@ -2731,8 +2730,8 @@ void Renderer::imInit()
 		viewport.y = 0.0f; //origin
 		viewport.width = (float)swapChainExtent.width; //max width (here we are matching the swap chain width)
 		viewport.height = (float)swapChainExtent.height; //max height (here we are matching the swap chain height)
-		viewport.minDepth = 0.0f; //frame buffer depth values - we don't really use them at the moment
-		viewport.maxDepth = 1.0f; //frame buffer depth values - we don't really use them at the moment
+		viewport.minDepth = 0.1f; 
+		viewport.maxDepth = 1.0f;
 
 		//filter that discards pixels, we want to draw the entire image so we have a scissor angle to cover it entirely
 		VkRect2D scissor = {}; //VkRect2D is a type that defines a rectangle in vulkan, it can be used for other things as well
@@ -2924,15 +2923,15 @@ void Renderer::drawUI(VkCommandBuffer& cbuffer)
 	VkViewport viewport = {};
 	viewport.width = width;
 	viewport.height = height;
-	viewport.minDepth = 0.0f;
+	viewport.minDepth = 0.1f;
 	viewport.maxDepth = 1.0f;
 
 	vkCmdSetViewport(cbuffer, 0, 1, &viewport);
 
 	if (imDrawData->CmdListsCount > 0)
 	{
-		/*VkDeviceSize offsets[1] = { 0 };*/
-		vkCmdBindVertexBuffers(cbuffer, 0, 1, &im_vertexBuffer, 0);
+		VkDeviceSize offsets[1] = { 0 };
+		vkCmdBindVertexBuffers(cbuffer, 0, 1, &im_vertexBuffer, offsets);
 		vkCmdBindIndexBuffer(cbuffer, im_indexBuffer, 0, VK_INDEX_TYPE_UINT16);
 		for (size_t i = 0; i < imDrawData->CmdListsCount; i++)
 		{//for all the command lists (elements to draw)

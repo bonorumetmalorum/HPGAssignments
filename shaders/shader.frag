@@ -18,6 +18,13 @@ layout(location = 0) out vec4 outColor;
 layout(binding = 1) uniform sampler2D texSampler;
 layout(binding = 4) uniform sampler2D shadowSampler;
 
+//because perspective projection skews the depth values (closer together near and farther apart far away)
+//we need to linearize the depth information in order to display
+float linearize(float depth)
+{
+  return (2.0 * 0.1) / (10.0 + 0.1 - depth * (10.0 - 0.1));	
+}
+
 void main() {
 	vec4 textureColor = texture(texSampler, fragTexCoord);
 	textureColor.a = 1.0;
@@ -29,8 +36,9 @@ void main() {
 	if(renderFlags[1] > 0.5)
 	{
 		float depth = texture(shadowSampler, shadow_coords.xy).r;
-		vec4 shadow = vec4(vec3(depth), 1.0);
-		outColor = shadow;
+		vec4 shadow = vec4(vec3(1.0 - linearize(depth), 1.0 - linearize(depth), 1.0 - linearize(depth)), 1.0);
+		vec4 col = shadow;
+		outColor = col;
 		return; //return, no point doing anything else
 	}
 	//lighting calculations

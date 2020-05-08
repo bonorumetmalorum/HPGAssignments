@@ -18,16 +18,16 @@ layout(location = 0) out vec4 outColor;
 layout(binding = 1) uniform sampler2D texSampler;
 layout(binding = 4) uniform sampler2D shadowSampler;
 
-float LinearizeDepth(float depth)
+//because perspective projection skews the depth values (closer together near and farther apart far away)
+//we need to linearize the depth information in order to display
+//near = 0.1 far = 1.0 planes
+float linearize(float depth)
 {
-  float n = 1.0; // camera z near
-  float f = 100.0; // camera z far
-  float z = depth;
-  return (2.0 * n) / (f + n - z * (f - n));	
+  return (2.0 * 0.1) / (10.0 + 0.1 - depth * (10.0 - 0.1));	
 }
 
 void main() {
     float z = texture(shadowSampler, fragTexCoord).r;
-    outColor = vec4(vec3(1.0 - LinearizeDepth(z)), 1.0);
+    outColor = vec4(vec3(1.0 - linearize(z)), 1.0);
 }
 

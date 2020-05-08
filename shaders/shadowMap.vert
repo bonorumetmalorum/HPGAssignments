@@ -13,7 +13,7 @@ layout(binding = 0) uniform ShadowUniformObject {
     mat4 proj;
 	vec3 renderFlags;
 } suo;
-
+//transform the position to light space and pass it on to the later stages
 void main() {
     vec4 WCS_position = suo.model * vec4(inPosition, 1.0);
     vec4 LCS_position = suo.view * WCS_position;

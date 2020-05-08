@@ -39,7 +39,9 @@ layout(binding = 3) uniform ShadowUniformObject {
     mat4 proj;
 	vec3 renderFlags;
 } suo;
-//needed for persepctive projection
+
+//needed for correct sampling in depth map because depth map is addressed from 0 - 1 whereas homogenous coords are form -1 to 1
+//not multiplying by this will cause an error where the depth map is not correctly accessed, shadow appear, but elsewhere on the model
 const mat4 bias = mat4(        
 	0.5, 0.0, 0.0, 0.0,       
 	 0.0, 0.5, 0.0, 0.0,        
@@ -53,7 +55,6 @@ void main() {
 	vec4 LCS_position = suo.view * WCS_position;
 
 	fragShadowCoord = bias * suo.proj * LCS_position;
-
 	//already in world coords so no need to multiply by model
 	fragLightVector = (ubo.view * lighting.lightPos) - VCS_position;
 	fragNormal = ubo.view * ubo.model * vec4(inNormal, 0.0);
