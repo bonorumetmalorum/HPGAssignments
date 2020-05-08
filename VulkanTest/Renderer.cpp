@@ -22,7 +22,7 @@ Renderer::Renderer(OBJ & model, Texture & textureShell, Texture & textureFin, Mt
 	this->lighting.lightDiffuse = mtl.diffuse;
 	this->lighting.lightSpecular = mtl.specular;
 	this->lighting.lightSpecularExponent = glm::vec2(mtl.specularExponent, 0.0);
-	this->lighting.lightPos = glm::vec4(-1.0, -2.0, 5.0, 1.0);
+	this->lighting.lightPos = glm::vec4(0.0, 2.0, 2.0, 1.0);
 	Ball_Init(&arcBall);
 	Ball_Place(&arcBall, { 0.0,0.0,0.0,1.0 }, 0.80);
 }

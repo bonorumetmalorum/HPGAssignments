@@ -26,21 +26,22 @@ void main() {
 	textureColor.rgb = vec3(0.4941, 0.0392, 0.0392);
 	textureColor.a *= opacity;
 	float ambI = 0.3;
-	float diffI = 0.7;
-	float specI = 0.2;
+	float diffI = 0.5;
+	float specI = 0.4;
 
 	vec4 normEyeVector = normalize(fragEyeVector);
 	vec4 normLightVector = normalize(fragLightVector);
 	vec4 normNormal = normalize(fragNormal);
 	vec3 normTangent = normalize(tangent.xyz);
-
-	float TdotL = max(dot( normTangent , normLightVector.xyz), 0.0);
-    float TdotE = max(dot( normTangent , normEyeVector.xyz), 0.0);
+	
+	//trying to do kajiya kay lighting computation for l'oreal hair
+	float TdotL = max(dot( normNormal.xyz , normLightVector.xyz), 0.0);
+    float TdotE = max(dot( normNormal.xyz , normEyeVector.xyz), 0.0);
     float sinTL = sqrt( 1 - TdotL*TdotL );
     float sinTE = sqrt( 1 - TdotE*TdotE );
-
+	
 	textureColor.xyz += vec3(1.0,1.0,1.0) * (ambI*textureColor.xyz) + (diffI*sinTL*textureColor.xyz) + 
-       (specI*pow( abs((TdotL*TdotE + sinTL*sinTE)),20.0));
+       (specI*pow( abs((TdotL*TdotE + sinTL*sinTE)),50.0)) * fragColor;
 
 	//banks selfshadowing:
     float minShadow = 0.8;

@@ -89,13 +89,13 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>C:\Users\venka\source\repos\VulkanTest\Libraries\stb-master;C:\Users\venka\source\repos\VulkanTest\Libraries\glm;C:\VulkanSDK\1.1.130.0\Include;C:\Users\venka\source\repos\VulkanTest\Libraries\glfw-3.3.2.bin.WIN64\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\Users\venka\source\repos\VulkanTest\Libraries\stb-master;C:\Users\venka\source\repos\VulkanTest\Libraries\glm;C:\VulkanSDK\1.1.130.0\Include;C:\Users\venka\source\repos\VulkanTest\Libraries\glfw-3.3.2.bin.WIN64\include;%(AdditionalIncludeDirectories);C:\VulkanSDK\1.1.130.0\Include</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Console</SubSystem>
-      <AdditionalLibraryDirectories>C:\VulkanSDK\1.1.130.0\Lib;C:\Users\venka\source\repos\VulkanTest\Libraries\glfw-3.3.2.bin.WIN64\lib-vc2017;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>C:\VulkanSDK\1.1.130.0\Lib;C:\Users\venka\source\repos\VulkanTest\Libraries\glfw-3.3.2.bin.WIN64\lib-vc2017;%(AdditionalLibraryDirectories);C:\VulkanSDK\1.1.130.0\Lib</AdditionalLibraryDirectories>
       <AdditionalDependencies>glfw3.lib;vulkan-1.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
@@ -106,13 +106,13 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(SolutionDir)Libraries\stb-master;$(SolutionDir)Libraries\glm;C:\VulkanSDK\1.2.131.2\Include;$(SolutionDir)Libraries\glfw-3.3.2.bin.WIN64\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)Libraries\stb-master;$(SolutionDir)Libraries\glm;C:\VulkanSDK\1.2.131.2\Include;$(SolutionDir)Libraries\glfw-3.3.2.bin.WIN64\include;%(AdditionalIncludeDirectories);C:\VulkanSDK\1.1.130.0\Include</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Console</SubSystem>
-      <AdditionalLibraryDirectories>C:\VulkanSDK\1.2.131.2\Lib;$(SolutionDir)Libraries\glfw-3.3.2.bin.WIN64\lib-vc2019;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>C:\VulkanSDK\1.2.131.2\Lib;$(SolutionDir)Libraries\glfw-3.3.2.bin.WIN64\lib-vc2019;%(AdditionalLibraryDirectories);C:\VulkanSDK\1.1.130.0\Lib</AdditionalLibraryDirectories>
       <AdditionalDependencies>glfw3.lib;vulkan-1.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
@@ -125,7 +125,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>C:\Users\venka\source\repos\VulkanTest\Libraries\stb-master;C:\Users\venka\source\repos\VulkanTest\Libraries\glm;C:\VulkanSDK\1.1.130.0\Include;C:\Users\venka\source\repos\VulkanTest\Libraries\glfw-3.3.2.bin.WIN64\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\Users\venka\source\repos\VulkanTest\Libraries\stb-master;C:\Users\venka\source\repos\VulkanTest\Libraries\glm;C:\VulkanSDK\1.1.130.0\Include;C:\Users\venka\source\repos\VulkanTest\Libraries\glfw-3.3.2.bin.WIN64\include;%(AdditionalIncludeDirectories);C:\VulkanSDK\1.1.130.0\Include</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
     <Link>
@@ -133,7 +133,7 @@
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Console</SubSystem>
-      <AdditionalLibraryDirectories>C:\VulkanSDK\1.1.130.0\Lib;C:\Users\venka\source\repos\VulkanTest\Libraries\glfw-3.3.2.bin.WIN64\lib-vc2017;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>C:\VulkanSDK\1.1.130.0\Lib;C:\Users\venka\source\repos\VulkanTest\Libraries\glfw-3.3.2.bin.WIN64\lib-vc2017;%(AdditionalLibraryDirectories);C:\VulkanSDK\1.1.130.0\Lib</AdditionalLibraryDirectories>
       <AdditionalDependencies>glfw3.lib;vulkan-1.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
@@ -146,7 +146,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>C:\Users\venka\source\repos\VulkanTest\Libraries\stb-master;C:\Users\venka\source\repos\VulkanTest\Libraries\glm;C:\VulkanSDK\1.1.130.0\Include;C:\Users\venka\source\repos\VulkanTest\Libraries\glfw-3.3.2.bin.WIN64\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\Users\venka\source\repos\VulkanTest\Libraries\stb-master;C:\Users\venka\source\repos\VulkanTest\Libraries\glm;C:\VulkanSDK\1.1.130.0\Include;C:\Users\venka\source\repos\VulkanTest\Libraries\glfw-3.3.2.bin.WIN64\include;%(AdditionalIncludeDirectories);C:\VulkanSDK\1.1.130.0\Include</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
     <Link>
@@ -154,7 +154,7 @@
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Console</SubSystem>
-      <AdditionalLibraryDirectories>C:\VulkanSDK\1.1.130.0\Lib;C:\Users\venka\source\repos\VulkanTest\Libraries\glfw-3.3.2.bin.WIN64\lib-vc2017;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>C:\VulkanSDK\1.1.130.0\Lib;C:\Users\venka\source\repos\VulkanTest\Libraries\glfw-3.3.2.bin.WIN64\lib-vc2017;%(AdditionalLibraryDirectories);C:\VulkanSDK\1.1.130.0\Lib</AdditionalLibraryDirectories>
       <AdditionalDependencies>glfw3.lib;vulkan-1.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
