@@ -991,7 +991,7 @@ void Renderer::createShellGraphicsPipeline()
 	VkPipelineDepthStencilStateCreateInfo depthStencil = {};
 	depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO; //truct type
 	depthStencil.depthTestEnable = VK_TRUE; //enable depth test (we want to compare depth however
-	depthStencil.depthWriteEnable = VK_TRUE; //enabled (can also be disabled however it does not make much difference since opacity varies with shell level)
+	depthStencil.depthWriteEnable = VK_FALSE; //disabled, we dont want to write depth info from this pipeline
 	depthStencil.depthCompareOp = VK_COMPARE_OP_LESS; // keep fragments with lesser depth
 	depthStencil.depthBoundsTestEnable = VK_FALSE; //special test to check if depth buffer values are within a range, disabled here
 	depthStencil.stencilTestEnable = VK_FALSE; //no stencil test to do after depth test
