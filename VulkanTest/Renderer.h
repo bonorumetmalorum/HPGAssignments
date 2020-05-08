@@ -91,7 +91,6 @@ private:
 	void createDescriptorSets();
 	void createCommandBuffers();
 	void recordCommandBuffers();
-	void resetCommandBuffers();
 	void createDepthResources();
 	void copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height);
 	void createImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage & image, VkDeviceMemory & imageMemory);
@@ -342,6 +341,7 @@ private:
 	size_t currentFrame = 0; //variable to hold which frame we are currently rendering, it is circular so ranges between 0 - 1 (since we only have 2 frames to switch between)
 	//we use this to handle resize events explicitly - whenever the window is resized this flag is set and then reset when the event is handled
 	bool framebufferResized = false;
+	int height = 800, width = 800;
 	static void framebufferResizeCallback(GLFWwindow* window, int width, int height);
 
 	static BallData arcBall;
