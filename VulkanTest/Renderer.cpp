@@ -55,9 +55,8 @@ void Renderer::initVulkan()
 	createSwapChain(); //create a swapchain that we can use to render images to the surface
 	createImageViews(); //create the image views that will hold additional info about the images in the swapchain
 	createRenderPass(); //create a render pass that specifies all the stages of the render
-	createDescriptorSetLayout(); //create the descriptor sets TODO
-	//^add to the descriptor above
-	createComputeDescriptorSetLayout();
+	createDescriptorSetLayout(); //create the descriptor sets
+	createComputeDescriptorSetLayout(); //create the compute descriptor set layout to describe the resource used by the compute pipeline
 	createBaseGraphicsPipeline(); //create a graphics pipeline to process drawing commands and render to the surface
 	createShellGraphicsPipeline(); //shell rendering pipeline
 	createFinGraphicsPipeline(); //fin rendering pipeline
@@ -79,7 +78,7 @@ void Renderer::initVulkan()
 	createCommandBuffers(); //create the command buffer from the pool with the appropriate commands
 	createComputeCommandBuffers(); //create the command buffer for the compute pipeline work
 	createSyncObjects(); //create synchronization primitives to control rendering
-
+	//run the compute shader
 	runComputeShader();
 }
 
@@ -758,31 +757,6 @@ void Renderer::createImageViews()
 	//loop over all images in the swap chain and create an image view for each one
 	for (size_t i = 0; i < swapChainImages.size(); i++) {
 		swapChainImageViews[i] = createImageView(swapChainImages[i], swapChainImageFormat, VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT);
-		//all of the following code has been refactored into a separate method "createImageView" which is used above
-		//VkImageViewCreateInfo createInfo = {}; //create info struct that will contain the information for setting up the image view
-		//createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO; //type of the struct - image view
-		//createInfo.image = swapChainImages[i]; //parent image of the view that will be created
-		//createInfo.viewType = VK_IMAGE_VIEW_TYPE_2D; //type of the view that will be created - can be 1d, 2d, and 3d images, or even cube maps and cube map array images, there are also 1d and 2d array images
-		//createInfo.format = swapChainImageFormat; //the format of the image, which will be the same as the swap chain format to ensure compatibility (this can be different however)
-
-		////component ordering in the view may be different from that in the parent
-		////each member of the components struct will refer to the child rgba components and how it should be interpreted from the parent image
-		//createInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY; //read from the corresponding channel in the parent - because we are using the identity swizzle
-		//createInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY; //read from the corresponding channel in the parent - because we are using the identity swizzle
-		//createInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY; //read from the corresponding channel in the parent - because we are using the identity swizzle
-		//createInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY; //read from the corresponding channel in the parent - because we are using the identity swizzle
-
-		////describes what part of the image should be accessed - colour in this case, no mipmapping or multiple layers here
-		////because this image view can be a subset of the parent image, the subset is specified in the following struct (subresourceRange)
-		//createInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT; //bitfield made up of the members of the VkImageAspectFlagBits specifying which aspects of the image are effected by the barrier (here we are only modifying the colour part, there are other parts, such as the stencil buffer)
-		//createInfo.subresourceRange.baseMipLevel = 0; //used to create an image view that corresponds to a certain part of the parents mip map chain
-		//createInfo.subresourceRange.levelCount = 1; //how many mip levels do we want to use
-		//createInfo.subresourceRange.baseArrayLayer = 0; //only used when the parent image is an array image, which in our case is not (how many layers do we want to use)
-		//createInfo.subresourceRange.layerCount = 1; //we only have one layer
-
-		//if (vkCreateImageView(device, &createInfo, nullptr, &swapChainImageViews[i]) != VK_SUCCESS) { //create the image view by passing the logical device, create info setup struct, null allocation callbacks and the out parameter to hold the swapchain views, if not successful stop
-		//	throw std::runtime_error("failed to create image views!"); //throw an error
-		//}
 	}
 }
 
@@ -823,7 +797,7 @@ void Renderer::createBaseGraphicsPipeline()
 	
 	//enable depth testing
 	VkPipelineDepthStencilStateCreateInfo depthStencil = {};
-	depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO; //truct type
+	depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO; //struct type
 	depthStencil.depthTestEnable = VK_TRUE; //enable depth test
 	depthStencil.depthWriteEnable = VK_TRUE; //enable ability to write values to the depth buffer
 	depthStencil.depthCompareOp = VK_COMPARE_OP_LESS; // keep fragments with lesser depth
@@ -886,9 +860,6 @@ void Renderer::createBaseGraphicsPipeline()
 	rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE; //how to iterate over vertices (determines which faces are front and back) can be CC or C
 	//the following parameters can be used to fix issues with z-fighting by allowing fragments to be offset in depth
 	rasterizer.depthBiasEnable = VK_FALSE; // can be modified based on slope but we don't want that here so it is disabled
-	rasterizer.depthBiasConstantFactor = 0.0f; // Optional - depth bias equation
-	rasterizer.depthBiasClamp = 0.0f; // Optional - puts an upper bound on the depth bias equation output if positive and non zero and lower bound if non zero and negative
-	rasterizer.depthBiasSlopeFactor = 0.0f; // Optional - param in depth bias equation
 	//depth bias is calculated by finding m which is steepest descent in z direction and then multiplying it by depthBiasSlopeFactor and depthBiasConstantFactor
 
 	//multisampling
@@ -900,10 +871,7 @@ void Renderer::createBaseGraphicsPipeline()
 	multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO; //struct type
 	multisampling.sampleShadingEnable = VK_FALSE; //disable MS on the shading
 	multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT; //number of samples to use, use 1 sample in this case
-	multisampling.minSampleShading = 1.0f; // Optional - minimum number of times the shader will be run per pixel (value is between 0 - 1, 1 means each pixel will receive its own data by another invocation of the frag shader)
-	multisampling.pSampleMask = nullptr; // Optional - used to update only a subset of the samples produced (bitmaps)
-	multisampling.alphaToCoverageEnable = VK_FALSE; // Optional - use the alpha channel to store coverage values which will be used for easy transparency
-	multisampling.alphaToOneEnable = VK_FALSE; // Optional - what do we do with actual alpha values, set the alpha to one as if the fragment shader has not produced an alpha value
+
 
 	//depth stencil testing not being used so its create info is omitted
 
@@ -917,7 +885,7 @@ void Renderer::createBaseGraphicsPipeline()
 		colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA; //use the destination image alpha channel to determine how much of dst colours we use
 		colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD; //add the two colours together
 		colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE; //use the source images alpha
-		colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO; //don't use the destination images alpha
+		colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO; //dont use the destination images alpha
 		colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD; //add the alphas together to determine final alpha of new image
 	}else{
 		colorBlendAttachment.blendEnable = VK_FALSE; //do we blend, not in this case,  we simply overwrite the contents of the buffer the parameters below are ignored
@@ -949,15 +917,6 @@ void Renderer::createBaseGraphicsPipeline()
 		VK_DYNAMIC_STATE_VIEWPORT, //we would like to change the viewport dimensions
 		VK_DYNAMIC_STATE_LINE_WIDTH //we would also like to change the line width on the fly
 	};
-
-	/*
-		It is possible to make particular parts of the graphics pipeline dynamic
-		this means that they can be updated using commands in side the command buffer rather than through an object
-	*/
-	VkPipelineDynamicStateCreateInfo dynamicState = {};
-	dynamicState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO; //type of struct
-	dynamicState.dynamicStateCount = 2; //the number of states we wish to make dynamic
-	dynamicState.pDynamicStates = dynamicStates; //the states
 
 	//pipeline layout - specifies uniform layout information - which we are not using here so the struct is blank, but we still need to provide it
 	VkPipelineLayoutCreateInfo pipelineLayoutInfo = {};
@@ -1031,8 +990,8 @@ void Renderer::createShellGraphicsPipeline()
 	//enable depth testing
 	VkPipelineDepthStencilStateCreateInfo depthStencil = {};
 	depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO; //truct type
-	depthStencil.depthTestEnable = VK_TRUE; //enable depth test
-	depthStencil.depthWriteEnable = VK_FALSE; //enable ability to write values to the depth buffer
+	depthStencil.depthTestEnable = VK_TRUE; //enable depth test (we want to compare depth however
+	depthStencil.depthWriteEnable = VK_TRUE; //enabled (can also be disabled however it does not make much difference since opacity varies with shell level)
 	depthStencil.depthCompareOp = VK_COMPARE_OP_LESS; // keep fragments with lesser depth
 	depthStencil.depthBoundsTestEnable = VK_FALSE; //special test to check if depth buffer values are within a range, disabled here
 	depthStencil.stencilTestEnable = VK_FALSE; //no stencil test to do after depth test
@@ -1118,24 +1077,13 @@ void Renderer::createShellGraphicsPipeline()
 	//configuration per colour attachment (we only have one colour attachment)
 	VkPipelineColorBlendAttachmentState colorBlendAttachment = {};
 	colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT; //the channels we are writing to
-	if (BLEND) {
-		colorBlendAttachment.blendEnable = VK_TRUE; //if we want to blend the colours
-		colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA; //use the source image alpha channel to determine how much of src colours we use
-		colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA; //use the destination image alpha channel to determine how much of dst colours we use
-		colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD; //add the two colours together
-		colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE; //use the source images alpha
-		colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE; //don't use the destination images alpha
-		colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD; //add the alphas together to determine final alpha of new image
-	}
-	else {
-		colorBlendAttachment.blendEnable = VK_FALSE; //do we blend, not in this case,  we simply overwrite the contents of the buffer the parameters below are ignored
-		colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_ONE; // Optional - we treat the src as opaque and replace everything in the dst
-		colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO; // Optional - we are not using any amount of the destination images colour
-		colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD; // Optional - we add the colours (essentially replacing them)
-		colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE; // Optional - use all of the source images alpha value
-		colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO; // Optional - don't use any of the destination images alpha
-		colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD; // Optional - add the alphas together to determine final alpha value
-	}
+	colorBlendAttachment.blendEnable = VK_TRUE; //if we want to blend the colours
+	colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA; //use the source image alpha channel to determine how much of src colours we use
+	colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA; //use the destination image alpha channel to determine how much of dst colours we use
+	colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD; //add the two colours together
+	colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE; //use the source images alpha
+	colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE; //use the destination images alpha
+	colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD; //add the alphas together to determine final alpha of new image
 
 	//references the array of structures for all of the framebuffers and allows you to set blend constants that you can use as blend factors in the blend calculations
 	//final stage in the graphics pipeline is the colour blend stage
@@ -1146,26 +1094,6 @@ void Renderer::createShellGraphicsPipeline()
 	colorBlending.logicOp = VK_LOGIC_OP_COPY; // Optional - we have chosen not to do any operations so the data is written unmodified to the colour attachment from the frag shader
 	colorBlending.attachmentCount = 1; //number of attachments, we only have 1 which the colour attachment
 	colorBlending.pAttachments = &colorBlendAttachment; //the colour blend attachment
-	//4 constants used for RGBA blending depending on blend factor
-	colorBlending.blendConstants[0] = 0.0f; // Optional - R
-	colorBlending.blendConstants[1] = 0.0f; // Optional - G
-	colorBlending.blendConstants[2] = 0.0f; // Optional - B
-	colorBlending.blendConstants[3] = 0.0f; // Optional - A
-
-	//dynamic state - what parameters can we change at runtime (can be nullptr if we don't have any)
-	VkDynamicState dynamicStates[] = {
-		VK_DYNAMIC_STATE_VIEWPORT, //we would like to change the viewport dimensions
-		VK_DYNAMIC_STATE_LINE_WIDTH //we would also like to change the line width on the fly
-	};
-
-	/*
-		It is possible to make particular parts of the graphics pipeline dynamic
-		this means that they can be updated using commands in side the command buffer rather than through an object
-	*/
-	VkPipelineDynamicStateCreateInfo dynamicState = {};
-	dynamicState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO; //type of struct
-	dynamicState.dynamicStateCount = 2; //the number of states we wish to make dynamic
-	dynamicState.pDynamicStates = dynamicStates; //the states
 
 	//pipeline layout - specifies uniform layout information - which we are not using here so the struct is blank, but we still need to provide it
 	VkPipelineLayoutCreateInfo pipelineLayoutInfo = {};
@@ -1214,24 +1142,24 @@ void Renderer::createComputePipeline()
 {
 	auto computeShaderCode = readFile("../shaders/computeShader.spv");
 	VkShaderModule compute = createShaderModule(computeShaderCode);
-
+	//compute shader create info, pretty standard, takes the compute module (spir-v compiled) and entry point to program
 	VkPipelineShaderStageCreateInfo computeShaderCreateInfo = {};
 	computeShaderCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
 	computeShaderCreateInfo.module = compute;
 	computeShaderCreateInfo.stage = VK_SHADER_STAGE_COMPUTE_BIT;
 	computeShaderCreateInfo.pName = "main";
-
+	//pipeline layout, just need the descriptor set with the storage image binding and sampler
 	VkPipelineLayoutCreateInfo pipelineLayoutInfo = {};
 	pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO; //struct type
 	pipelineLayoutInfo.setLayoutCount = 1; // Optional - number of different uniform layouts
 	pipelineLayoutInfo.pSetLayouts = &descriptorSetLayoutCompute; // Optional - the uniform layouts
 	pipelineLayoutInfo.pushConstantRangeCount = 0; // Optional - a push constant is uniform variable in a shader and is used similarly, but it is vulkan owned and managed, it is set through the command buffer (number of push constant ranges)
 	pipelineLayoutInfo.pPushConstantRanges = nullptr; // Optional - the push constant ranges that specify what stage of the pipeline will access the uniform and it also specifies the start offset and size of the uniform
-	 
+	//make the pipeline layout
 	if (vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &computePipelineLayout) != VK_SUCCESS) {
 		throw std::runtime_error("unable to create compute pipeline layout");
 	}
-
+	//make the pipeline now, no base to inherit from, just need the layout and shader module
 	VkComputePipelineCreateInfo computePipelineCreateInfo = {};
 	computePipelineCreateInfo.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
 	computePipelineCreateInfo.basePipelineHandle = VK_NULL_HANDLE;
@@ -1278,14 +1206,14 @@ void Renderer::createFinGraphicsPipeline()
 	geomShaderStageInfo.module = geomShaderModule;
 	geomShaderStageInfo.pName = "main";
 
+	// store the shader stages in an array
 	VkPipelineShaderStageCreateInfo shaderStages[] = { vertShaderStageInfo, geomShaderStageInfo, fragShaderStageInfo };
- // store the shader stages in an array
 
 	//enable depth testing 
 	VkPipelineDepthStencilStateCreateInfo depthStencil = {};
 	depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO; //truct type
 	depthStencil.depthTestEnable = VK_TRUE; //enable depth test
-	depthStencil.depthWriteEnable = VK_FALSE; //enable ability to write values to the depth buffer
+	depthStencil.depthWriteEnable = VK_FALSE; //disable ability to write values to the depth buffer  (otherwise we get transparent rectangles around fins)
 	depthStencil.depthCompareOp = VK_COMPARE_OP_LESS; // keep fragments with lesser depth
 	depthStencil.depthBoundsTestEnable = VK_FALSE; //special test to check if depth buffer values are within a range, disabled here
 	depthStencil.stencilTestEnable = VK_FALSE; //no stencil test to do after depth test
@@ -1371,24 +1299,14 @@ void Renderer::createFinGraphicsPipeline()
 	//configuration per colour attachment (we only have one colour attachment)
 	VkPipelineColorBlendAttachmentState colorBlendAttachment = {};
 	colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT; //the channels we are writing to
-	if (BLEND) {
-		colorBlendAttachment.blendEnable = VK_TRUE; //if we want to blend the colours
-		colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA; //use the source image alpha channel to determine how much of src colours we use
-		colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA; //use the destination image alpha channel to determine how much of dst colours we use
-		colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD; //add the two colours together
-		colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE; //use the source images alpha
-		colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE; //don't use the destination images alpha
-		colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD; //add the alphas together to determine final alpha of new image
-	}
-	else {
-		colorBlendAttachment.blendEnable = VK_FALSE; //do we blend, not in this case,  we simply overwrite the contents of the buffer the parameters below are ignored
-		colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_ONE; // Optional - we treat the src as opaque and replace everything in the dst
-		colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO; // Optional - we are not using any amount of the destination images colour
-		colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD; // Optional - we add the colours (essentially replacing them)
-		colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE; // Optional - use all of the source images alpha value
-		colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO; // Optional - don't use any of the destination images alpha
-		colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD; // Optional - add the alphas together to determine final alpha value
-	}
+	colorBlendAttachment.blendEnable = VK_TRUE; //if we want to blend the colours
+	colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA; //use the source image alpha channel to determine how much of src colours we use
+	colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA; //use the destination image alpha channel to determine how much of dst colours we use
+	colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD; //add the two colours together
+	colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE; //use the source images alpha
+	colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE; //use the destination images alpha
+	colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD; //add the alphas together to determine final alpha of new image
+
 
 	//references the array of structures for all of the framebuffers and allows you to set blend constants that you can use as blend factors in the blend calculations
 	//final stage in the graphics pipeline is the colour blend stage
@@ -1403,22 +1321,7 @@ void Renderer::createFinGraphicsPipeline()
 	colorBlending.blendConstants[0] = 0.0f; // Optional - R
 	colorBlending.blendConstants[1] = 0.0f; // Optional - G
 	colorBlending.blendConstants[2] = 0.0f; // Optional - B
-	colorBlending.blendConstants[3] = 0.0f; // Optional - A
-
-	//dynamic state - what parameters can we change at runtime (can be nullptr if we don't have any)
-	VkDynamicState dynamicStates[] = {
-		VK_DYNAMIC_STATE_VIEWPORT, //we would like to change the viewport dimensions
-		VK_DYNAMIC_STATE_LINE_WIDTH //we would also like to change the line width on the fly
-	};
-
-	/*
-		It is possible to make particular parts of the graphics pipeline dynamic
-		this means that they can be updated using commands in side the command buffer rather than through an object
-	*/
-	VkPipelineDynamicStateCreateInfo dynamicState = {};
-	dynamicState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO; //type of struct
-	dynamicState.dynamicStateCount = 2; //the number of states we wish to make dynamic
-	dynamicState.pDynamicStates = dynamicStates; //the states              
+	colorBlending.blendConstants[3] = 0.0f; // Optional - A            
 
 	//pipeline layout - specifies uniform layout information - which we are not using here so the struct is blank, but we still need to provide it
 	VkPipelineLayoutCreateInfo pipelineLayoutInfo = {};
@@ -1548,7 +1451,7 @@ void Renderer::createRenderPass()
 	colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; //specifies which layout the image will have before the render pass begins
 	colorAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR; // layout to automatically transition to when the render pass finishes. Images to be presented in the swap chain
 
-	//depth attachment to use for the depth test
+	//depth attachment to use for the depth test (standard setup)
 	VkAttachmentDescription depthAttachment = {};
 	depthAttachment.format = findDepthFormat();
 	depthAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
@@ -1688,17 +1591,16 @@ void Renderer::createCommandPool()
 //create the texture
 void Renderer::createTextureImage(Texture & texture, VkImage & textureImage, VkDeviceMemory & textureImageMemory)
 {
-	//stbi_image_free(texture.pixels); - this is how we would do it using the stbi image loading lib
-	//create the image and its memory
+	//create the image and its memory - its going to be a 3d image so we can store 1 texture for each shell (new z value for each shell)
 	if (texture.depth > 1) {
 		createImage(texture.width, texture.height, texture.depth, VK_IMAGE_TYPE_3D, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, textureImage, textureImageMemory);
 		transitionImageLayout(textureImage, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 	}
-	else {
+	else { //if we want a normal 2d image do this setup, standard 2d image
 		createImage(texture.width, texture.height, 1, VK_IMAGE_TYPE_2D, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, textureImage, textureImageMemory);
 	}
 
-	if (texture.pixels) {
+	if (texture.pixels) { //if we have a texture proceed
 		VkBuffer stagingBuffer; //intermediary buffer needed to load data to GPU only accessible memory
 		VkDeviceMemory stagingBufferMemory; //the memory associated with the staging buffer handle
 
@@ -1728,9 +1630,9 @@ void Renderer::createTextureImageView(VkImageView& textureImageView, VkFormat fo
 	textureImageView = createImageView(textureImage, format, viewType, VK_IMAGE_ASPECT_COLOR_BIT);
 }
 
-//TODO create two different samplers, one for the shells and one for the fins (maybe okay actually for both fins and shells)
 void Renderer::createTextureSampler()
 {
+	//sampler info - standard settings, linear filters, repeat the address mode so we dont get nasty artefacts on edges if we hit them
 	VkSamplerCreateInfo samplerInfo = {};
 	samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
 	samplerInfo.magFilter = VK_FILTER_LINEAR;
@@ -1833,7 +1735,7 @@ void Renderer::createIndexBuffer()
 	vkFreeMemory(device, adjacencyStagingBufferMemory, nullptr);
 }
 
-//a descriptor set is a set of resources thar are bound into the pipeline together
+//a descriptor set is a set of resources that are bound into the pipeline together
 //here we are going to create a descriptor set describing 3 resources we wish to bind into the pipeline
 //these are the ubo uniform buffer, lighting constants uniform buffer and the sampler used to access the texture
 void Renderer::createDescriptorSetLayout()
@@ -1860,7 +1762,7 @@ void Renderer::createDescriptorSetLayout()
 	samplerLayoutBinding.pImmutableSamplers = nullptr; //this field needs to be included because the type of this binding is combined image sampler (we set this later, nullptr makes it dynamic)
 	samplerLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT; //which stage of the pipeline will access this binding
 
-	//TODO create a descriptor for the UBO to be used in the shell pipeline
+	//binding to be used in the shell pipeline
 	VkDescriptorSetLayoutBinding uboShellLayoutBinding = {};
 	uboShellLayoutBinding.binding = 3;
 	uboShellLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
@@ -1904,15 +1806,15 @@ void Renderer::createDescriptorSetLayout()
 
 void Renderer::createComputeDescriptorSetLayout()
 {
-	//binding to describe the uniform buffer
-	VkDescriptorSetLayoutBinding uboLayoutBinding = {};
-	uboLayoutBinding.binding = 0; //the number we are binding to (shader access will use this number)
-	uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE; //type of the binding, uniform buffer because that is what we are binding
-	uboLayoutBinding.descriptorCount = 1; //number of descriptors contained in the binding
-	uboLayoutBinding.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT; //which stage of the pipeline will access this binding
+	//storage binding used to access the texture image memory from the compute shader
+	VkDescriptorSetLayoutBinding storageBinding = {};
+	storageBinding.binding = 0; //the number we are binding to (shader access will use this number)
+	storageBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE; //type of the binding is storage image, a type that lets us access an image from compute
+	storageBinding.descriptorCount = 1; //number of descriptors contained in the binding
+	storageBinding.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT; //which stage of the pipeline will access this binding
 
 	//group the descriptor set layout bindings for the base pipeline
-	std::array<VkDescriptorSetLayoutBinding, 1> bindings = { uboLayoutBinding };
+	std::array<VkDescriptorSetLayoutBinding, 1> bindings = { storageBinding };
 	VkDescriptorSetLayoutCreateInfo layoutInfoCompute = {}; //create the descriptor set layout
 	layoutInfoCompute.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
 	layoutInfoCompute.bindingCount = static_cast<uint32_t>(bindings.size()); //the number of bindings
@@ -1925,6 +1827,7 @@ void Renderer::createComputeDescriptorSetLayout()
 }
 
 //the descriptor pool used to allocate the descriptor set. Good for memory optimization as the structs use similar memory
+//same dpool for all pipelines - made sure there is sufficiently enough memory allocated for all the sets
 void Renderer::createDescriptorPool()
 {
 	//we need to create the pool sizes for each type of descriptor binding
@@ -1938,7 +1841,7 @@ void Renderer::createDescriptorPool()
 	poolSizes[3].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC; //type of the buffer
 	poolSizes[3].descriptorCount = static_cast<uint32_t>(swapChainImages.size() * 3); //the max number of descriptors we can allocate from this pool
 	poolSizes[4].type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE; //type of the buffer - for compute pipeline
-	poolSizes[4].descriptorCount = static_cast<uint32_t>(2); //the max number of descriptors we can allocate from this pool
+	poolSizes[4].descriptorCount = static_cast<uint32_t>(2); //the max number of descriptors we can allocate from this pool (2 just in case)
 	//create the pool 
 	VkDescriptorPoolCreateInfo poolInfo = {};
 	poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO; //type of struct
@@ -2004,19 +1907,19 @@ void Renderer::createDescriptorSets()
 	if (vkAllocateDescriptorSets(device, &allocInfoCompute, &computeDescriptorSet) != VK_SUCCESS) {
 		throw std::runtime_error("failed to allocate compute descriptor sets!");
 	}
-
+	//image info to access the data correctly
 	VkDescriptorImageInfo shellTexBuffer = {};
 	shellTexBuffer.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
 	shellTexBuffer.imageView = textureImageShellView;
 	shellTexBuffer.sampler = textureSampler;
-
+	//update the compute descriptor set with the following
 	VkWriteDescriptorSet computeWrite = {};
 	computeWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 	computeWrite.descriptorCount = 1;
 	computeWrite.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
 	computeWrite.dstBinding = 0;
 	computeWrite.dstSet = computeDescriptorSet;
-	computeWrite.pImageInfo = &shellTexBuffer;
+	computeWrite.pImageInfo = &shellTexBuffer; //shell texture buffer that we will write into
 
 	vkUpdateDescriptorSets(device, 1, &computeWrite, 0, 0); //update the compute descriptor set
 
@@ -2108,7 +2011,7 @@ void Renderer::createDescriptorSets()
 		shellDescriptorWrites[3].dstSet = shellDescriptorSets[i]; //the set we are writing to
 		shellDescriptorWrites[3].dstBinding = 3; //the binding of the descriptor in the set
 		shellDescriptorWrites[3].dstArrayElement = 0; //starting index of the udpate
-		shellDescriptorWrites[3].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC; //the type of the descriptor (uniform buffer)
+		shellDescriptorWrites[3].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC; //the type of the descriptor (uniform buffer dynamic)
 		shellDescriptorWrites[3].descriptorCount = 1;//the number of descriptors to update
 		shellDescriptorWrites[3].pBufferInfo = &shellUBOBufferInfo; //the buffer we are binding
 
@@ -2200,7 +2103,6 @@ void Renderer::createCommandBuffers()
 		//clear values to use for VK_ATTACHMENT_LOAD_OP_CLEAR, which we used as load operation for the color attachment
 		std::array<VkClearValue, 2> clearColors = {};
 		clearColors[0].color = { 0.0f, 0.0f, 0.0f, 1.0f };
-//		clearColors[0].color = { 0.7f, 0.5f, 0.6f, 1.0f };
 		clearColors[1].depthStencil = { 1.0f, 0 };
 		renderPassInfo.clearValueCount = static_cast<uint32_t>(clearColors.size()); //one clear value
 		renderPassInfo.pClearValues = clearColors.data(); //clear value
@@ -2228,25 +2130,24 @@ void Renderer::createCommandBuffers()
 		vkCmdBindIndexBuffer(commandBuffersBase[i], adjacencyIndexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
 		vkCmdBindPipeline(commandBuffersBase[i], VK_PIPELINE_BIND_POINT_GRAPHICS, finGraphicsPipeline);
-
-		//TODO insert draw commands for the new fin pipeline
-		uint32_t finOffset = (SHELLS - 1) * static_cast<uint32_t>(alignedMemory); //last ubo has the right shell offset
+		//compute the offset for the last shell ubo
+		uint32_t finOffset = (SHELLS - 1) * static_cast<uint32_t>(alignedMemory); //use the last level to compute the fins (this shell has the right height)
 		vkCmdBindDescriptorSets(commandBuffersBase[i], VK_PIPELINE_BIND_POINT_GRAPHICS, finPipelineLayout, 0, 1, &finDescriptorSets[i], 1, &finOffset);
-		vkCmdDrawIndexed(commandBuffersBase[i], static_cast<uint32_t>(adjacencyIndices.size()), 1, 0, 0, 0); //draw using the index buffer
-
+		vkCmdDrawIndexed(commandBuffersBase[i], static_cast<uint32_t>(adjacencyIndices.size()), 1, 0, 0, 0); //draw fins using the index buffer
+		//bind the index buffer for the base model
 		vkCmdBindIndexBuffer(commandBuffersBase[i], indexBuffer, 0, VK_INDEX_TYPE_UINT32); //bind the index buffer
-
+		//bind shell pipeline
 		vkCmdBindPipeline(commandBuffersBase[i], VK_PIPELINE_BIND_POINT_GRAPHICS, shellGraphicsPipeline);
-
+		//iterate through the shell ubos
 		for (size_t j = 0; j < SHELLS; j++)
 		{
+			//compute aligned memory offset
 			uint32_t offset = j * static_cast<uint32_t>(alignedMemory);
+			//bind the descriptor set with the right ubo data
 			vkCmdBindDescriptorSets(commandBuffersBase[i], VK_PIPELINE_BIND_POINT_GRAPHICS, shellPipelineLayout, 0, 1, &shellDescriptorSets[i], 1, &offset);
-
+			//draw
 			vkCmdDrawIndexed(commandBuffersBase[i], static_cast<uint32_t>(indices.size()), 1, 0, 0, 0); //draw using the index buffer
 		}
-
-		
 
 		//end render pass
 		vkCmdEndRenderPass(commandBuffersBase[i]);
@@ -2257,16 +2158,20 @@ void Renderer::createCommandBuffers()
 	}
 }
 
+//make the compute command buffers
 void Renderer::createComputeCommandBuffers()
 {
+	//allocate the command buffer
 	VkCommandBufferAllocateInfo commandBufferAllocateInfo = {};
 	commandBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-	commandBufferAllocateInfo.commandBufferCount = 1;
-	commandBufferAllocateInfo.commandPool = computeCommandPool;
-	commandBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+	commandBufferAllocateInfo.commandBufferCount = 1; //only one, since it is run only on program stat
+	commandBufferAllocateInfo.commandPool = computeCommandPool; //the command pool to allocate from
+	commandBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY; //no recursiveness here, just a primary buffer
 	
+	//allocate
 	vkAllocateCommandBuffers(device, &commandBufferAllocateInfo, &computeCommandBuffer);
 
+	//record the buffer, just a simple excute
 	VkCommandBufferBeginInfo cmdBeginInfo = {};
 	cmdBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 	cmdBeginInfo.pInheritanceInfo = nullptr;
@@ -2276,8 +2181,8 @@ void Renderer::createComputeCommandBuffers()
 
 	vkCmdBindPipeline(computeCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipeline);
 	vkCmdBindDescriptorSets(computeCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipelineLayout, 0, 1, &computeDescriptorSet, 0, nullptr);
-
-	vkCmdDispatch(computeCommandBuffer, textureShell.width, textureShell.height, SHELLS); //depth param needs to be checked
+	//dispatch in a group, one thread per texel
+	vkCmdDispatch(computeCommandBuffer, textureShell.width, textureShell.height, SHELLS);
 
 	vkEndCommandBuffer(computeCommandBuffer);
 }
@@ -2470,33 +2375,23 @@ void Renderer::createSyncObjects()
 			throw std::runtime_error("failed to create fence for a frame!"); //if it is unsuccessful throw an error
 		}
 	}
-	
+	//compute fence to make sure the texture is written to before we render the scene
 	if (vkCreateFence(device, &fenceInfo, nullptr, &computeFence) != VK_SUCCESS) {
 		throw std::runtime_error("failed to create fence for compute shader!"); //if it is unsuccessful throw an error
 	}
-	/*
-	we now have an array of semaphores, two for each image in flight, this way we do not submit more work than that which can be processed by the GPU
-	this code is now deprecated
-		if (vkCreateSemaphore(device, &semaphoreInfo, nullptr, &imageAvailableSemaphore) != VK_SUCCESS ||
-			vkCreateSemaphore(device, &semaphoreInfo, nullptr, &renderFinishedSemaphore) != VK_SUCCESS) {
-
-			throw std::runtime_error("failed to create semaphores!");
-		}
-	*/
 }
 
 void Renderer::runComputeShader()
 {
 	transitionImageLayout(textureImageShell, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL);
-
-	vkWaitForFences(device, 1, &computeFence, VK_TRUE, UINT64_MAX); //we dont need to do this
+	//fense is already in signaled state
 	vkResetFences(device, 1, &computeFence);
 
 	VkSubmitInfo submitInfo = {};
 	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 	submitInfo.commandBufferCount = 1;
 	submitInfo.pCommandBuffers = &computeCommandBuffer;
-
+	//submit and signal fence when done
 	vkQueueSubmit(computeQueue, 1, &submitInfo, computeFence);
 	
 	transitionImageLayout(textureImageShell, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
@@ -2758,7 +2653,6 @@ void Renderer::createUniformBuffers()
 
 	uniformBuffers.resize(swapChainImages.size()); //allocate space to hold all the handles for the uniform buffer
 	uniformBuffersMemory.resize(swapChainImages.size()); //allocate space to hold handles to the associated memory of uniform buffer
-	// TODO add line in here to allocate the device memory for the shell UBO
 
 	//create buffers
 	for (size_t i = 0; i < swapChainImages.size(); i++) {
