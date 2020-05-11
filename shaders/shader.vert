@@ -52,9 +52,9 @@ void main() {
 	vec4 VCS_position = ubo.view * ubo.model * vec4(inPosition, 1.0);
 
 	vec4 WCS_position = ubo.model * vec4(inPosition, 1.0);
-	vec4 LCS_position = suo.view * WCS_position;
-
-	fragShadowCoord = bias * suo.proj * LCS_position;
+	vec4 LCS_position = suo.view * WCS_position; //light space position
+ 
+ 	fragShadowCoord = bias * suo.proj * LCS_position; //ligth space projection with bias multiplied for correct texture accessing
 	//already in world coords so no need to multiply by model
 	fragLightVector = (ubo.view * lighting.lightPos) - VCS_position;
 	fragNormal = ubo.view * ubo.model * vec4(inNormal, 0.0);

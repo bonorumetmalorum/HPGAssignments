@@ -27,7 +27,7 @@ float linearize(float depth)
 }
 
 void main() {
-    float z = texture(shadowSampler, fragTexCoord).r;
-    outColor = vec4(vec3(1.0 - linearize(z)), 1.0);
+    float z = texture(shadowSampler, fragTexCoord).r; //get the color of the depth map
+    outColor = vec4(vec3(1.0 - linearize(z)), 1.0);  //linearize it so that the colors are represented the right way (would not be needed if light was orthographic since there would be no warping of depth values)
 }
 

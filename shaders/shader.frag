@@ -70,36 +70,37 @@ void main() {
 	float fragdepth = shadow_coords.z;
 
 	float shadowAmount = 0.0;
+	int count = 0;
 	if(renderFlags[0] > 0.5)
 	{
-		//PCF
-		ivec2 shadowMapDim = textureSize(shadowSampler, 0);
-		vec2 texelSize = 1.0/shadowMapDim;
-		int count;
-		for(int x = -1; x <= 1; ++x)
-		{
-			for(int y = -1; y < 1; y++)
-			{
-				float pcf = texture(shadowSampler, shadow_coords.xy + vec2(x, y) * texelSize).r;
-				shadowAmount += fragdepth < pcf ? 1.0 : 0.0;
-				count++;
+		
+		//PCF - a very simple kind of blur applied to a group of pixels, in this case a pixel has a frame 1 pixel in thickness around it which it is averaged by.
+		//very similar to a naive gaussian blur over a 3 x 3 tile
+		ivec2 shadowMapDim = textureSize(shadowSampler, 0); //get the size of the texture
+		vec2 texelSize = 1.0/shadowMapDim; //1 pixel is 1/of the size of the texture
+		for(int x = -2; x <= 2; ++x)
+		{ //iterate over x dim of block
+			for(int y = -2; y < 2; y++)
+			{ //iterate over y dim of block
+				float pcf = texture(shadowSampler, shadow_coords.xy + vec2(x, y) * texelSize).r; //get the texture value at this pixel in the block by adding the offset
+				if(fragdepth < pcf)
+				{ // if this pixel is in shadow
+					shadowAmount += 1.0; //add 1 if it is in shadow else continue
+				}
+				count++; //increment count
 			}
 		}
-		shadowAmount /= 9.0;
+		shadowAmount /= count; //divide by the count to get average pixel shadow value
 		//PCF
 	}
 	else
-	{
+	{ //no pcf so just add the shadow amount at that pixel
 		shadowAmount = (texture(shadowSampler, shadow_coords.st).r > fragdepth ? 1.0 : 0.0);
 	}
 
 	lighting += vec4(diffuseLight, 1.0) * vec4(fragColor, 1.0) * shadowAmount;
 	lighting += vec4(specularLight,1.0) * vec4(fragColor, 1.0) * shadowAmount;
 
-	
-	//outColor = vec4(1.0,1.0,1.0, 1.0);
 	outColor = lighting * textureColor;
-	//outColor = vec4(texture(shadowSampler, fragShadowCoord.st).r, texture(shadowSampler, fragShadowCoord.st).r, texture(shadowSampler, fragShadowCoord.st).r, 1.0);
-	//outColor = vec4(.xyz, 1.0);
 }
 

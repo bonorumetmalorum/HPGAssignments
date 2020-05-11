@@ -39,7 +39,7 @@ layout(binding = 3) uniform ShadowUniformObject {
     mat4 proj;
 	vec3 renderFlags;
 } suo;
-
+//simply renders the quad on the screen
 void main() {
     fragTexCoord = uv;
     gl_Position = vec4(inPosition, 1.0);
