@@ -70,7 +70,6 @@ void main() {
 	float fragdepth = shadow_coords.z;
 
 	float shadowAmount = 0.0;
-	int count = 0;
 	if(renderFlags[0] > 0.5)
 	{
 		
@@ -78,6 +77,7 @@ void main() {
 		//very similar to a naive gaussian blur over a 3 x 3 tile
 		ivec2 shadowMapDim = textureSize(shadowSampler, 0); //get the size of the texture
 		vec2 texelSize = 1.0/shadowMapDim; //1 pixel is 1/of the size of the texture
+		int noPixels = 0;
 		for(int x = -2; x <= 2; ++x)
 		{ //iterate over x dim of block
 			for(int y = -2; y < 2; y++)
@@ -87,10 +87,10 @@ void main() {
 				{ // if this pixel is in shadow
 					shadowAmount += 1.0; //add 1 if it is in shadow else continue
 				}
-				count++; //increment count
+				noPixels++; //increment count
 			}
 		}
-		shadowAmount /= count; //divide by the count to get average pixel shadow value
+		shadowAmount /= noPixels; //divide by the count to get average pixel shadow value
 		//PCF
 	}
 	else
