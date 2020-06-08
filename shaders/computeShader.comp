@@ -18,7 +18,7 @@ float noise2(vec2 coordinate)
 void main()
 {
     float noiseVal = noise3(gl_GlobalInvocationID.xyz);
-    float opacityNoise = noise2(gl_GlobalInvocationID.xy) > 0.5 ? 1.0 : 0.0;
+    float opacityNoise = noise2(gl_GlobalInvocationID.xy) > 0.8 ? 1.0 : 0.0;
     vec4 res = vec4(vec3(noiseVal), opacityNoise);
     imageStore(StorageImage,ivec3(gl_GlobalInvocationID.xyz),res);
 }
