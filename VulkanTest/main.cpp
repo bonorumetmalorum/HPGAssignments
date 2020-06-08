@@ -13,6 +13,7 @@
 
 #include "Diredge.h"
 
+
 int main() {
 	ObjLoader loader;
 	try {
@@ -28,12 +29,18 @@ int main() {
 	Mtl mtl;
 	
 	try {
-		//texture = loader.loadTexturePpm("../models/bunny/shell_noise.ppm");
-		texture = {};
-		texture.height = 256;
-		texture.width = 256;
-		texture.depth = SHELLS;
-		texture.pixels = nullptr;
+		if (!COMPUTE)
+		{
+			texture = loader.loadTexturePpm("../models/bunny/shell_noise.ppm");
+		}
+		else
+		{
+			texture = {};
+			texture.height = 256;
+			texture.width = 256;
+			texture.depth = SHELLS;
+			texture.pixels = nullptr;
+		}
 		mtl = loader.loadMtl("../models/duck/12248_Bird_v1_L2.mtl");
 		fin = loader.loadTexturePpm("../models/bunny/Fin.ppm");
 	}

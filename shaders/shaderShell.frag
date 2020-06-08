@@ -19,9 +19,12 @@ layout(location = 11) in float shellLevel;
 layout(location = 0) out vec4 outColor;
 
 layout(binding = 1) uniform sampler3D texSampler;
+//layout(binding = 1) uniform sampler2D texSampler;
+
 
 void main() {
 	vec4 textureColor = texture(texSampler, fragTexCoord);
+	//vec4 textureColor = texture(texSampler, fragTexCoord.xy);
 	textureColor.rgb = vec3(0.4941, 0.0392, 0.0392);
 	textureColor.a *= opacity;
 	float ambI = 0.3;

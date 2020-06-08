@@ -15,7 +15,7 @@ Renderer::Renderer(OBJ & model, Texture & textureShell, Texture & textureFin, Mt
 	this->adjacencyIndices = model.adjacencyIndices;
 	this->vertices = model.vertexList;
 	this->textureShell = textureShell;
-	this->textureShell.depth = SHELLS;
+	//this->textureShell.depth = SHELLS;
 	this->textureFin = textureFin;
 	this->textureFin.depth = 1;
 	this->lighting.lightAmbient = mtl.ambient;
@@ -57,15 +57,22 @@ void Renderer::initVulkan()
 	createImageViews(); //create the image views that will hold additional info about the images in the swapchain
 	createRenderPass(); //create a render pass that specifies all the stages of the render
 	createDescriptorSetLayout(); //create the descriptor sets
-	createComputeDescriptorSetLayout(); //create the compute descriptor set layout to describe the resource used by the compute pipeline
+	if(COMPUTE)
+		createComputeDescriptorSetLayout(); //create the compute descriptor set layout to describe the resource used by the compute pipeline
 	createBaseGraphicsPipeline(); //create a graphics pipeline to process drawing commands and render to the surface
 	createShellGraphicsPipeline(); //shell rendering pipeline
 	createFinGraphicsPipeline(); //fin rendering pipeline
-	createComputePipeline(); //create the compute pipeline
+	if(COMPUTE)
+		createComputePipeline(); //create the compute pipeline
 	createCommandPool(); //create a command pool to manage allocation of command buffers
 	createTextureImage(this->textureShell, this->textureImageShell, this->textureImageShellMemory); //load the shell image texture into gpu memory
 	createTextureImage(this->textureFin, this->textureImageFin, this->textureImageFinMemory); //load the fin image texture into gpu memory
-	createTextureImageView(this->textureImageShellView, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_VIEW_TYPE_3D, this->textureImageShell); //create the image view to access the texture
+	
+	if(textureShell.depth > 1)
+		createTextureImageView(this->textureImageShellView, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_VIEW_TYPE_3D, this->textureImageShell); //create the image view to access the texture
+	else
+		createTextureImageView(this->textureImageShellView, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_VIEW_TYPE_2D, this->textureImageShell); //create the image view to access the texture
+	
 	createTextureImageView(this->textureImageFinView, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_VIEW_TYPE_2D,this->textureImageFin); //create the image view to access the texture
 	createTextureSampler(); //the sampler function used on GPU shader to access the texture values
 	createDepthResources(); //setup depth resources
@@ -77,10 +84,12 @@ void Renderer::initVulkan()
 	createDescriptorPool(); //create a descriptor pool from which we can allocate uniforms
 	createDescriptorSets(); //create descriptor sets to describe the resources that will be bound to the pipeline
 	createCommandBuffers(); //create the command buffer from the pool with the appropriate commands
-	createComputeCommandBuffers(); //create the command buffer for the compute pipeline work
+	if(COMPUTE)
+		createComputeCommandBuffers(); //create the command buffer for the compute pipeline work
 	createSyncObjects(); //create synchronization primitives to control rendering
 	//run the compute shader
-	runComputeShader();
+	if(COMPUTE)
+		runComputeShader();
 }
 
 /*
@@ -1598,7 +1607,7 @@ void Renderer::createTextureImage(Texture & texture, VkImage & textureImage, VkD
 		transitionImageLayout(textureImage, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 	}
 	else { //if we want a normal 2d image do this setup, standard 2d image
-		createImage(texture.width, texture.height, 1, VK_IMAGE_TYPE_2D, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, textureImage, textureImageMemory);
+		createImage(texture.width, texture.height, 1, VK_IMAGE_TYPE_2D, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, textureImage, textureImageMemory);
 	}
 
 	if (texture.pixels) { //if we have a texture proceed
@@ -1904,26 +1913,31 @@ void Renderer::createDescriptorSets()
 		throw std::runtime_error("failed to allocate descriptor sets!");
 	}
 
-	//allocate descriptor set for the shell pipeline
-	if (vkAllocateDescriptorSets(device, &allocInfoCompute, &computeDescriptorSet) != VK_SUCCESS) {
-		throw std::runtime_error("failed to allocate compute descriptor sets!");
+	if (COMPUTE) 
+	{
+		//allocate descriptor set for the shell pipeline
+		if (vkAllocateDescriptorSets(device, &allocInfoCompute, &computeDescriptorSet) != VK_SUCCESS) {
+			throw std::runtime_error("failed to allocate compute descriptor sets!");
+		}
 	}
 	//image info to access the data correctly
 	VkDescriptorImageInfo shellTexBuffer = {};
 	shellTexBuffer.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
 	shellTexBuffer.imageView = textureImageShellView;
 	shellTexBuffer.sampler = textureSampler;
-	//update the compute descriptor set with the following
-	VkWriteDescriptorSet computeWrite = {};
-	computeWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-	computeWrite.descriptorCount = 1;
-	computeWrite.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
-	computeWrite.dstBinding = 0;
-	computeWrite.dstSet = computeDescriptorSet;
-	computeWrite.pImageInfo = &shellTexBuffer; //shell texture buffer that we will write into
+	if (COMPUTE)
+	{
+		//update the compute descriptor set with the following
+		VkWriteDescriptorSet computeWrite = {};
+		computeWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		computeWrite.descriptorCount = 1;
+		computeWrite.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+		computeWrite.dstBinding = 0;
+		computeWrite.dstSet = computeDescriptorSet;
+		computeWrite.pImageInfo = &shellTexBuffer; //shell texture buffer that we will write into
 
-	vkUpdateDescriptorSets(device, 1, &computeWrite, 0, 0); //update the compute descriptor set
-
+		vkUpdateDescriptorSets(device, 1, &computeWrite, 0, 0); //update the compute descriptor set
+	}
 	//we now need to associate the right buffers with the descriptor sets we have just created
 	for (size_t i = 0; i < swapChainImages.size(); i++) {
 		//struct to use when updating the descriptor set with the correct buffer

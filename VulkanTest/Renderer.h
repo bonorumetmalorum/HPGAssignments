@@ -23,6 +23,8 @@
 #define BLEND true
 
 #define SHELLS 8
+#define COMPUTE true
+
 
 /*
 	helper struct to hold the indices for the queues that support the graphics family and present family
